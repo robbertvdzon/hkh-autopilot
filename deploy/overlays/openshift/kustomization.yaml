@@ -6,10 +6,10 @@ resources:
 images:
 - name: admin-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-admin
-  newTag: sha-5929f67
+  newTag: sha-5c3fbaf
 - name: backend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-backend
-  newTag: sha-5929f67
+  newTag: sha-5c3fbaf
 - name: frontend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-frontend
-  newTag: sha-5929f67
+  newTag: sha-5c3fbaf
