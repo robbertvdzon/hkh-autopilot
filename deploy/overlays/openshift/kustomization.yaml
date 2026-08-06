@@ -2,14 +2,14 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: hkh-autopilot
 resources:
-  - ../../base
+- ../../base
 images:
-  - name: backend-image
-    newName: ghcr.io/robbertvdzon/hkh-autopilot-backend
-    newTag: main
-  - name: frontend-image
-    newName: ghcr.io/robbertvdzon/hkh-autopilot-frontend
-    newTag: main
-  - name: admin-image
-    newName: ghcr.io/robbertvdzon/hkh-autopilot-admin
-    newTag: main
+- name: admin-image
+  newName: ghcr.io/robbertvdzon/hkh-autopilot-admin
+  newTag: sha-5929f67
+- name: backend-image
+  newName: ghcr.io/robbertvdzon/hkh-autopilot-backend
+  newTag: sha-5929f67
+- name: frontend-image
+  newName: ghcr.io/robbertvdzon/hkh-autopilot-frontend
+  newTag: sha-5929f67
