@@ -7,13 +7,16 @@ uiteen gaan lopen. Product Factory en Software Factory ontwikkelen deze variant 
 ## Componenten
 
 - `backend` — Kotlin, Spring Boot en Spring Modulith;
-- `frontend` — Flutter-gebruikersapp voor web en Android;
+- `frontend` — Flutter-gebruikersapp voor web en Android; de homepage controleert de backend en
+  toont daarna het laatste nieuws;
 - `frontend-admin` — afzonderlijke Flutter-webapp voor beheerders;
 - `deploy` — OpenShift/Kustomize/ArgoCD-configuratie;
 - `.factory` — revisiongebonden verificatie voor Software Factory.
 
 De backendbasis volgt de architectuurconventies van Personal News Feed. De exacte referentie en
 bewuste afwijkingen staan in [docs/architecture/reference-baseline.md](docs/architecture/reference-baseline.md).
+Repositoryspecifieke build-, test- en toegankelijkheidsafspraken staan in
+[docs/factory/](docs/factory/README.md).
 
 ## Backend lokaal starten
 
@@ -36,8 +39,15 @@ GET http://localhost:8080/swagger-ui.html
 
 ## Verificatie
 
+Het volledige repositoryvangnet, gelijk aan `.factory/verification.yaml`, is:
+
 ```bash
-mvn -B --no-transfer-progress -f backend/pom.xml clean verify
+(cd backend && mvn -B --no-transfer-progress clean verify)
+(cd frontend && flutter analyze)
+(cd frontend && flutter test)
+(cd frontend && flutter build web)
+(cd frontend-admin && flutter analyze)
+(cd frontend-admin && flutter test)
 ```
 
 Echte secrets, lokale overrides, buildoutput en IDE-bestanden worden niet gecommit.
