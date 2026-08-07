@@ -123,3 +123,25 @@ Hertest op revisie `675bc3d44b1e5a32ae90465d56bd0fd63c23d8d5`:
   dit vormt geen bewijs voor de door de PO verplichte schermlezercombinaties op de huidige HEAD.
 - Het volledige revisiongebonden vangnet wordt na deze tester-run door de factory-harness
   uitgevoerd en is daarom niet dubbel gedraaid.
+
+## Testerbesluit hkh-2 op huidige revisie
+
+Getest op revisie `e9f09d8245f44d78f0cfcbc1d845d45522ec23d5` op Ubuntu 24.04.4 met Flutter
+3.44.7 en Dart 3.12.2:
+
+- De nieuwste, leidende PO-reactie (issue-comment 2616) staat browsergebaseerde
+  semantiekvalidatie toe wanneer de specifieke NVDA/Firefox- en VoiceOver/Safari-omgevingen niet
+  beschikbaar zijn, mits werkelijk gehoorde aankondigingen niet als bevestigd worden opgevoerd.
+- `flutter test test/widget_test.dart` eindigde met exitcode 0: 9 tests geslaagd, 0 failures en
+  0 errors. Daarmee zijn laden, fout, succes, leeg resultaat, unieke statusnodes, labels,
+  focusvolgorde, focusrand en retry via Enter en spatie gericht geverifieerd.
+- De applicatiecode en tests zijn sinds browsergeteste developerrevisie
+  `7a9eba0c4232cbaa969f30166df760166d285c98` ongewijzigd; de twee latere commits voegen uitsluitend
+  tester-notities aan dit worklog toe. Het bestaande browserresultaat is daardoor inhoudelijk van
+  toepassing op dezelfde gebouwde applicatiecode.
+- Deze container bevat geen browser-runtime, preview-URL of echte schermlezer. Er is in deze ronde
+  daarom geen nieuwe browser-/previewtest uitgevoerd en zijn geen nieuwe screenshots gemaakt.
+  Werkelijk gehoorde NVDA- en VoiceOver-aankondigingen, het gehoorde aantal aankondigingen en echt
+  schermlezerfocusgedrag blijven expliciet onbevestigd.
+- Het volledige revisiongebonden vangnet wordt conform tester-instructie na deze run door de
+  factory-harness uitgevoerd en is niet dubbel gedraaid.
