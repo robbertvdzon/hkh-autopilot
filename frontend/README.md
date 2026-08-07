@@ -1,3 +1,36 @@
 # HKH user frontend
 
-The Flutter web and Android user application is introduced in a later phase-1 story.
+This directory contains the Flutter user application for web and Android. The homepage first
+checks `GET /actuator/health` and `GET /api/version`. After a successful service check it loads
+`GET /api/news` and keeps the discovery introduction and product-vision route available.
+
+## Run and verify
+
+Use Flutter stable 3.44.7 with Dart 3.12.2. The backend defaults to `http://localhost:8080`; set a
+different public base URL with the compile-time `API_BASE_URL` define:
+
+```bash
+flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:8080
+flutter analyze
+flutter test
+flutter build web --dart-define=API_BASE_URL=https://test.example
+```
+
+The web build is written to `build/web/`. `API_BASE_URL` is configuration, not a secret.
+
+## Accessible homepage statuses
+
+The service and latest-news flows expose one polite `SemanticsRole.status` node for each current
+state. Their labels are:
+
+- service: `De historische omgeving wordt voorbereid.`, `De HKH-service is niet bereikbaar.` and
+  `Service beschikbaar.`;
+- latest news: `Laatste nieuws wordt geladen.`, `Het laatste nieuws kon niet worden geladen.`,
+  `Laatste nieuws geladen.` and `Er zijn nog geen nieuwsberichten.`.
+
+Visible copies, progress indicators and decorative icons do not create duplicate status nodes.
+Status changes do not receive or move focus. Each error's `Opnieuw proberen` action follows its
+message in natural reading and Tab order, displays a three-pixel focus border and supports Enter
+and Space. Widget tests cover these semantics and keyboard behaviors. A release check should also
+use the repeatable browser and screen-reader scenarios in the active story worklog; DOM/ARIA
+inspection does not by itself confirm the announcements a screen reader produces.
