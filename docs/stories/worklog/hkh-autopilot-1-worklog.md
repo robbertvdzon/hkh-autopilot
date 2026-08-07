@@ -78,3 +78,30 @@ focusgedrag, toetsenbordresultaat en afwijkingen. Gebruik uitsluitend synthetisc
    spatie. Laat de retry vertraagd eindigen met berichten of `[]`. Verwacht eerst eenmaal
    ‘Laatste nieuws wordt geladen.’ en daarna precies één passende succesmelding, zonder
    automatische focusverplaatsing.
+
+## Testerresultaat hkh-2
+
+Getest op revisie `7a9eba0c4232cbaa969f30166df760166d285c98` met de bestaande release-webbuild,
+Chromium 149.0.7827.0 in headless-modus op Ubuntu 24.04. De API-verzoeken naar
+`GET /actuator/health`, `GET /api/version` en `GET /api/news` zijn browserlokaal onderschept en
+vertraagd of beantwoord met fouten, lege resultaten en uitsluitend synthetische nieuwsdata.
+
+- Gerichte widgettest `flutter test test/widget_test.dart`: exit 0, 9 tests geslaagd.
+- Browsergedrag groen voor service laden naar beschikbaar, servicefout en retry via zowel Enter
+  als spatie, nieuws laden naar berichten, nieuws laden naar leeg, en nieuwsfout en retry via zowel
+  Enter als spatie.
+- In iedere gemeten overgang bevatte de Flutter-websemantiek exact de verwachte
+  `role="status"`-node per actieve statusstroom, zonder `tabindex` of browserfocus. De zichtbare
+  kopieën en indicatoren leverden geen tweede statusnode op.
+- De retryknoppen volgden de foutstatus in de semantische DOM-volgorde. Via Tab was eerst de
+  productvisieactie en daarna de nieuws-retry bereikbaar; de service-retry was de eerstvolgende
+  knop. Beide retryknoppen hadden de zichtbare focusrand en activeerden met Enter en spatie.
+- Screenshots: `/work/screenshots/hkh-2-service-and-news-success.png`,
+  `/work/screenshots/hkh-2-service-retry-focused.png` en
+  `/work/screenshots/hkh-2-news-retry-focused.png`.
+
+Beperking: in de testcontainer is geen schermlezer aanwezig en er is geen preview-URL
+geconfigureerd. Daardoor kon de vereiste werkelijk gehoorde tekst en het werkelijke aantal
+schermlezeraankondigingen niet worden vastgesteld. De Chromium DOM-/ARIA-inspectie is hiervoor
+geen vervanging. Het volledige revisiongebonden vangnet wordt na deze tester-run door de
+factory-harness uitgevoerd en is niet dubbel gedraaid.
