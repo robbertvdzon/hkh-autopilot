@@ -105,3 +105,21 @@ geconfigureerd. Daardoor kon de vereiste werkelijk gehoorde tekst en het werkeli
 schermlezeraankondigingen niet worden vastgesteld. De Chromium DOM-/ARIA-inspectie is hiervoor
 geen vervanging. Het volledige revisiongebonden vangnet wordt na deze tester-run door de
 factory-harness uitgevoerd en is niet dubbel gedraaid.
+
+## Testerhertest hkh-2
+
+Hertest op revisie `675bc3d44b1e5a32ae90465d56bd0fd63c23d8d5`:
+
+- Gerichte widgettest `flutter test test/widget_test.dart`: exit 0, 9 tests geslaagd.
+- Toolchain komt overeen met de repositorydocumentatie: Flutter 3.44.7 en Dart 3.12.2.
+- De container biedt uitsluitend Ubuntu 24.04.4/Linux als Flutter-device; er is geen
+  webbrowserdevice, echte schermlezer of preview-URL beschikbaar.
+- De leidende PO-reactie vereist minimaal NVDA + Firefox op Windows en VoiceOver + Safari op
+  macOS. Geen van beide combinaties kon in deze omgeving worden uitgevoerd. Daardoor ontbreken
+  per scenario de werkelijk gehoorde tekst, het werkelijk gehoorde aantal aankondigingen en het
+  daadwerkelijke schermlezerfocusgedrag voor de huidige revisie.
+- De eerder genoemde Chromium-screenshots zijn niet aanwezig in `/work/screenshots` en het eerdere
+  browserresultaat is aan developerrevisie `7a9eba0c4232cbaa969f30166df760166d285c98` gekoppeld;
+  dit vormt geen bewijs voor de door de PO verplichte schermlezercombinaties op de huidige HEAD.
+- Het volledige revisiongebonden vangnet wordt na deze tester-run door de factory-harness
+  uitgevoerd en is daarom niet dubbel gedraaid.
