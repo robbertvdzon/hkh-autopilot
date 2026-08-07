@@ -5,6 +5,7 @@ commands:
       - backend/
       - secrets.env.example
       - .factory/verification.yaml
+      - .github/workflows/verify.yml
     argv:
       - mvn
       - -B
@@ -16,24 +17,40 @@ commands:
   - id: frontend-flutter-analyze
     pathPrefixes:
       - frontend/
+      - .factory/verification.yaml
+      - .github/workflows/verify.yml
     argv: [flutter, analyze]
     workingDirectory: frontend
     timeoutSeconds: 900
   - id: frontend-flutter-test
     pathPrefixes:
       - frontend/
+      - .factory/verification.yaml
+      - .github/workflows/verify.yml
     argv: [flutter, test]
     workingDirectory: frontend
     timeoutSeconds: 900
+  - id: frontend-flutter-build-web
+    pathPrefixes:
+      - frontend/
+      - .factory/verification.yaml
+      - .github/workflows/verify.yml
+    argv: [flutter, build, web]
+    workingDirectory: frontend
+    timeoutSeconds: 1800
   - id: admin-flutter-analyze
     pathPrefixes:
       - frontend-admin/
+      - .factory/verification.yaml
+      - .github/workflows/verify.yml
     argv: [flutter, analyze]
     workingDirectory: frontend-admin
     timeoutSeconds: 900
   - id: admin-flutter-test
     pathPrefixes:
       - frontend-admin/
+      - .factory/verification.yaml
+      - .github/workflows/verify.yml
     argv: [flutter, test]
     workingDirectory: frontend-admin
     timeoutSeconds: 900

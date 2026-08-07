@@ -49,7 +49,7 @@ jobs:
         if: steps.changes.outputs.frontend == 'true' || steps.changes.outputs.admin == 'true' || github.event_name == 'workflow_dispatch'
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.35.2"
+          flutter-version: "3.44.7"
           channel: stable
           cache: true
 

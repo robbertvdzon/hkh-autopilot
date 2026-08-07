@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 
 import 'backend/backend_client.dart';
 import 'backend/backend_status.dart';
@@ -68,7 +69,11 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  void _retry() => setState(() => _status = widget.statusSource.load());
+  void _retry() {
+    setState(() {
+      _status = widget.statusSource.load();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -108,13 +113,16 @@ class _LoadingState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        CircularProgressIndicator(),
-        SizedBox(height: 20),
-        Text('De historische omgeving wordt voorbereid…'),
-      ],
+    return const _StatusMessage(
+      label: 'De historische omgeving wordt voorbereid.',
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 20),
+          Text('De historische omgeving wordt voorbereid…'),
+        ],
+      ),
     );
   }
 }
@@ -129,15 +137,20 @@ class _ErrorState extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
-          Icons.cloud_off,
-          size: 56,
-          color: Theme.of(context).colorScheme.error,
+        ExcludeSemantics(
+          child: Icon(
+            Icons.cloud_off,
+            size: 56,
+            color: Theme.of(context).colorScheme.error,
+          ),
         ),
         const SizedBox(height: 16),
-        Text(
-          'De HKH-service is niet bereikbaar',
-          style: Theme.of(context).textTheme.titleLarge,
+        _StatusMessage(
+          label: 'De HKH-service is niet bereikbaar.',
+          child: Text(
+            'De HKH-service is niet bereikbaar',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
         ),
         const SizedBox(height: 8),
         const Text(
@@ -146,7 +159,9 @@ class _ErrorState extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         FilledButton.icon(
+          key: const Key('service-retry'),
           onPressed: onRetry,
+          style: _retryButtonStyle(Theme.of(context).colorScheme.onPrimary),
           icon: const Icon(Icons.refresh),
           label: const Text('Opnieuw proberen'),
         ),
@@ -189,8 +204,13 @@ class _ReadyState extends StatelessWidget {
         const SizedBox(height: 28),
         Card(
           child: ListTile(
-            leading: const Icon(Icons.check_circle_outline),
-            title: const Text('Service beschikbaar'),
+            leading: const ExcludeSemantics(
+              child: Icon(Icons.check_circle_outline),
+            ),
+            title: const _StatusMessage(
+              label: 'Service beschikbaar.',
+              child: Text('Service beschikbaar'),
+            ),
             subtitle: Text(
               '${status.application} ${status.version} · ${status.commit}',
             ),
@@ -234,7 +254,11 @@ class _LatestNewsSectionState extends State<_LatestNewsSection> {
     }
   }
 
-  void _retry() => setState(() => _news = widget.source.loadLatestNews());
+  void _retry() {
+    setState(() {
+      _news = widget.source.loadLatestNews();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -242,10 +266,13 @@ class _LatestNewsSectionState extends State<_LatestNewsSection> {
       future: _news,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(24),
-              child: CircularProgressIndicator(),
+          return const _StatusMessage(
+            label: 'Laatste nieuws wordt geladen.',
+            child: Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: CircularProgressIndicator(),
+              ),
             ),
           );
         }
@@ -255,10 +282,17 @@ class _LatestNewsSectionState extends State<_LatestNewsSection> {
               padding: const EdgeInsets.all(20),
               child: Column(
                 children: [
-                  const Text('Het laatste nieuws kon niet worden geladen.'),
+                  const _StatusMessage(
+                    label: 'Het laatste nieuws kon niet worden geladen.',
+                    child: Text('Het laatste nieuws kon niet worden geladen.'),
+                  ),
                   const SizedBox(height: 12),
                   OutlinedButton.icon(
+                    key: const Key('news-retry'),
                     onPressed: _retry,
+                    style: _retryButtonStyle(
+                      Theme.of(context).colorScheme.primary,
+                    ),
                     icon: const Icon(Icons.refresh),
                     label: const Text('Opnieuw proberen'),
                   ),
@@ -272,36 +306,45 @@ class _LatestNewsSectionState extends State<_LatestNewsSection> {
           return const Card(
             child: Padding(
               padding: EdgeInsets.all(20),
-              child: Text('Er zijn nog geen nieuwsberichten.'),
+              child: _StatusMessage(
+                label: 'Er zijn nog geen nieuwsberichten.',
+                child: Text('Er zijn nog geen nieuwsberichten.'),
+              ),
             ),
           );
         }
-        return Column(
-          children: news
-              .map(
-                (item) => Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          item.title,
-                          style: Theme.of(context).textTheme.titleLarge,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _formatDate(item.publishedAt),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(item.message),
-                      ],
+        return Semantics(
+          container: true,
+          explicitChildNodes: true,
+          role: SemanticsRole.status,
+          label: 'Laatste nieuws geladen.',
+          child: Column(
+            children: news
+                .map(
+                  (item) => Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            item.title,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _formatDate(item.publishedAt),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(item.message),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              )
-              .toList(growable: false),
+                )
+                .toList(growable: false),
+          ),
         );
       },
     );
@@ -312,4 +355,31 @@ class _LatestNewsSectionState extends State<_LatestNewsSection> {
     return '${local.day.toString().padLeft(2, '0')}-'
         '${local.month.toString().padLeft(2, '0')}-${local.year}';
   }
+}
+
+class _StatusMessage extends StatelessWidget {
+  const _StatusMessage({required this.label, required this.child});
+
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      role: SemanticsRole.status,
+      label: label,
+      excludeSemantics: true,
+      child: child,
+    );
+  }
+}
+
+ButtonStyle _retryButtonStyle(Color focusBorderColor) {
+  return ButtonStyle(
+    side: WidgetStateProperty.resolveWith((states) {
+      if (!states.contains(WidgetState.focused)) return null;
+      return BorderSide(color: focusBorderColor, width: 3);
+    }),
+  );
 }
