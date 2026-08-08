@@ -34,6 +34,16 @@ field paths. It has no allowed dependencies and exposes no controller, repositor
 functional rules are described in [factory/functional-spec.md](factory/functional-spec.md); the
 implementation notes in [factory/technical-spec.md](factory/technical-spec.md).
 
+`nl.vdzon.hkh.privacyclassification` is another internal domain-only module: it holds the
+`GenealogicalRecord` model, `PrivacyClassifier` (a deterministic, fail-closed classifier that returns
+`Processable` only for a deceased person with no detected living-next-of-kin field, and `Blocked`
+with a mandatory readable reason otherwise) and `PrivacyPublishGuard`, a standalone, reusable guard
+that rejects publication of `Blocked` records. It has no allowed dependencies and exposes no
+controller, repository or migration. The classification status is shown in `frontend-admin` with
+both a text label and an icon, never color alone. Details are in
+[factory/functional-spec.md](factory/functional-spec.md) and
+[factory/technical-spec.md](factory/technical-spec.md).
+
 `nl.vdzon.hkh.recordintake` exposes `POST /api/record-intake`, which accepts exactly one collection
 record per request under a short-lived RS256 JWT bearer token (own fail-closed verifier, no
 dependency on the `auth` module). A valid record is stored with status `intern_concept`

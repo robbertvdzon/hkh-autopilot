@@ -79,6 +79,46 @@ op `auth`. De module staat in de moduleset van `ModulithArchitectureTest`.
   `AdminRecordIntakeClient`, die het bestaande gemaskeerde tokenmechanisme (`AdminIdentity.
   requestHeaders`) hergebruikt: er is geen apart invoerveld voor autorisatiebewijs.
 
+## Backendmodule `privacyclassification`
+
+De AVG-classificatie van genealogische records (bijvoorbeeld bidprentjes) zit in de zelfstandige
+Spring Modulith-module `nl.vdzon.hkh.privacyclassification`, met `package-info.java` en
+`@ApplicationModule(allowedDependencies = {})` — geen afhankelijkheid op andere modules — opgenomen
+in de moduleset van `ModulithArchitectureTest`. Er is bewust geen controller, repository of
+migratie: net als `linkdossier` is de module puur intern domein.
+
+- `GenealogicalRecord.kt` modelleert `GenealogicalRecord` (overlijdensstatus als ruwe `String?`) en
+  `LivingNextOfKinFields` (benoemde velden `contactName`, `contactAddress` en
+  `contactPhoneNumber` die, indien gezet, een nog levende nabestaande identificeren). De enum
+  `DeceasedStatus.parse` is naar het patroon van `RightsClassification.parse`, maar levert
+  fail-closed altijd een waarde op: een ontbrekende of niet-herkende ruwe waarde wordt `ONBEKEND`
+  in plaats van `null`.
+- `PrivacyClassificationResult.kt` bevat `PrivacyClassificationStatus` (`PROCESSABLE`/`BLOCKED`) en
+  `PrivacyClassificationResult`, met een verplichte, niet-lege leesbare `reason` — ook bij
+  `PROCESSABLE` — naar het patroon van `LinkDossierValidationResult`. Vaste redenteksten staan in
+  `PrivacyClassificationReasons`.
+- `PrivacyClassifier.classify` levert alleen `PROCESSABLE` op bij `DeceasedStatus.OVERLEDEN` zonder
+  een gezet nabestaande-veld. In alle overige gevallen (onbekende status, `LEVEND`, of wel een
+  gedetecteerd nabestaande-veld) is de uitkomst `BLOCKED` met reden, waaronder exact
+  `"Bevat gegevens van levende nabestaande"` bij een gedetecteerd nabestaande-veld. De hele
+  evaluatie zit in `runCatching`: een onverwachte fout levert fail-closed een geblokkeerd resultaat
+  op.
+- `PrivacyPublishGuard.assertPublishable` is een losstaande, herbruikbare guard die publicatie
+  weigert met `PrivacyPublishBlockedException` wanneer de classificatie `BLOCKED` is en niets doet
+  bij `PROCESSABLE`. Er is nog geen bestaande publicatieworkflow om op aan te sluiten; een latere
+  publicatiefeature kan deze guard hergebruiken.
+- Frontend: `frontend-admin/lib/privacyclassification/privacy_classification_status_view.dart`
+  bevat `PrivacyClassificationStatusView`, die de classificatiestatus in de beheerfrontend toont met
+  zowel een tekstlabel (`Verwerkbaar`/`Geblokkeerd`) als een icoon (`Icons.check_circle`/
+  `Icons.block`), nooit uitsluitend via kleur. De vaste voorgrondkleuren in
+  `PrivacyClassificationStatusColors` halen tegen de witte achtergrond een contrastratio van
+  7.87:1 (`processableForeground`) respectievelijk 6.57:1 (`blockedForeground`), ruim boven de
+  WCAG 2.1 AA-minimumwaarde van 4.5:1. Het icoon krijgt een eigen `semanticLabel` (`Icoon
+  <label>`), zodat zowel het tekstlabel als het icoon een eigen node in de semantiekboom hebben; een
+  widgettest controleert die semantiekboom op aanwezigheid van beide, en een aparte test berekent de
+  contrastratio van de gebruikte kleurwaarden volgens de WCAG 2.1-formule, als vervanging van
+  axe-core conform de bestaande repo-conventie.
+
 ## Flutter-webstatussemantiek
 
 Statussen gebruiken een eigen `Semantics`-container met `SemanticsRole.status` en exact één
