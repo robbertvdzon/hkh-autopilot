@@ -9,6 +9,8 @@ import 'google_signin_button_stub.dart'
     if (dart.library.html) 'google_signin_button_web.dart'
     as google_button;
 import 'news/admin_latest_news.dart';
+import 'recordintake/admin_record_intake.dart';
+import 'recordintake/record_intake_form.dart';
 
 void main() {
   final sessionSource = AppConfig.previewMode
@@ -23,6 +25,7 @@ void main() {
     HkhAdminApp(
       sessionSource: sessionSource,
       newsSource: AdminLatestNewsClient(AppConfig.apiBaseUrl),
+      recordIntakeSource: AdminRecordIntakeClient(AppConfig.apiBaseUrl),
     ),
   );
 }
@@ -31,12 +34,14 @@ class HkhAdminApp extends StatelessWidget {
   const HkhAdminApp({
     required this.sessionSource,
     required this.newsSource,
+    required this.recordIntakeSource,
     this.googleButtonBuilder,
     super.key,
   });
 
   final AdminSessionSource sessionSource;
   final AdminLatestNewsSource newsSource;
+  final AdminRecordIntakeSource recordIntakeSource;
   final Widget Function()? googleButtonBuilder;
 
   @override
@@ -51,6 +56,7 @@ class HkhAdminApp extends StatelessWidget {
       home: AdminGate(
         sessionSource: sessionSource,
         newsSource: newsSource,
+        recordIntakeSource: recordIntakeSource,
         googleButtonBuilder:
             googleButtonBuilder ?? google_button.renderGoogleButton,
       ),
@@ -62,12 +68,14 @@ class AdminGate extends StatefulWidget {
   const AdminGate({
     required this.sessionSource,
     required this.newsSource,
+    required this.recordIntakeSource,
     required this.googleButtonBuilder,
     super.key,
   });
 
   final AdminSessionSource sessionSource;
   final AdminLatestNewsSource newsSource;
+  final AdminRecordIntakeSource recordIntakeSource;
   final Widget Function() googleButtonBuilder;
 
   @override
@@ -157,6 +165,7 @@ class _AdminGateState extends State<AdminGate> {
       return _AdminHome(
         identity: identity,
         newsSource: widget.newsSource,
+        recordIntakeSource: widget.recordIntakeSource,
         onSignOut: _signOut,
       );
     }
@@ -240,11 +249,13 @@ class _AdminHome extends StatefulWidget {
   const _AdminHome({
     required this.identity,
     required this.newsSource,
+    required this.recordIntakeSource,
     required this.onSignOut,
   });
 
   final AdminIdentity identity;
   final AdminLatestNewsSource newsSource;
+  final AdminRecordIntakeSource recordIntakeSource;
   final VoidCallback onSignOut;
 
   @override
@@ -398,6 +409,13 @@ class _AdminHomeState extends State<_AdminHome> {
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: 32),
+                  const Divider(),
+                  const SizedBox(height: 32),
+                  RecordIntakeForm(
+                    identity: widget.identity,
+                    recordIntakeSource: widget.recordIntakeSource,
                   ),
                 ],
               ),
