@@ -11,6 +11,7 @@ class ModulithArchitectureTest {
     private val modules = setOf(
         "auth",
         "configuration",
+        "externalverification",
         "linkdossier",
         "news",
         "previewdata",

@@ -119,6 +119,64 @@ migratie: net als `linkdossier` is de module puur intern domein.
   contrastratio van de gebruikte kleurwaarden volgens de WCAG 2.1-formule, als vervanging van
   axe-core conform de bestaande repo-conventie.
 
+## Backendmodule `externalverification`
+
+De externe verificatie tegen archieven.nl/Noord-Hollands Archief zit in de zelfstandige Spring
+Modulith-module `nl.vdzon.hkh.externalverification` (inclusief de subpackage
+`externalverification.api`), met `package-info.java` en `@ApplicationModule(allowedDependencies =
+{})` — geen afhankelijkheid op andere modules — opgenomen in de moduleset van
+`ModulithArchitectureTest`. Anders dan `linkdossier` en `privacyclassification` heeft deze module wél
+een eigen repository en migratie, naar het patroon van `recordintake`, omdat ze resultaten
+persisteert.
+
+- `POST /api/external-verification` (`ExternalVerificationController`) neemt per verzoek precies
+  één verificatie in. `ExternalVerificationRequest` modelleert de invoer als ruwe, op zichzelf
+  staande velden (`localIdentifier`, `name`, `birthDate`, `deathDate`, `adtid`, `guid`, optioneel
+  `accessToken`), naar het patroon van `RecordIntake`/`LinkDossier` en niet gekoppeld aan een
+  bestaand persistent record. `archivesNlUri(adtid, guid)` bouwt de resolvebare URI
+  `http://opendata.archieven.nl/id/<adtid>/<guid>` op.
+- `ExternalVerificationValidator.validate` verzamelt alle veldfouten in
+  `ExternalVerificationValidationResult.fieldErrorPaths` (nooit fail-fast; ontdubbeld en
+  lexicografisch gesorteerd), naar het patroon van `RecordIntakeValidator`; een onverwachte fout
+  levert fail-closed alle verplichte velden als ontbrekend op. Veldfouten geven HTTP 400 met
+  `fieldErrors` (machineleesbare paden uit `ExternalVerificationFieldPaths`).
+- `ArchivesNlClient`/`RestClientArchivesNlClient` bevraagt de resolvebare URI met header
+  `Accept: application/ld+json`, zonder autorisatietoken tenzij een geconfigureerd
+  `accessToken` aanwezig is. De basis-URI is overschrijfbaar via
+  `hkh.externalverification.archives-base-url` (env
+  `HKH_EXTERNAL_VERIFICATION_ARCHIVES_BASE_URL`), uitsluitend zodat tests tegen een lokale
+  fixture/mock-endpoint kunnen draaien. Er wordt geen volledige externe brondata opgeslagen; alleen
+  de kernvelden gaan naar de matcher.
+- `ExternalVerificationMatcher.match` vergelijkt naam en geboorte-/overlijdensdatum van het lokale
+  record met de opgehaalde JSON-LD-kernvelden en levert een `ExternalVerificationMatchResult` op
+  met status `VERIFIED` (alle velden komen overeen) of `UNVERIFIED` (geen match, inclusief een
+  niet-bestaande/ongeldige guid), een lijst met uitsluitend de namen van gematchte velden
+  (`ExternalVerificationMatchableFields`: `name`, `birthDate`, `deathDate` — nooit de opgehaalde
+  waarden zelf) en een verplichte, niet-lege leesbare `reason`
+  (`ExternalVerificationReasons`), naar het patroon van `PrivacyClassificationResult`.
+- `ExternalVerificationService.verify` orkestreert client, matcher en opslag en levert een
+  `ExternalVerificationOutcome` (opgeslagen record plus reden). `ExternalVerificationRepository`
+  (Flyway-migratie `V5__external_verification.sql`, tabel `external_verification`) slaat
+  uitsluitend de minimale verificatievelden op: externe URI, gematchte velden, controletijdstip,
+  status en — indien aanwezig — het versleutelde toegangstoken; nooit de volledige externe
+  JSON-LD-payload.
+- `ExternalVerificationPublishGuard.assertPublishable` is een losstaande, herbruikbare guard (naar
+  het patroon van `PrivacyPublishGuard`) die publicatie weigert met
+  `ExternalVerificationPublishBlockedException` wanneer de status niet `VERIFIED` is en niets doet
+  bij `VERIFIED`. Er is nog geen bestaande publicatieworkflow om op aan te sluiten.
+- `ExternalVerificationTokenCipher` versleutelt/ontsleutelt een optioneel archiefendpoint-token met
+  AES-256-GCM. De sleutel komt uit `hkh.externalverification.token-key` (env
+  `HKH_EXTERNAL_VERIFICATION_TOKEN_KEY`), naar het patroon van de bestaande `secrets.env`-aanpak;
+  zonder geconfigureerde sleutel faalt versleuteling fail-closed. Het token wordt nooit in leesbare
+  vorm getoond, gelogd of in een API-respons opgenomen — dit is nieuw, want er bestond nog geen
+  precedent in de repo voor het versleuteld bewaren van uitgaande tokens (de bestaande
+  Nimbus/JWKS-code verifieert uitsluitend inkomende tokens).
+- Frontend: `frontend-admin/lib/externalverification/external_verification_link_view.dart` bevat
+  `ExternalVerificationLinkView`, die de link naar het externe archiefrecord toont met een
+  `Semantics`-node (`link: true`) waarvan het `label` programmatisch aankondigt dat de link een
+  externe bron in een nieuw tabblad opent (`linkSemanticLabel`), naar de bestaande
+  toegankelijkheidsconventies van `frontend-admin`.
+
 ## Flutter-webstatussemantiek
 
 Statussen gebruiken een eigen `Semantics`-container met `SemanticsRole.status` en exact één

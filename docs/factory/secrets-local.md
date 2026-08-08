@@ -12,6 +12,13 @@ overschrijven waarden uit het bestand; `HKH_SECRETS_FILE` kan naar een andere lo
 - `HKH_RECORD_INTAKE_JWKS_URL`: optionele JWKS-bron (RS256) voor het kortlevende
   record-intaketoken; de intake (`POST /api/record-intake`) blijft fail-closed uitgeschakeld
   (HTTP 503) zolang deze leeg is.
+- `HKH_EXTERNAL_VERIFICATION_TOKEN_KEY`: optionele, base64-gecodeerde AES-256-sleutel om een
+  archieven.nl-toegangstoken versleuteld op te slaan; alleen relevant als het archiefendpoint ooit
+  zelf een token gaat eisen (vandaag niet het geval). Versleuteling faalt fail-closed zolang deze
+  leeg is.
+- `HKH_EXTERNAL_VERIFICATION_ARCHIVES_BASE_URL`: optionele basis-URI voor archieven.nl, standaard
+  het publieke opendata-endpoint; uitsluitend bedoeld om lokaal of in tests tegen een
+  fixture-/mock-endpoint te draaien.
 
 De gebruikersfrontend gebruikt geen secret voor zijn backendadres. Geef een openbaar adres tijdens
 build/run door met `--dart-define=API_BASE_URL=https://...`; standaard is

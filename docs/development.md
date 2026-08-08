@@ -53,6 +53,21 @@ persisted, logged or returned. Configuration and behavior are documented in
 [factory/technical-spec.md](factory/technical-spec.md) and
 [factory/secrets-local.md](factory/secrets-local.md).
 
+`nl.vdzon.hkh.externalverification` exposes `POST /api/external-verification`, which checks whether
+one local genealogical record matches the public archieven.nl/Noord-Hollands Archief open data
+endpoint (`http://opendata.archieven.nl/id/<adtid>/<guid>`, queried with
+`Accept: application/ld+json`, no authorization token unless the endpoint itself explicitly
+requires one). Matching name and birth/death date fields yield status `VERIFIED`; no match
+(including a non-existent or invalid guid) yields `UNVERIFIED`, for which
+`ExternalVerificationPublishGuard` refuses publication. Only the minimal verification fields
+(external URI, matched fields, checked-at timestamp and status) are persisted
+(`V5__external_verification.sql`) — never the full external JSON-LD payload. An optional archive
+access token is encrypted with AES-256-GCM (`ExternalVerificationTokenCipher`) and never shown,
+logged or returned in plain text. `frontend-admin` shows the archive link with an aria-label that
+announces it opens an external source in a new tab. Configuration and behavior are documented in
+[factory/technical-spec.md](factory/technical-spec.md) and
+[factory/secrets-local.md](factory/secrets-local.md).
+
 ## User frontend
 
 The user application supports Flutter web and Android. It uses `http://localhost:8080` as its
