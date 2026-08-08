@@ -66,3 +66,22 @@ Verificatie (alle exitcode 0, 0 failures, 0 errors):
 - `(cd frontend && flutter build web)` - Built build/web
 - `(cd frontend-admin && flutter analyze)` - No issues found
 - `(cd frontend-admin && flutter test)` - All tests passed
+
+Review (hkh-13, reviewer):
+- Diff t.o.v. `main` volledig doorgelopen: alleen de nieuwe module `nl.vdzon.hkh.linkdossier`,
+  de moduleset in `ModulithArchitectureTest`, de unittests en deze worklog. Geen controller,
+  repository, migratie of frontendwijziging - scope klopt.
+- Acceptatiecriteria een voor een tegen `LinkDossierValidator` gelegd: recordaantal, trimmen,
+  alternatievenparen, absolute http/https-check voor permanente URL en bewijslinks, stabiele
+  referentie met melding op het feitelijk gebruikte pad, aparte beoordeling van datering,
+  gecontroleerde waarden, fail-closed metadata-link en volledig losstaande objectmedia-indicatie.
+  Ontdubbeling en lexicografische ordening lopen via `Set` + `sorted()`, dus uitvoeringsvolgorde-
+  onafhankelijk. `runCatching` in `validate` laat geen uitzondering ontsnappen.
+- Beide interpretatiekeuzes akkoord: ze volgen de subtaakomschrijving ("ontbrekende of
+  niet-herkende gecontroleerde waarden blokkeren hun eigen pad") en zijn expliciet vastgelegd.
+- Testdekking dekt de volledige door de story geeiste lijst, inclusief de exacte deterministische
+  veldpadvolgorde bij meerdere gelijktijdige fouten.
+- Geen blockers. Suggesties voor later (niet blokkerend): losse tests voor ontbrekende
+  `relation.relationType` en `relation.connectionGround` (nu alleen gedekt via het
+  meervoudige-foutenscenario), en overweeg of het hoofdletterongevoelig maken van gecontroleerde
+  waarden in `parse` gewenst is - de story noemt alleen kleine letters.
