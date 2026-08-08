@@ -85,3 +85,32 @@ Review (hkh-13, reviewer):
   `relation.relationType` en `relation.connectionGround` (nu alleen gedekt via het
   meervoudige-foutenscenario), en overweeg of het hoofdletterongevoelig maken van gecontroleerde
   waarden in `parse` gewenst is - de story noemt alleen kleine letters.
+
+Test (hkh-14, tester):
+- Volledig vangnet lokaal gedraaid, alle commando's exitcode 0:
+  - `(cd backend && mvn -B --no-transfer-progress clean verify)` - Tests run: 64, Failures: 0,
+    Errors: 0, Skipped: 0 (waarvan 41 in `LinkDossierValidatorTest`), BUILD SUCCESS
+  - `(cd frontend && flutter analyze)` - No issues found
+  - `(cd frontend && flutter test)` - 11 tests, All tests passed
+  - `(cd frontend && flutter build web)` - exitcode 0
+  - `(cd frontend-admin && flutter analyze)` - No issues found
+  - `(cd frontend-admin && flutter test)` - 4 tests, All tests passed
+  Geen flakes waargenomen; geen enkele test hoefde herdraaid te worden.
+- Gedragsverificatie: de story levert een intern backend-domeinobject plus validator, zonder
+  endpoint, opslag of UI. Er is dus geen preview/E2E-oppervlak; `deployment.md` legt bovendien
+  bewust geen preview-URL- of namespacetemplate vast (`preview_url_template: ""`) en de
+  factory-previewvelden zijn leeg. Verificatie is daarom gedaan via de validatorlogica en de
+  bijbehorende gedragstests, niet via een browser. Geen screenshots van toepassing.
+- Acceptatiecriteria nagelopen tegen `LinkDossierValidator` en de assertions in
+  `LinkDossierValidatorTest`: recordaantal ongelijk twee, gelijke stabiele referentie, trimmen van
+  witruimte, alternatievenparen (permanentUrl/identifier en title/description), absolute
+  http(s)-eis voor permanente URL en bewijslinks, dateringswaarde plus expliciete onzekerheid,
+  gecontroleerde waarden voor rechten/privacy/bevestigingsstatus, fail-closed metadata-link,
+  volledig losstaande objectmedia-beoordeling en deterministische, ontdubbelde en lexicografisch
+  gesorteerde veldpaden. Alle door de story geeiste testscenario's zijn aanwezig en toetsen
+  daadwerkelijk het beschreven gedrag (geen lege of tautologische assertions).
+- Randgeval ter kennisgeving, niet blokkerend en buiten de letterlijke acceptatiecriteria: de
+  distinctness-check vergelijkt de feitelijk gebruikte stabiele referentie. Heeft record 0 een
+  permanente URL en record 1 alleen een identifier met exact dezelfde tekst, dan worden die als
+  gelijk gezien. De story schrijft hier geen ander gedrag voor; fail-closed is dit de veilige kant.
+- Werkboom niet gewijzigd behalve deze worklogaanvulling; geen code, tests of infra aangeraakt.
