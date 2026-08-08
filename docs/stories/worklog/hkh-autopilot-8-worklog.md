@@ -72,3 +72,23 @@ Niet gedaan / bewust buiten scope:
   (GedcomResnRuleTest 16, PrivacyClassifierTest 17, LivingPersonAgeRuleTest 17,
   PrivacyPublishGuardTest 2 tests). Bestaande tests ongewijzigd geslaagd.
 - Geen blockers gevonden. Akkoord.
+
+## Test (hkh-50)
+- Code beoordeeld: `GedcomResnRule.kt`, `GenealogicalRecord.gedcomSource`,
+  `PrivacyClassifier.evaluate` (bindende RESN-check vóór bestaande logica) — komt overeen met alle
+  acceptatiecriteria uit de story (record-/feitniveau-blokkade overstemt leeftijdsregel, geen RESN
+  laat bestaande uitkomst leidend, geen bron is not-applicable, fail-closed op ongeldige syntax).
+  `GedcomResnRuleTest` en `PrivacyClassifierTest` dekken alle vier vereiste fixtures plus extra
+  edge cases (letterkast, geneste niveaus, ongeldige syntax-varianten).
+- Volledig voorgeschreven vangnet gedraaid (niets overgeslagen):
+  - `(cd backend && mvn -B --no-transfer-progress clean verify)` → BUILD SUCCESS, Tests run: 201,
+    Failures: 0, Errors: 0, Skipped: 0.
+  - `(cd frontend && flutter analyze)` → No issues found.
+  - `(cd frontend && flutter test)` → 11/11 groen.
+  - `(cd frontend && flutter build web)` → Built build/web.
+  - `(cd frontend-admin && flutter analyze)` → No issues found.
+  - `(cd frontend-admin && flutter test)` → 22/22 groen.
+  Geen rode/flaky tests waargenomen; geen herdraai nodig.
+- Feature is pure backend-domeinlogica zonder REST-endpoint of frontendwijziging (conform scope);
+  geen preview-URL beschikbaar (lege previewvelden in `deployment.md`) en niet van toepassing hier.
+- Geen bugs gevonden. Akkoord voor doorgang naar summary/documentation/merge.
