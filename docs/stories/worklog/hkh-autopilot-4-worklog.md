@@ -40,3 +40,31 @@ Done / rationale:
 - Volledig vangnet gedraaid: `mvn -B --no-transfer-progress clean verify` (backend), `flutter
   analyze`/`flutter test`/`flutter build web` (frontend), `flutter analyze`/`flutter test`
   (frontend-admin) — alle groen (zie run hieronder).
+
+## Tester (hkh-26) — verificatie
+
+- `mvn -f backend/pom.xml -B --no-transfer-progress clean verify`: BUILD SUCCESS, 113 tests,
+  0 failures/errors (incl. `PrivacyClassifierTest` 9 tests, `PrivacyPublishGuardTest` 2 tests,
+  `ModulithArchitectureTest` slaagt met de nieuwe module).
+- `(cd frontend && flutter analyze)`: geen meldingen.
+- `(cd frontend && flutter test)`: 11 tests, alle groen.
+- `(cd frontend && flutter build web)`: build succesvol.
+- `(cd frontend-admin && flutter analyze)`: geen meldingen.
+- `(cd frontend-admin && flutter test)`: default-run toonde in de voortgangsweergave niet alle
+  4 tests van `privacy_classification_status_view_test.dart` (bekend omgevingsartefact, zie
+  agent-tip `frontend-admin-flutter-test-concurrency-artifact`). Ter bevestiging het testbestand
+  los gedraaid (`flutter test test/privacy_classification_status_view_test.dart`, 4/4 groen) en de
+  volledige suite met `flutter test -j 1` herhaald: 17 tests, alle groen, incl. beide
+  semantiekboom-tests (tekstlabel + icoon voor Processable/Blocked) en beide contrasttests
+  (≥4.5:1).
+- Code gelezen: `GenealogicalRecord`/`DeceasedStatus.parse` is fail-closed (onbekend bij
+  ontbrekende/niet-herkende waarde), `PrivacyClassifier` retourneert `Processable` alleen bij
+  `overleden` zonder nabestaande-veld en anders `Blocked` met leesbare reden (incl. exacte tekst
+  "Bevat gegevens van levende nabestaande"), `PrivacyPublishGuard.assertPublishable` gooit
+  `PrivacyPublishBlockedException` bij `Blocked` en laat `Processable` door.
+  `PrivacyClassificationStatusView` toont tekstlabel + apart gelabeld icoon (nooit uitsluitend
+  kleur); vaste kleuren halen 7.87:1 resp. 6.57:1 contrast, ruim boven de vereiste 4.5:1.
+- Alle acceptatiecriteria uit de story geverifieerd via bovenstaande geautomatiseerde tests;
+  geen bugs gevonden. Preview-URL was leeg in `.task.md` (geen preview-context beschikbaar) —
+  niet van toepassing voor deze zuiver interne domeinmodule zonder endpoint.
+- Conclusie: `tested`.
