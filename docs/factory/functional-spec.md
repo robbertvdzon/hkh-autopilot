@@ -133,6 +133,17 @@ overlijdensstatus-/nabestaande-controles. Bekende beperking: datums worden verwa
 dag-precisie (ISO-8601); een datum met alleen een jaartal wordt ook verwerkt (met 1 januari als
 impliciete dag), maar fijnere granulariteit dan dag of jaar wordt niet ondersteund.
 
+Als aanvullend, onafhankelijk veiligheidsnet wordt ook gekeken naar de industriestandaard GEDCOM
+7.0 RESN-markering (vertrouwelijk/afgesloten/privacy), via een nieuw optioneel veld met ruwe
+GEDCOM-brontekst op het record. Bevat die brontekst een RESN-waarde `CONFIDENTIAL`, `LOCKED` of
+`PRIVACY` — op recordniveau of dieper, binnen een gebeurtenis/feit — dan is het record altijd
+`Blocked`, ongeacht de uitkomst van de leeftijdsregel of de overige controles. Is er geen
+GEDCOM-brondata beschikbaar (bijvoorbeeld omdat de bron alleen JSON of RDF is), dan heeft dit
+signaal geen invloed en blijft de bestaande classificatie leidend. Syntactisch ongeldige, niet-lege
+GEDCOM-brontekst wordt fail-closed als blokkerend behandeld. Er is nog geen echte GEDCOM-koppeling
+met een externe bron gebouwd; het veld wordt vooralsnog alleen met synthetische testfixtures
+gevuld. Bekende beperking: alleen GEDCOM 7.0 RESN-syntax wordt ondersteund.
+
 In de beheerfrontend (`frontend-admin`) wordt de classificatiestatus altijd getoond met zowel een
 tekstlabel als een icoon, nooit uitsluitend via kleur, met een contrastratio van minimaal 4.5:1
 tussen voorgrond- en achtergrondkleur.
@@ -210,7 +221,12 @@ fixture-varianten met een gedetecteerd nabestaande-veld → `Blocked` met de exa
 gegevens van levende nabestaande"; ontbrekende, niet-herkende, `onbekend`- en `levend`-status →
 fail-closed `Blocked`; niet-lege tekstuele reden voor zowel `Processable` als elke `Blocked`-variant;
 en de publish-guard die publicatie weigert voor elk `Blocked`-record en toestaat voor elk
-`Processable`-record. Een Flutter-widgettest op de semantiekboom van `frontend-admin` bevestigt
+`Processable`-record. De GEDCOM RESN-regel is gedekt met `GedcomResnRuleTest` (geen brontekst,
+geldige brontekst zonder RESN, RESN op record- en feitniveau, niet-blokkerende RESN-waarden en
+syntactisch ongeldige brontekst) en met aanvullende `PrivacyClassifierTest`-scenario's die
+bevestigen dat een blokkerend RESN-signaal de totaaluitkomst `Blocked` maakt ongeacht de
+leeftijdsregel, en dat een `NONE`/`NOT_APPLICABLE`-signaal de bestaande classificatie ongewijzigd
+laat. Een Flutter-widgettest op de semantiekboom van `frontend-admin` bevestigt
 tekstlabel én icoon voor beide statussen, en een gerichte kleur-/contrasttest berekent de
 contrastratio van de gebruikte kleurwaarden (≥4.5:1) volgens de WCAG 2.1-formule, als vervanging van
 axe-core conform de bestaande repo-conventie.
