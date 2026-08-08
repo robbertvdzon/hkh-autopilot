@@ -46,3 +46,23 @@
 - Volledig vangnet lokaal groen: backend `mvn clean verify` (102 tests, incl. Testcontainers via
   Docker-socket in deze omgeving), `frontend` analyze/test/build web, `frontend-admin`
   analyze/test.
+
+## Review (reviewer)
+
+- Backendmodule, validator, tokenverifier, migratie en controller gecontroleerd tegen de AC's:
+  fail-closed 401 (missende claims, verkeerde issuer/audience/scope, verlopen, levensduur > 15
+  min), geïsoleerde privacyregel (blokkeert `mogelijk persoonsgegevens`/`persoonsgegevens`
+  onafhankelijk van overige veldfouten, `PRIVACY_CLASSIFICATION_BLOCKED` zonder opslag), verzamelde
+  veldfouten zonder fail-fast, opslag uitsluitend als `intern_concept` zonder media-/
+  publicatievelden in de respons, en de externe koppeling die alleen ontstaat als alle drie de
+  velden geldig zijn (DB-constraints in `V4__record_intake.sql` bevestigen dit ook op tabelniveau).
+  Geen tokenwaarde/claims/headers in respons, opslag of foutmeldingen aangetroffen.
+- Frontend-admin `RecordIntakeForm`: foutsamenvatting met focusverplaatsing
+  (`FocusNode.requestFocus()`), per-veld foutkoppeling via `errorText`, status via tekst +
+  `Semantics(liveRegion: true)`, geen apart invoerveld voor autorisatiebewijs — consistent met de
+  AC's en met de bewust gedocumenteerde afwijking van de bestaande `SemanticsRole.status`-conventie.
+  `ModulithArchitectureTest` en `DatabaseIntegrationTest` correct bijgewerkt (module toegevoegd,
+  migratieaantal 3 → 4).
+- `docs/factory/technical-spec.md`, `development.md` en `secrets-local.md`/`secrets.env.example`
+  zijn concreet en overeenkomstig de code bijgewerkt.
+- Geen blockers gevonden; geen scope-overschrijding t.o.v. de story.
