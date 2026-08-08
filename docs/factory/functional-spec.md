@@ -107,6 +107,27 @@ Buiten scope: de publicatie-workflow zelf, objectmedia-opslag, verwerkingsgronds
 bewaartermijn-registratie en koppeling met andere externe archieven dan het
 Noord-Hollands Archief-patroon.
 
+## Privacyclassificatie (genealogische records)
+
+De AVG geldt niet voor overleden personen. Een genealogisch record (bijvoorbeeld een bidprentje)
+wordt daarom automatisch als `Processable` geclassificeerd zodra vaststaat dat de persoon overleden
+is én er geen gegevens van een nog levende nabestaande in het record staan. In elk ander geval
+(onbekende of levende overlijdensstatus, of wel een gedetecteerd nabestaande-veld) is het record
+`Blocked` met een verplichte, leesbare tekstuele reden — nooit alleen een interne code. Ontbreekt of
+is de overlijdensstatus niet herkend, dan is de uitkomst standaard fail-closed `Blocked`.
+
+Een `Blocked`-record kan nooit gepubliceerd worden: een publish-guard weigert publicatie voor elk
+geblokkeerd record en staat publicatie toe voor elk `Processable`-record. Er is nog geen bestaande
+publicatieworkflow in de repository om deze guard op aan te sluiten; een latere publicatiefeature kan
+hem hergebruiken.
+
+In de beheerfrontend (`frontend-admin`) wordt de classificatiestatus altijd getoond met zowel een
+tekstlabel als een icoon, nooit uitsluitend via kleur, met een contrastratio van minimaal 4.5:1
+tussen voorgrond- en achtergrondkleur.
+
+Buiten scope: de daadwerkelijke publicatieworkflow zelf, opslag/REST-endpoint voor genealogische
+records en koppeling met externe archieven.
+
 ## Verificatie
 
 Widgettests dekken alle statusvarianten, aantallen en labels van statusnodes, afwezigheid van
@@ -121,6 +142,17 @@ hypothese-relatie, ontbrekende, niet-toegestane en onduidelijke objectrechten, e
 records, een ongeldige permanente URL en bewijslink, twee records met dezelfde stabiele referentie,
 een geblokkeerd dossier dat objectmedia wel toestaat, en meerdere gelijktijdige fouten met exacte
 deterministische veldpadvolgorde.
+
+De privacyclassificatie is gedekt met backend unit-tests (`PrivacyClassifierTest`,
+`PrivacyPublishGuardTest`): overleden zonder nabestaande-velden → `Processable`; minimaal drie
+fixture-varianten met een gedetecteerd nabestaande-veld → `Blocked` met de exacte reden "Bevat
+gegevens van levende nabestaande"; ontbrekende, niet-herkende, `onbekend`- en `levend`-status →
+fail-closed `Blocked`; niet-lege tekstuele reden voor zowel `Processable` als elke `Blocked`-variant;
+en de publish-guard die publicatie weigert voor elk `Blocked`-record en toestaat voor elk
+`Processable`-record. Een Flutter-widgettest op de semantiekboom van `frontend-admin` bevestigt
+tekstlabel én icoon voor beide statussen, en een gerichte kleur-/contrasttest berekent de
+contrastratio van de gebruikte kleurwaarden (≥4.5:1) volgens de WCAG 2.1-formule, als vervanging van
+axe-core conform de bestaande repo-conventie.
 
 De recordintake is gedekt met backend unit-, integratie- en contracttests (tokenverificatie en
 secret-redactie, de enkel-recordlimiet, verplichte-veldenvalidatie, fail-closed blokkade van beide
