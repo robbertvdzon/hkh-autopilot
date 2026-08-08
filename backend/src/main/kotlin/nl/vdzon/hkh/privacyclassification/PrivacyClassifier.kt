@@ -9,8 +9,13 @@ package nl.vdzon.hkh.privacyclassification
  * of wel gedetecteerde nabestaande-velden - is het record [PrivacyClassificationStatus.BLOCKED] met een
  * leesbare reden. Er ontsnapt nooit een uitzondering: onverwachte fouten leiden tot een geblokkeerd
  * record.
+ *
+ * Aanvullend op deze bestaande controles blijft het record ook [PrivacyClassificationStatus.BLOCKED]
+ * zodra minstens één genoemd persoon ([GenealogicalRecord.namedPersons], de hoofdpersoon of een
+ * familielid) volgens de FamilySearch 110/95-jaarregel ([LivingPersonAgeRule]) vermoedelijk nog leeft
+ * of niet met zekerheid beoordeeld kan worden.
  */
-class PrivacyClassifier {
+class PrivacyClassifier(private val livingPersonAgeRule: LivingPersonAgeRule = LivingPersonAgeRule()) {
 
     fun classify(record: GenealogicalRecord): PrivacyClassificationResult =
         runCatching { evaluate(record) }.getOrElse { failClosed() }
@@ -32,6 +37,21 @@ class PrivacyClassifier {
             return PrivacyClassificationResult(
                 status = PrivacyClassificationStatus.BLOCKED,
                 reason = PrivacyClassificationReasons.LIVING_NEXT_OF_KIN,
+            )
+        }
+
+        val blockingNamedPersonStatus = record.namedPersons
+            .map(livingPersonAgeRule::evaluate)
+            .firstOrNull { it != PersonAgeStatus.DECEASED }
+
+        if (blockingNamedPersonStatus != null) {
+            return PrivacyClassificationResult(
+                status = PrivacyClassificationStatus.BLOCKED,
+                reason = when (blockingNamedPersonStatus) {
+                    PersonAgeStatus.LIKELY_LIVING -> PrivacyClassificationReasons.NAMED_PERSON_LIKELY_LIVING
+                    PersonAgeStatus.UNKNOWN_FAILCLOSED -> PrivacyClassificationReasons.NAMED_PERSON_AGE_UNKNOWN_FAILCLOSED
+                    PersonAgeStatus.DECEASED -> PrivacyClassificationReasons.UNEXPECTED_ERROR
+                },
             )
         }
 

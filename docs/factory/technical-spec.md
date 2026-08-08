@@ -107,6 +107,28 @@ migratie: net als `linkdossier` is de module puur intern domein.
   weigert met `PrivacyPublishBlockedException` wanneer de classificatie `BLOCKED` is en niets doet
   bij `PROCESSABLE`. Er is nog geen bestaande publicatieworkflow om op aan te sluiten; een latere
   publicatiefeature kan deze guard hergebruiken.
+- `GenealogicalRecord.namedPersons` (`List<NamedPerson>`, standaard leeg) modelleert de in het
+  record genoemde personen (hoofdpersoon en familieleden). `NamedPerson` heeft vijf optionele
+  `String?`-datumvelden (`birthDate`, `marriageDate`, `childBirthDate`, `deathDate`, `burialDate`),
+  naar het patroon van `ExternalVerificationRequest.birthDate` — ruwe tekst, geen datumtype, zodat
+  constructie nooit faalt op een onleesbare waarde.
+- `LivingPersonAgeRule.evaluate` bepaalt per `NamedPerson` een `PersonAgeStatus`
+  (`LIKELY_LIVING`/`DECEASED`/`UNKNOWN_FAILCLOSED`) volgens de FamilySearch 110/95-jaarregel: een
+  extern gedocumenteerde, niet-wettelijke vuistregel uit de genealogiepraktijk (geen AVG- of andere
+  wettelijke norm). Een geldige overlijdens- of begrafenisdatum levert `DECEASED` op; zonder die
+  datum levert een geboortedatum ≤110 jaar geleden, of een huwelijks-/kindgeboortedatum ≤95 jaar
+  geleden, `LIKELY_LIVING` op (grenzen inclusief); een geboortedatum >110 jaar geleden zonder recent
+  huwelijks-/kindsignaal levert `DECEASED` op; ontbreken van elk bruikbaar datumveld, of een gezet
+  maar onparsbaar datumveld, levert fail-closed `UNKNOWN_FAILCLOSED` op. Datums worden verwacht in
+  ISO-8601 (`yyyy-MM-dd`); een `yyyy`-only waarde wordt ook geparsed met 1 januari als impliciete
+  dag — een bekende beperking bij ontbrekende event-granulariteit (bijv. alleen jaartal). De
+  tijdsbron is een injecteerbare `java.time.Clock` (standaard de systeemklok), zodat de regel
+  deterministisch getest kan worden.
+- `PrivacyClassifier.evaluate` blijft aanvullend `BLOCKED` opleveren zodra minstens één
+  `namedPersons`-item `LIKELY_LIVING` of `UNKNOWN_FAILCLOSED` oplevert (reasons
+  `PrivacyClassificationReasons.NAMED_PERSON_LIKELY_LIVING` respectievelijk
+  `NAMED_PERSON_AGE_UNKNOWN_FAILCLOSED`), ná de bestaande `DeceasedStatus`- en `nextOfKin`-checks;
+  die bestaande checks en het `runCatching`-faalveiligheidsgedrag blijven ongewijzigd.
 - Frontend: `frontend-admin/lib/privacyclassification/privacy_classification_status_view.dart`
   bevat `PrivacyClassificationStatusView`, die de classificatiestatus in de beheerfrontend toont met
   zowel een tekstlabel (`Verwerkbaar`/`Geblokkeerd`) als een icoon (`Icons.check_circle`/

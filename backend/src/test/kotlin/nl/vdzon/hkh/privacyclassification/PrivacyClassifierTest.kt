@@ -54,6 +54,55 @@ class PrivacyClassifierTest {
         assertTrue(result.reason.isNotBlank())
     }
 
+    @Test
+    fun `record with exactly one likely living named person among several is blocked`() {
+        val recentBirthYear = java.time.LocalDate.now().minusYears(30).toString()
+        val oldDeathDate = java.time.LocalDate.now().minusYears(5).toString()
+        val record = GenealogicalRecord(
+            deceasedStatus = "overleden",
+            namedPersons = listOf(
+                NamedPerson(deathDate = oldDeathDate),
+                NamedPerson(birthDate = recentBirthYear),
+                NamedPerson(deathDate = oldDeathDate),
+            ),
+        )
+
+        val result = classifier.classify(record)
+
+        assertEquals(PrivacyClassificationStatus.BLOCKED, result.status)
+        assertEquals(PrivacyClassificationReasons.NAMED_PERSON_LIKELY_LIVING, result.reason)
+    }
+
+    @Test
+    fun `record with a named person with an unreadable date field is blocked as fail closed`() {
+        val record = GenealogicalRecord(
+            deceasedStatus = "overleden",
+            namedPersons = listOf(NamedPerson(birthDate = "not-a-date")),
+        )
+
+        val result = classifier.classify(record)
+
+        assertEquals(PrivacyClassificationStatus.BLOCKED, result.status)
+        assertEquals(PrivacyClassificationReasons.NAMED_PERSON_AGE_UNKNOWN_FAILCLOSED, result.reason)
+    }
+
+    @Test
+    fun `record where all named persons are deceased and no other signal blocks is processable`() {
+        val oldDeathDate = java.time.LocalDate.now().minusYears(5).toString()
+        val record = GenealogicalRecord(
+            deceasedStatus = "overleden",
+            namedPersons = listOf(
+                NamedPerson(deathDate = oldDeathDate),
+                NamedPerson(burialDate = oldDeathDate),
+            ),
+        )
+
+        val result = classifier.classify(record)
+
+        assertEquals(PrivacyClassificationStatus.PROCESSABLE, result.status)
+        assertTrue(result.processable)
+    }
+
     companion object {
         @JvmStatic
         fun livingNextOfKinScenarios() = listOf(

@@ -29,5 +29,9 @@ object PrivacyClassificationReasons {
     const val LIVING_NEXT_OF_KIN = "Bevat gegevens van levende nabestaande"
     const val DECEASED_STATUS_UNKNOWN = "Overlijdensstatus is onbekend of niet herkend."
     const val PERSON_ALIVE = "Persoon is (mogelijk) nog in leven."
+    const val NAMED_PERSON_LIKELY_LIVING =
+        "Bevat een genoemde persoon die volgens de FamilySearch 110/95-jaarregel vermoedelijk nog leeft."
+    const val NAMED_PERSON_AGE_UNKNOWN_FAILCLOSED =
+        "Leeftijd van een genoemde persoon kon niet worden vastgesteld door een ontbrekend of onleesbaar datumveld."
     const val UNEXPECTED_ERROR = "Classificatie kon niet worden vastgesteld door een onverwachte fout."
 }
