@@ -48,3 +48,23 @@ Niet gedaan / aangepast:
 - Geen wijzigingen aan bestaande `DeceasedStatus`/`nextOfKin`-velden of -logica, geen
   opslag/REST-endpoint voor de nieuwe persoonsgegevens, geen UI-weergave van de per-persoon
   uitkomst — conform expliciete scope-afbakening in de story.
+
+## hkh-44 - Tester (2026-08-08)
+
+- Code-review van `LivingPersonAgeRule`/`GenealogicalRecord`/`PrivacyClassifier`-diff tegen alle 8
+  acceptatiecriteria: grenzen (109/110/111 jaar geboorte, 94/95/96 jaar huwelijk/kind), fail-closed
+  bij ontbrekend/onleesbaar datumveld (ook wanneer een niet-beslissend veld onparsbaar is), meerdere
+  genoemde personen met precies één `LIKELY_LIVING` → `Blocked`, alle personen `DECEASED` en geen
+  ander blokkerend signaal → `Processable`, `yyyy`-only fallback, brongrond en beperking
+  gedocumenteerd in KDoc/technical-spec.md/functional-spec.md — allemaal conform.
+- Geen preview-URL beschikbaar (`deployment.md`/`.task.md` previewvelden leeg); backendtests
+  vervangen hier het handmatig doorlopen van de flow.
+- Volledig voorgeschreven vangnet gedraaid, exitcode 0 / 0 failures / 0 errors op alles:
+  - `(cd backend && mvn -B --no-transfer-progress clean verify)` — 180 tests, incl. nieuwe
+    `LivingPersonAgeRuleTest` (17) en uitgebreide `PrivacyClassifierTest` (12).
+  - `(cd frontend && flutter analyze)` — geen meldingen.
+  - `(cd frontend && flutter test)` — 11 tests groen.
+  - `(cd frontend && flutter build web)` — build succesvol.
+  - `(cd frontend-admin && flutter analyze)` — geen meldingen.
+  - `(cd frontend-admin && flutter test)` — 22 tests groen (geen concurrency-artefact deze run).
+- Geen bugs gevonden. Besluit: `tested`.
