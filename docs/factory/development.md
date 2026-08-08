@@ -11,7 +11,9 @@
 
 - `backend/`: Kotlin, Spring Boot, Spring Modulith, Maven en backendtests; features zijn modules
   onder `nl.vdzon.hkh` met een eigen `package-info.java`, waaronder de interne domeinmodule
-  `linkdossier` met de koppelingsdossiervalidator;
+  `linkdossier` met de koppelingsdossiervalidator en de module `recordintake` met het
+  `POST /api/record-intake`-endpoint (tokenverificatie, veld- en privacyvalidatie, opslag als
+  intern concept plus optionele externe conceptkoppeling, Flyway-migratie `V4__record_intake.sql`);
 - `frontend/`: Flutter-gebruikersapp; homepage en statusflows staan in `lib/main.dart`,
   broninterfaces onder `lib/backend/` en `lib/news/`, widgettests onder `test/`;
 - `frontend-admin/`: afzonderlijke Flutter-webbeheerapp en widgettests;

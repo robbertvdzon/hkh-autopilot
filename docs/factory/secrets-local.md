@@ -8,7 +8,10 @@ overschrijven waarden uit het bestand; `HKH_SECRETS_FILE` kan naar een andere lo
 - `HKH_DATABASE_USER`: databasegebruiker;
 - `HKH_DATABASE_PASSWORD`: databasewachtwoord;
 - `HKH_GOOGLE_CLIENT_ID`: optionele Google web-OAuth-client-id voor de beheerfrontend;
-- `HKH_ADMIN_ALLOWED_EMAILS`: optionele, kommagescheiden beheerallowlist.
+- `HKH_ADMIN_ALLOWED_EMAILS`: optionele, kommagescheiden beheerallowlist;
+- `HKH_RECORD_INTAKE_JWKS_URL`: optionele JWKS-bron (RS256) voor het kortlevende
+  record-intaketoken; de intake (`POST /api/record-intake`) blijft fail-closed uitgeschakeld
+  (HTTP 503) zolang deze leeg is.
 
 De gebruikersfrontend gebruikt geen secret voor zijn backendadres. Geef een openbaar adres tijdens
 build/run door met `--dart-define=API_BASE_URL=https://...`; standaard is

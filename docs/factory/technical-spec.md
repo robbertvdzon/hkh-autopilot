@@ -36,6 +36,49 @@ repository of migratie: de module is puur intern domein.
 - URL-validatie gebruikt `java.net.URI`: absoluut, schema `http` of `https` en een niet-lege host. Er
   wordt geen netwerkverkeer gegenereerd.
 
+## Backendmodule `recordintake`
+
+De intake van precies één lokaal collectierecord zit in de zelfstandige Spring Modulith-module
+`nl.vdzon.hkh.recordintake` (inclusief de subpackage `recordintake.api`), met `package-info.java`
+en `@ApplicationModule(allowedDependencies = {})` — geen afhankelijkheid op andere modules, ook niet
+op `auth`. De module staat in de moduleset van `ModulithArchitectureTest`.
+
+- `POST /api/record-intake` (`RecordIntakeController`, patroon van `LatestNewsController`) leest de
+  `Authorization: Bearer`-header, verifieert eerst het token en valideert daarna pas het record.
+  Bij een geldige inzending wordt precies één record opgeslagen; de respons bevat uitsluitend
+  metadata (`id`, `status`, `createdAt`, optioneel `externalLink`) en nooit een tokenwaarde, header
+  of claim.
+- Tokenverificatie (`RecordIntakeTokenVerifier`/`NimbusRecordIntakeTokenVerifier`) volgt het patroon
+  van `NimbusGoogleIdTokenVerifier`, maar met een eigen, vaste, versieerbare configuratie: RS256,
+  issuer `https://hkh-autopilot.local`, audience `hkh-autopilot-record-intake`, JWKS-bron via
+  `hkh.recordintake.jwks-url` (env `HKH_RECORD_INTAKE_JWKS_URL`), verplichte claims `iss`, `aud`,
+  `sub`, `exp`, `iat` en `scope`, een maximale levensduur van vijftien minuten en de vereiste scope
+  `record:intake`. Zonder geconfigureerde JWKS-bron is de intake fail-closed uitgeschakeld (HTTP
+  503); elke overige afwijking geeft fail-closed HTTP 401 zonder tokenwaarde of claims in de respons
+  of logging.
+- `RecordIntake.kt` modelleert het verzoek naar het patroon van `LinkDossier`: ruwe `String?`-velden
+  (`localIdentifier`, `title`, `description`, `dating`, `provenance`, `rightsStatus`,
+  `privacyClassification`, `accessUrl`, optioneel `externalLink`), pas via `parse` omgezet naar de
+  enums `PrivacyClassification` en `LinkUncertainty`.
+- `RecordIntakeValidator.validate` verzamelt alle veldfouten in `RecordIntakeValidationResult.
+  fieldErrorPaths` (nooit fail-fast) en beoordeelt de privacyregel volledig geïsoleerd in
+  `privacyBlocked`: alleen `geen persoonsgegevens` passeert, `mogelijk persoonsgegevens` en
+  `persoonsgegevens` blokkeren opslag onafhankelijk van de overige veldfouten met de technische
+  foutcode `PRIVACY_CLASSIFICATION_BLOCKED`. Veldfouten geven HTTP 400 met `fieldErrors`
+  (machineleesbare veldpaden uit `RecordIntakeFieldPaths`); een privacyblokkade geeft HTTP 422 met
+  `errorCode`. Er ontsnapt nooit een uitzondering; een onverwachte fout blokkeert alles.
+- `RecordIntakeService.create` slaat het gevalideerde record op met status `intern_concept`
+  (Flyway-migratie `V4__record_intake.sql`, tabel `record_intake`, geen media- of
+  publicatievelden) en maakt de optionele externe conceptkoppeling (tabel
+  `record_intake_external_link`, status `concept`, uniek per record) alleen aan wanneer duurzame
+  URL, koppelmotivering en onzekerheidswaarde (`laag`/`middel`/`hoog`) alle drie geldig zijn;
+  anders blijft het interne conceptrecord bestaan zonder koppeling.
+- Frontend: `frontend-admin/lib/recordintake/` bevat `RecordIntakeForm` (foutsamenvatting met
+  toetsenbordfocus na een mislukte validatie, per fout programmatisch aan het veld gekoppeld via
+  `FocusNode` en `errorText`, status via tekst plus `Semantics(liveRegion: true)`) en
+  `AdminRecordIntakeClient`, die het bestaande gemaskeerde tokenmechanisme (`AdminIdentity.
+  requestHeaders`) hergebruikt: er is geen apart invoerveld voor autorisatiebewijs.
+
 ## Flutter-webstatussemantiek
 
 Statussen gebruiken een eigen `Semantics`-container met `SemanticsRole.status` en exact één
@@ -59,6 +102,13 @@ De Material-knoppen behouden de standaard Enter- en spatieactivering. Een gedeel
 voegt voor `WidgetState.focused` een contrasterende rand van drie pixels toe: `onPrimary` op de
 gevulde knop en `primary` op de omlijnde knop. De natuurlijke widgetvolgorde bepaalt lees- en
 focusvolgorde; er worden geen aangepaste sort keys gebruikt.
+
+`RecordIntakeForm` (frontend-admin) wijkt hier bewust van af: het is een formulierstatus na een
+gebruikersactie, geen passieve achtergrondstatus, dus wordt `Semantics(liveRegion: true)` gebruikt
+in plaats van `SemanticsRole.status`, en verplaatst een mislukte validatie de toetsenbordfocus
+programmatisch naar de foutsamenvatting (`Focus` + `FocusNode.requestFocus()`), met
+`explicitChildNodes: true` zodat de samenvatting één label blijft terwijl de losse foutregels
+afzonderlijk aan hun veld gekoppeld en focusbaar blijven.
 
 ## Verificatieconfig
 

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hkh_admin/auth/admin_session.dart';
 import 'package:hkh_admin/main.dart';
 import 'package:hkh_admin/news/admin_latest_news.dart';
+import 'package:hkh_admin/recordintake/admin_record_intake.dart';
 
 class _NewsSource implements AdminLatestNewsSource {
   String? title;
@@ -17,6 +18,17 @@ class _NewsSource implements AdminLatestNewsSource {
     this.title = title;
     this.message = message;
   }
+}
+
+class _RecordIntakeSource implements AdminRecordIntakeSource {
+  @override
+  Future<RecordIntakeCreationResult> create({
+    required AdminIdentity identity,
+    required RecordIntakeInput input,
+  }) async => const RecordIntakeCreationResult(
+    status: 'intern_concept',
+    externalLinkCreated: false,
+  );
 }
 
 class _AuthenticatedSession implements AdminSessionSource {
@@ -43,6 +55,7 @@ void main() {
       HkhAdminApp(
         sessionSource: _AuthenticatedSession(),
         newsSource: newsSource,
+        recordIntakeSource: _RecordIntakeSource(),
       ),
     );
     await tester.pumpAndSettle();
@@ -51,11 +64,9 @@ void main() {
     expect(find.text('admin@example.com'), findsOneWidget);
     expect(find.text('Nieuw bericht'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextFormField).first, 'Dorpsnieuws');
-    await tester.enterText(
-      find.byType(TextFormField).last,
-      'Een historisch bericht.',
-    );
+    final newsFields = find.byType(TextFormField);
+    await tester.enterText(newsFields.at(0), 'Dorpsnieuws');
+    await tester.enterText(newsFields.at(1), 'Een historisch bericht.');
     await tester.ensureVisible(find.text('Publiceren'));
     await tester.tap(find.text('Publiceren'));
     await tester.pumpAndSettle();
@@ -70,6 +81,7 @@ void main() {
       HkhAdminApp(
         sessionSource: const DisabledAdminSessionSource(),
         newsSource: _NewsSource(),
+        recordIntakeSource: _RecordIntakeSource(),
         googleButtonBuilder: () => const SizedBox.shrink(),
       ),
     );
