@@ -103,6 +103,90 @@ class PrivacyClassifierTest {
         assertTrue(result.processable)
     }
 
+    @Test
+    fun `record blocked by GEDCOM RESN at record level overrides an otherwise deceased outcome`() {
+        val oldDeathDate = java.time.LocalDate.now().minusYears(5).toString()
+        val record = GenealogicalRecord(
+            deceasedStatus = "overleden",
+            namedPersons = listOf(NamedPerson(deathDate = oldDeathDate)),
+            gedcomSource = """
+                0 @I1@ INDI
+                1 RESN CONFIDENTIAL
+            """.trimIndent(),
+        )
+
+        val result = classifier.classify(record)
+
+        assertEquals(PrivacyClassificationStatus.BLOCKED, result.status)
+        assertEquals(PrivacyClassificationReasons.GEDCOM_RESN_BLOCKED, result.reason)
+    }
+
+    @Test
+    fun `record blocked by GEDCOM RESN at fact level overrides a likely deceased named person`() {
+        val oldDeathDate = java.time.LocalDate.now().minusYears(5).toString()
+        val record = GenealogicalRecord(
+            deceasedStatus = "overleden",
+            namedPersons = listOf(NamedPerson(deathDate = oldDeathDate)),
+            gedcomSource = """
+                0 @I1@ INDI
+                1 BIRT
+                2 DATE 1 JAN 1990
+                2 RESN LOCKED
+            """.trimIndent(),
+        )
+
+        val result = classifier.classify(record)
+
+        assertEquals(PrivacyClassificationStatus.BLOCKED, result.status)
+        assertEquals(PrivacyClassificationReasons.GEDCOM_RESN_BLOCKED, result.reason)
+    }
+
+    @Test
+    fun `gedcom source without RESN does not block a deceased record`() {
+        val oldDeathDate = java.time.LocalDate.now().minusYears(5).toString()
+        val record = GenealogicalRecord(
+            deceasedStatus = "overleden",
+            namedPersons = listOf(NamedPerson(deathDate = oldDeathDate)),
+            gedcomSource = """
+                0 @I1@ INDI
+                1 NAME Jan /Janssen/
+            """.trimIndent(),
+        )
+
+        val result = classifier.classify(record)
+
+        assertEquals(PrivacyClassificationStatus.PROCESSABLE, result.status)
+        assertTrue(result.processable)
+    }
+
+    @Test
+    fun `absent gedcom source does not affect an otherwise processable record`() {
+        val oldDeathDate = java.time.LocalDate.now().minusYears(5).toString()
+        val record = GenealogicalRecord(
+            deceasedStatus = "overleden",
+            namedPersons = listOf(NamedPerson(deathDate = oldDeathDate)),
+            gedcomSource = null,
+        )
+
+        val result = classifier.classify(record)
+
+        assertEquals(PrivacyClassificationStatus.PROCESSABLE, result.status)
+        assertTrue(result.processable)
+    }
+
+    @Test
+    fun `syntactically invalid gedcom source blocks a record via fail closed RESN signal`() {
+        val record = GenealogicalRecord(
+            deceasedStatus = "overleden",
+            gedcomSource = "not gedcom at all",
+        )
+
+        val result = classifier.classify(record)
+
+        assertEquals(PrivacyClassificationStatus.BLOCKED, result.status)
+        assertEquals(PrivacyClassificationReasons.GEDCOM_RESN_BLOCKED, result.reason)
+    }
+
     companion object {
         @JvmStatic
         fun livingNextOfKinScenarios() = listOf(

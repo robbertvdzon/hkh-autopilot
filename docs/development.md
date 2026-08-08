@@ -43,8 +43,13 @@ controller, repository or migration. On top of the existing checks, `LivingPerso
 each `NamedPerson` in `GenealogicalRecord.namedPersons` against the FamilySearch 110/95-year rule (an
 external, non-legal genealogy rule of thumb, not a GDPR requirement) to fail-closed detect people who
 are likely still alive; a single `LIKELY_LIVING` or `UNKNOWN_FAILCLOSED` result blocks the whole
-record. The classification status is shown in `frontend-admin` with both a text label and an icon,
-never color alone. Details are in [factory/functional-spec.md](factory/functional-spec.md) and
+record. Independently of and binding on top of these checks, `GedcomResnRule` evaluates the optional
+raw GEDCOM 7.0 source text on `GenealogicalRecord.gedcomSource`: a blocking RESN marker
+(`CONFIDENTIAL`, `LOCKED` or `PRIVACY`) anywhere in the record or a nested fact/event, or
+syntactically invalid non-empty source text (fail-closed), always forces the outcome to `Blocked`; no
+source text leaves the existing classification logic unaffected. The classification status is shown
+in `frontend-admin` with both a text label and an icon, never color alone. Details are in
+[factory/functional-spec.md](factory/functional-spec.md) and
 [factory/technical-spec.md](factory/technical-spec.md).
 
 `nl.vdzon.hkh.recordintake` exposes `POST /api/record-intake`, which accepts exactly one collection

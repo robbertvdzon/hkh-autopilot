@@ -14,7 +14,9 @@
   `linkdossier` met de koppelingsdossiervalidator, de interne domeinmodule
   `privacyclassification` met de AVG-classificatie van genealogische records
   (`PrivacyClassifier`/`PrivacyPublishGuard`, aangevuld met `LivingPersonAgeRule` die per genoemde
-  persoon de FamilySearch 110/95-jaarregel toepast), de module `recordintake` met het
+  persoon de FamilySearch 110/95-jaarregel toepast, en met `GedcomResnRule` die het optionele
+  `GenealogicalRecord.gedcomSource`-veld (ruwe GEDCOM 7.0-brontekst) recursief doorzoekt naar een
+  blokkerende RESN-markering en die onafhankelijk en bindend meeweegt), de module `recordintake` met het
   `POST /api/record-intake`-endpoint (tokenverificatie, veld- en privacyvalidatie, opslag als
   intern concept plus optionele externe conceptkoppeling, Flyway-migratie `V4__record_intake.sql`)
   en de module `externalverification` met het `POST /api/external-verification`-endpoint
