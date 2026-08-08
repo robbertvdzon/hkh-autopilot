@@ -28,3 +28,22 @@
 - Migratie `V6` voegt `license_status` (NOT NULL, default `LICENSE_UNKNOWN`), `license_value` (nullable)
   en `license_checked_at` (NOT NULL, default `CURRENT_TIMESTAMP`) toe; bestaande rijen krijgen automatisch
   de default, dus backward-compatible zonder handmatige backfill.
+
+## Reviewnotities (reviewer)
+
+- Volledige story-diff (`main...HEAD`) doorgenomen: backend (`ArchivesNlClient`, nieuw
+  `ExternalVerificationLicense.kt`, `PublishGuard`, `Record`/`Repository`/`Service`/`Controller`,
+  migratie `V6__external_verification_license.sql`) en frontend-admin (`LicenseStatusView`).
+- AC's gecontroleerd: per-record licentie (geen collectiebrede afleiding — expliciet getest in
+  `ExternalVerificationLicenseEvaluatorTest` en `ExternalVerificationApiIntegrationTest`), fail-closed
+  `LICENSE_UNKNOWN` blokkeert publicatie ondanks `VERIFIED`-status (guard + tests), licentiewaarde +
+  controledatum opgeslagen bij `LICENSE_KNOWN`, badge met tekstlabel + icoon + WCAG-contrasttest
+  (≥4,5:1, gemeten 7,87:1 / 6,57:1).
+- Migratie is backward-compatible (kolomdefaults + consistency-check `license_status`/`license_value`);
+  `DatabaseIntegrationTest`-migratieaantal correct bijgewerkt (5 → 6).
+- `LicenseStatusView` volgt het bestaande `PrivacyClassificationStatusView`-patroon: net als dat
+  widget is hij (nog) niet in een scherm verankerd — dat is bestaande repo-conventie, geen
+  regressie van deze story.
+- Geen scope-overschrijding: `ExternalVerificationMatcher`, toegangstoken-mechanisme en een algemene
+  publicatieworkflow zijn ongemoeid gelaten.
+- Geen blockers gevonden.
