@@ -80,3 +80,20 @@ Done / rationale:
   tokenprotocol voor een endpoint dat vandaag geen autorisatie vereist") is alleen het
   backend-invoerveld + de versleutelde opslag voorbereid; het archiefendpoint eist vandaag geen
   token.
+
+## Testnotities (hkh-32, tester)
+
+- `backend`: `mvn -B --no-transfer-progress clean verify` — BUILD SUCCESS, 145 tests, 0 failures, 0
+  errors (Testcontainers Postgres via de Docker-socket werkte in deze omgeving). Externalverification-
+  tests dekken alle AC's: geen autorisatietoken standaard, 2 matching-fixtures -> VERIFIED, ongeldige
+  guid -> UNVERIFIED + publish-guard weigert, opgeslagen kolommenset (uitsluitend minimale velden),
+  en logoutput/API-respons zonder tokenwaarde.
+- `frontend-admin`: `flutter analyze` — geen issues. `flutter test` — 18/18 groen (`All tests
+  passed!`), inclusief `external_verification_link_view_test.dart` (aria-label bevat zowel
+  "archieven.nl" als "nieuw tabblad"). Bekend weergave-artefact (zie agent-tip
+  frontend-admin-flutter-test-concurrency-artifact) trad hier niet storend op; run was volledig
+  groen zonder herhaling nodig.
+- `frontend`: geen wijzigingen in dit issue, niet opnieuw gedraaid.
+- Code steekproefsgewijs gelezen (`ExternalVerificationMatcher`, `ExternalVerificationPublishGuard`,
+  `ArchivesNlClient`, `ExternalVerificationLinkView`): gedrag komt overeen met de acceptatiecriteria.
+- Geen bugs gevonden. `git status` was clean voor en na het testen; geen testdata/cleanup nodig.
