@@ -34,6 +34,15 @@ field paths. It has no allowed dependencies and exposes no controller, repositor
 functional rules are described in [factory/functional-spec.md](factory/functional-spec.md); the
 implementation notes in [factory/technical-spec.md](factory/technical-spec.md).
 
+`nl.vdzon.hkh.recordintake` exposes `POST /api/record-intake`, which accepts exactly one collection
+record per request under a short-lived RS256 JWT bearer token (own fail-closed verifier, no
+dependency on the `auth` module). A valid record is stored with status `intern_concept`
+(`V4__record_intake.sql`); an optional external link is only created when a durable URL, a
+justification and an uncertainty value are all valid. Token values, headers and claims are never
+persisted, logged or returned. Configuration and behavior are documented in
+[factory/technical-spec.md](factory/technical-spec.md) and
+[factory/secrets-local.md](factory/secrets-local.md).
+
 ## User frontend
 
 The user application supports Flutter web and Android. It uses `http://localhost:8080` as its

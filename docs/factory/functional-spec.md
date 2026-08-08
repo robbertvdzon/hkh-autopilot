@@ -71,6 +71,42 @@ Buiten scope van de huidige realisatie: opslag, een REST-endpoint, een beheerint
 daadwerkelijke publicatie. De validator raadpleegt geen externe bronnen; hij bewijst niet dat een URL
 bereikbaar is of dat de inhoudelijke claim historisch juist is.
 
+## Recordintake (beheer)
+
+Een collectiebeheerder kan via het beheerformulier precies één lokaal collectierecord aanleveren als
+intern concept. De intake vereist een kortlevend, geldig toegangstoken (hetzelfde gemaskeerde
+tokenmechanisme als de rest van de beheerfrontend; er is geen apart invoerveld voor autorisatiebewijs)
+en verwerkt per verzoek maximaal één record.
+
+Verplichte velden zijn: lokale identifier, titel-of-beschrijving, datering, herkomst, rechtenstatus,
+privacyclassificatie en een toegangs- of permalink. Ontbrekende of ongeldige velden leveren een
+foutsamenvatting op; er wordt dan geen conceptrecord aangemaakt.
+
+Privacy is een fail-closed regel los van de overige veldfouten: alleen de classificatie
+`geen persoonsgegevens` is toegestaan. `mogelijk persoonsgegevens` en `persoonsgegevens` worden altijd
+geweigerd, zonder opslag en zonder dat verwerkingsgrondslag, doel, rol of bewaartermijn worden
+gevraagd of bewaard.
+
+Een geldige inzending slaat het record op met status `intern_concept`. Het record wordt nooit
+gepubliceerd: de respons bevat uitsluitend metadata, nooit publicatie-, download-, preview- of
+objectmedia-acties of -URL's, ook niet wanneer de rechtenstatus `publicatie toegestaan` is.
+
+Optioneel kan tegelijk een externe conceptkoppeling (status `concept`) ontstaan naar een extern
+archiefrecord (naar het patroon van het Noord-Hollands Archief). Dat gebeurt alleen wanneer een
+duurzame URL, een koppelmotivering en een onzekerheidswaarde (`laag`/`middel`/`hoog`) alle drie
+aanwezig en geldig zijn; ontbreekt of faalt één van de drie, dan blijft het interne conceptrecord wel
+bestaan, maar zonder koppeling.
+
+Na een mislukte validatie toont het formulier een foutsamenvatting, verplaatst de toetsenbordfocus
+daarheen en koppelt elke fout programmatisch aan het bijbehorende veld. Succes, fout en
+privacyblokkade worden via tekst en een aria-live-statusgebied gecommuniceerd, niet uitsluitend via
+kleur. Tokeninhoud, claims of headers worden nooit getoond, gelogd of opgeslagen; afwijzingen bevatten
+alleen een technische foutcode (bijvoorbeeld `PRIVACY_CLASSIFICATION_BLOCKED`).
+
+Buiten scope: de publicatie-workflow zelf, objectmedia-opslag, verwerkingsgrondslag/doel/
+bewaartermijn-registratie en koppeling met andere externe archieven dan het
+Noord-Hollands Archief-patroon.
+
 ## Verificatie
 
 Widgettests dekken alle statusvarianten, aantallen en labels van statusnodes, afwezigheid van
@@ -85,6 +121,13 @@ hypothese-relatie, ontbrekende, niet-toegestane en onduidelijke objectrechten, e
 records, een ongeldige permanente URL en bewijslink, twee records met dezelfde stabiele referentie,
 een geblokkeerd dossier dat objectmedia wel toestaat, en meerdere gelijktijdige fouten met exacte
 deterministische veldpadvolgorde.
+
+De recordintake is gedekt met backend unit-, integratie- en contracttests (tokenverificatie en
+secret-redactie, de enkel-recordlimiet, verplichte-veldenvalidatie, fail-closed blokkade van beide
+persoonsgegevensclassificaties, opslag uitsluitend als `intern_concept`, de optionele
+conceptkoppeling en afwezigheid van media-/publicatievelden) en met frontend-admin widget- en
+toegankelijkheidstests voor de foutsamenvatting, focusverplaatsing, per-veld foutkoppeling en het
+aria-live-statusgedrag van `RecordIntakeForm`.
 
 Testergoedkeuring vereist daarnaast volledig groen, revisiongebonden bewijs voor iedere opdracht in
 `.factory/verification.yaml`. Ontbrekend bewijs, een onbekende configversie, toolfout, timeout,
