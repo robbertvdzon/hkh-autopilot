@@ -41,6 +41,39 @@ class RestClientArchivesNlClientTest {
     }
 
     @Test
+    fun `a license field in the ld plus json response is read as the record license`() {
+        val client = startServerAndClient { exchange ->
+            respondJson(
+                exchange,
+                200,
+                """{"name": "Jan Jansen", "birthDate": "1900-01-01", "deathDate": "1980-05-05", "license": "CC0"}""",
+            )
+        }
+
+        val result = client.fetch("1234", "abcd-ef01", accessToken = null)
+
+        assertEquals(
+            ArchiveFetchResult.Found(ArchiveRecordFields("Jan Jansen", "1900-01-01", "1980-05-05", "CC0")),
+            result,
+        )
+    }
+
+    @Test
+    fun `a missing license field yields no license value`() {
+        val client = startServerAndClient { exchange ->
+            respondJson(
+                exchange,
+                200,
+                """{"name": "Piet Pietersen", "birthDate": "1901-01-01", "deathDate": "1975-01-01"}""",
+            )
+        }
+
+        val result = client.fetch("0000", "no-license", accessToken = null) as ArchiveFetchResult.Found
+
+        assertNull(result.fields.license)
+    }
+
+    @Test
     fun `an unknown or invalid guid yields not found`() {
         val client = startServerAndClient { exchange -> respondJson(exchange, 404, """{"error": "not found"}""") }
 

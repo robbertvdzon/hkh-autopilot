@@ -9,6 +9,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import nl.vdzon.hkh.externalverification.ExternalVerificationLicenseStatus
 import nl.vdzon.hkh.externalverification.ExternalVerificationOutcome
 import nl.vdzon.hkh.externalverification.ExternalVerificationPublishBlockedException
 import nl.vdzon.hkh.externalverification.ExternalVerificationPublishGuard
@@ -71,6 +72,81 @@ class ExternalVerificationApiIntegrationTest(
             status { isCreated() }
             jsonPath("$.status") { value("VERIFIED") }
             jsonPath("$.matchedFields") { isArray() }
+        }
+    }
+
+    @Test
+    fun `a record with a visible license yields license known and stores the license value with a checked date`() {
+        mockMvc.post("/api/external-verification") {
+            contentType = MediaType.APPLICATION_JSON
+            content = requestJson(localIdentifier = "HKH-2026-0120", adtid = "1000", guid = "verified-jan")
+        }.andExpect {
+            status { isCreated() }
+            jsonPath("$.licenseStatus") { value("LICENSE_KNOWN") }
+            jsonPath("$.licenseValue") { value("CC0") }
+            jsonPath("$.licenseCheckedAt") { exists() }
+        }
+    }
+
+    @Test
+    fun `a record without a visible license yields license unknown and blocks publication regardless of verification status`() {
+        mockMvc.post("/api/external-verification") {
+            contentType = MediaType.APPLICATION_JSON
+            content = requestJson(localIdentifier = "HKH-2026-0121", adtid = "1000", guid = "verified-jan-no-license")
+        }.andExpect {
+            status { isCreated() }
+            jsonPath("$.status") { value("VERIFIED") }
+            jsonPath("$.licenseStatus") { value("LICENSE_UNKNOWN") }
+            jsonPath("$.licenseValue") { doesNotExist() }
+        }
+
+        val outcome = service.verify(
+            ExternalVerificationRequest(
+                localIdentifier = "HKH-2026-0122",
+                name = "Jan Jansen",
+                birthDate = "1900-01-01",
+                deathDate = "1980-05-05",
+                adtid = "1000",
+                guid = "verified-jan-no-license",
+            ),
+        )
+        assertEquals(ExternalVerificationStatus.VERIFIED.name, outcome.record.status)
+        assertEquals(ExternalVerificationLicenseStatus.LICENSE_UNKNOWN.name, outcome.record.licenseStatus)
+        assertFailsWith<ExternalVerificationPublishBlockedException> {
+            ExternalVerificationPublishGuard.assertPublishable(outcome)
+        }
+    }
+
+    @Test
+    fun `two records from the same collection have independent license outcomes`() {
+        val withLicense = service.verify(
+            ExternalVerificationRequest(
+                localIdentifier = "HKH-2026-0123",
+                name = "Jan Jansen",
+                birthDate = "1900-01-01",
+                deathDate = "1980-05-05",
+                adtid = "1000",
+                guid = "verified-jan",
+            ),
+        )
+        val withoutLicense = service.verify(
+            ExternalVerificationRequest(
+                localIdentifier = "HKH-2026-0124",
+                name = "Jan Jansen",
+                birthDate = "1900-01-01",
+                deathDate = "1980-05-05",
+                adtid = "1000",
+                guid = "verified-jan-no-license",
+            ),
+        )
+
+        assertEquals(ExternalVerificationLicenseStatus.LICENSE_KNOWN.name, withLicense.record.licenseStatus)
+        assertEquals("CC0", withLicense.record.licenseValue)
+        assertEquals(ExternalVerificationLicenseStatus.LICENSE_UNKNOWN.name, withoutLicense.record.licenseStatus)
+        assertEquals(null, withoutLicense.record.licenseValue)
+        ExternalVerificationPublishGuard.assertPublishable(withLicense)
+        assertFailsWith<ExternalVerificationPublishBlockedException> {
+            ExternalVerificationPublishGuard.assertPublishable(withoutLicense)
         }
     }
 
@@ -139,6 +215,9 @@ class ExternalVerificationApiIntegrationTest(
                 "status",
                 "checked_at",
                 "encrypted_access_token",
+                "license_status",
+                "license_value",
+                "license_checked_at",
             ),
             columns,
         )
@@ -239,6 +318,8 @@ private class FixtureArchivesNlServer {
 
             val (status, body) = when {
                 guid == "verified-jan" -> 200 to
+                    """{"name": "Jan Jansen", "birthDate": "1900-01-01", "deathDate": "1980-05-05", "license": "CC0"}"""
+                guid == "verified-jan-no-license" -> 200 to
                     """{"name": "Jan Jansen", "birthDate": "1900-01-01", "deathDate": "1980-05-05"}"""
                 guid == "verified-maria" -> 200 to
                     """{"name": "Maria de Vries", "birthDate": "1875-11-20", "deathDate": "1950-02-14"}"""

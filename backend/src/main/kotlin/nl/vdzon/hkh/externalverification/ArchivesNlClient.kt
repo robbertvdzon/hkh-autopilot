@@ -6,11 +6,16 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientResponseException
 
-/** De archiefkernvelden die uit de opgehaalde JSON-LD-respons worden gelezen. */
+/**
+ * De archiefkernvelden die uit de opgehaalde JSON-LD-respons worden gelezen. [license] is de
+ * hergebruikslicentie van dit specifieke record (bijvoorbeeld `CC0`); deze wordt nooit van een
+ * ander record binnen dezelfde collectie afgeleid of hergebruikt.
+ */
 data class ArchiveRecordFields(
     val name: String? = null,
     val birthDate: String? = null,
     val deathDate: String? = null,
+    val license: String? = null,
 )
 
 /** Uitkomst van een bevraging van archieven.nl. Er wordt nooit de volledige externe payload bewaard. */
@@ -30,6 +35,7 @@ private data class ArchiveJsonLdRecord(
     val name: String? = null,
     val birthDate: String? = null,
     val deathDate: String? = null,
+    val license: String? = null,
 )
 
 /**
@@ -54,7 +60,9 @@ class RestClientArchivesNlClient(private val restClient: RestClient) : ArchivesN
         if (record == null) {
             ArchiveFetchResult.NotFound
         } else {
-            ArchiveFetchResult.Found(ArchiveRecordFields(record.name, record.birthDate, record.deathDate))
+            ArchiveFetchResult.Found(
+                ArchiveRecordFields(record.name, record.birthDate, record.deathDate, record.license),
+            )
         }
     } catch (exception: RestClientResponseException) {
         when (exception.statusCode) {
