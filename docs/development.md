@@ -39,9 +39,12 @@ implementation notes in [factory/technical-spec.md](factory/technical-spec.md).
 `Processable` only for a deceased person with no detected living-next-of-kin field, and `Blocked`
 with a mandatory readable reason otherwise) and `PrivacyPublishGuard`, a standalone, reusable guard
 that rejects publication of `Blocked` records. It has no allowed dependencies and exposes no
-controller, repository or migration. The classification status is shown in `frontend-admin` with
-both a text label and an icon, never color alone. Details are in
-[factory/functional-spec.md](factory/functional-spec.md) and
+controller, repository or migration. On top of the existing checks, `LivingPersonAgeRule` evaluates
+each `NamedPerson` in `GenealogicalRecord.namedPersons` against the FamilySearch 110/95-year rule (an
+external, non-legal genealogy rule of thumb, not a GDPR requirement) to fail-closed detect people who
+are likely still alive; a single `LIKELY_LIVING` or `UNKNOWN_FAILCLOSED` result blocks the whole
+record. The classification status is shown in `frontend-admin` with both a text label and an icon,
+never color alone. Details are in [factory/functional-spec.md](factory/functional-spec.md) and
 [factory/technical-spec.md](factory/technical-spec.md).
 
 `nl.vdzon.hkh.recordintake` exposes `POST /api/record-intake`, which accepts exactly one collection
