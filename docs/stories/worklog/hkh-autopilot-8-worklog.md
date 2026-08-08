@@ -52,3 +52,23 @@ Niet gedaan / bewust buiten scope:
   in tests met synthetische fixtures gevuld.
 - Geen wijziging aan `PrivacyPublishGuard`, moduleafhankelijkheden (`allowedDependencies` blijft
   leeg), REST-endpoints of frontend.
+
+## Review (hkh-49)
+- Diff tegen `main` beoordeeld: `GedcomResnRule.kt` (nieuw), `GenealogicalRecord.gedcomSource`,
+  `PrivacyClassificationReasons.GEDCOM_RESN_BLOCKED`, `PrivacyClassifier.evaluate` (bindende
+  RESN-check vóór bestaande logica), tests en `technical-spec.md`.
+- Parser/hiërarchie-opbouw (`parseLine`/`buildTree`) nagelopen op edge cases: recordregel met
+  pointer (`0 @I1@ INDI`), regel zonder pointer, ontbrekend levelgetal, negatief levelgetal en
+  niveausprongen — allemaal correct fail-closed of correct genest voor recursieve RESN-zoektocht.
+  Alle acceptatiecriteria (record-/feitniveau-blokkade overstemt leeftijdsregel, geen RESN blijft
+  bestaande uitkomst leidend, geen bron is not-applicable, fail-closed op ongeldige syntax) hebben
+  een dekkende test.
+- Scope is strak gehouden: geen wijziging aan moduleafhankelijkheden, `PrivacyPublishGuard`,
+  REST-endpoints of frontend; alleen `nl.vdzon.hkh.privacyclassification` en `technical-spec.md`
+  geraakt.
+- Gerichte testrun uitgevoerd (geen volledig vangnet opnieuw, alleen de geraakte/relevante
+  klassen): `mvn -B --no-transfer-progress -Dtest=GedcomResnRuleTest,PrivacyClassifierTest,
+  LivingPersonAgeRuleTest,PrivacyPublishGuardTest test` → groen, 0 failures/errors
+  (GedcomResnRuleTest 16, PrivacyClassifierTest 17, LivingPersonAgeRuleTest 17,
+  PrivacyPublishGuardTest 2 tests). Bestaande tests ongewijzigd geslaagd.
+- Geen blockers gevonden. Akkoord.
