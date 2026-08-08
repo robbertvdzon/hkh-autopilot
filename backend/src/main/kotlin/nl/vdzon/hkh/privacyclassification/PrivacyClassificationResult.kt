@@ -33,5 +33,7 @@ object PrivacyClassificationReasons {
         "Bevat een genoemde persoon die volgens de FamilySearch 110/95-jaarregel vermoedelijk nog leeft."
     const val NAMED_PERSON_AGE_UNKNOWN_FAILCLOSED =
         "Leeftijd van een genoemde persoon kon niet worden vastgesteld door een ontbrekend of onleesbaar datumveld."
+    const val GEDCOM_RESN_BLOCKED =
+        "Bevat een GEDCOM 7.0 RESN-markering (vertrouwelijk/afgesloten/privacy) die verwerking blokkeert."
     const val UNEXPECTED_ERROR = "Classificatie kon niet worden vastgesteld door een onverwachte fout."
 }

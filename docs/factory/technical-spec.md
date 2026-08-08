@@ -129,6 +129,23 @@ migratie: net als `linkdossier` is de module puur intern domein.
   `PrivacyClassificationReasons.NAMED_PERSON_LIKELY_LIVING` respectievelijk
   `NAMED_PERSON_AGE_UNKNOWN_FAILCLOSED`), ná de bestaande `DeceasedStatus`- en `nextOfKin`-checks;
   die bestaande checks en het `runCatching`-faalveiligheidsgedrag blijven ongewijzigd.
+- `GenealogicalRecord.gedcomSource` is een optioneel, ruw GEDCOM 7.0-brontekstveld (`String?`,
+  standaard `null`); er is geen echte GEDCOM-producerende bron aangesloten (de bestaande
+  `ArchivesNlClient` levert JSON-LD, geen GEDCOM) - het veld wordt in tests met synthetische
+  fixtures gevuld. `GedcomResnRule.evaluate` parseert de brontekst regel-voor-regel
+  (`LEVEL [@XREF@] TAG [VALUE]`), bouwt de hiërarchie op via het levelgetal en doorzoekt de
+  resulterende boom recursief naar een RESN-tag met een blokkerende waarde (`CONFIDENTIAL`,
+  `LOCKED` of `PRIVACY`, ongeacht letterkast), op elk nestingniveau - zowel op recordniveau als
+  binnen een geneste gebeurtenis/feit. Dit levert een `GedcomResnSignal` op:
+  `NOT_APPLICABLE` wanneer `gedcomSource` ontbreekt (`null`/leeg), `BLOCKED` zodra een blokkerende
+  RESN-markering gevonden wordt óf de brontekst niet-leeg maar syntactisch ongeldig is
+  (fail-closed, naar het patroon van de overige fail-closed-conventies in deze module), en anders
+  `NONE`. `PrivacyClassifier.evaluate` weegt dit signaal onafhankelijk en bindend mee vóórdat de
+  bestaande `DeceasedStatus`-, `nextOfKin`- en leeftijdsregel-checks lopen: bij `BLOCKED` is de
+  totaaluitkomst altijd `PrivacyClassificationStatus.BLOCKED` met reason
+  `PrivacyClassificationReasons.GEDCOM_RESN_BLOCKED`, ongeacht de uitkomst van die overige checks;
+  bij `NONE` of `NOT_APPLICABLE` blijft de bestaande classificatielogica ongewijzigd bepalend.
+  Bekende beperking: alleen GEDCOM 7.0 RESN-syntax wordt ondersteund.
 - Frontend: `frontend-admin/lib/privacyclassification/privacy_classification_status_view.dart`
   bevat `PrivacyClassificationStatusView`, die de classificatiestatus in de beheerfrontend toont met
   zowel een tekstlabel (`Verwerkbaar`/`Geblokkeerd`) als een icoon (`Icons.check_circle`/

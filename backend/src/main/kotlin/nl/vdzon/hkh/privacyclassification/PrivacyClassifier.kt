@@ -14,13 +14,30 @@ package nl.vdzon.hkh.privacyclassification
  * zodra minstens één genoemd persoon ([GenealogicalRecord.namedPersons], de hoofdpersoon of een
  * familielid) volgens de FamilySearch 110/95-jaarregel ([LivingPersonAgeRule]) vermoedelijk nog leeft
  * of niet met zekerheid beoordeeld kan worden.
+ *
+ * Onafhankelijk van en bindend bovenop al deze controles: zodra [GedcomResnRule] op de optionele
+ * GEDCOM-brontekst ([GenealogicalRecord.gedcomSource]) [GedcomResnSignal.BLOCKED] oplevert - een
+ * RESN-markering (`CONFIDENTIAL`, `LOCKED` of `PRIVACY`) op record- of feitniveau, of syntactisch
+ * ongeldige brontekst - is de totaaluitkomst altijd [PrivacyClassificationStatus.BLOCKED], ongeacht
+ * de uitkomst van de overige checks. Bij [GedcomResnSignal.NONE] of [GedcomResnSignal.NOT_APPLICABLE]
+ * (geen brontekst) blijft de bestaande classificatielogica ongewijzigd bepalend.
  */
-class PrivacyClassifier(private val livingPersonAgeRule: LivingPersonAgeRule = LivingPersonAgeRule()) {
+class PrivacyClassifier(
+    private val livingPersonAgeRule: LivingPersonAgeRule = LivingPersonAgeRule(),
+    private val gedcomResnRule: GedcomResnRule = GedcomResnRule(),
+) {
 
     fun classify(record: GenealogicalRecord): PrivacyClassificationResult =
         runCatching { evaluate(record) }.getOrElse { failClosed() }
 
     private fun evaluate(record: GenealogicalRecord): PrivacyClassificationResult {
+        if (gedcomResnRule.evaluate(record.gedcomSource) == GedcomResnSignal.BLOCKED) {
+            return PrivacyClassificationResult(
+                status = PrivacyClassificationStatus.BLOCKED,
+                reason = PrivacyClassificationReasons.GEDCOM_RESN_BLOCKED,
+            )
+        }
+
         val deceasedStatus = DeceasedStatus.parse(record.deceasedStatus)
 
         if (deceasedStatus != DeceasedStatus.OVERLEDEN) {

@@ -6,11 +6,16 @@ package nl.vdzon.hkh.privacyclassification
  * De overlijdensstatus is met opzet als ruwe tekst gemodelleerd. Zo kan een record zowel een
  * ontbrekende (`null`) als een niet-herkende waarde bevatten zonder dat constructie of
  * deserialisatie faalt; [PrivacyClassifier] beoordeelt zulke waarden fail-closed als [DeceasedStatus.ONBEKEND].
+ *
+ * [gedcomSource] is optionele, ruwe GEDCOM 7.0-brontekst voor het record; ontbreekt deze (`null`
+ * of leeg, bijvoorbeeld omdat de bron alleen JSON of RDF is), dan heeft [GedcomResnRule] geen
+ * invloed op de classificatie.
  */
 data class GenealogicalRecord(
     val deceasedStatus: String? = null,
     val nextOfKin: LivingNextOfKinFields = LivingNextOfKinFields(),
     val namedPersons: List<NamedPerson> = emptyList(),
+    val gedcomSource: String? = null,
 )
 
 /**
