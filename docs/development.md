@@ -21,6 +21,19 @@ mvn -B --no-transfer-progress -f backend/pom.xml clean verify
 Always run from the repository root, or from `backend`; the loader checks both locations for the
 root `secrets.env`.
 
+## Backend modules
+
+Backend features are Spring Modulith modules under `nl.vdzon.hkh`. Each module declares its allowed
+dependencies in `package-info.java`, and `ModulithArchitectureTest` verifies the module set during
+Maven `verify`.
+
+`nl.vdzon.hkh.linkdossier` is an internal domain-only module: it holds the link dossier model and
+`LinkDossierValidator`, a deterministic fail-closed validator that returns a dossier status, a
+dossier-wide object media indication and two deduplicated, lexicographically sorted lists of blocking
+field paths. It has no allowed dependencies and exposes no controller, repository or migration. The
+functional rules are described in [factory/functional-spec.md](factory/functional-spec.md); the
+implementation notes in [factory/technical-spec.md](factory/technical-spec.md).
+
 ## User frontend
 
 The user application supports Flutter web and Android. It uses `http://localhost:8080` as its

@@ -9,7 +9,9 @@
 
 ## Repositorystructuur
 
-- `backend/`: Kotlin, Spring Boot, Spring Modulith, Maven en backendtests;
+- `backend/`: Kotlin, Spring Boot, Spring Modulith, Maven en backendtests; features zijn modules
+  onder `nl.vdzon.hkh` met een eigen `package-info.java`, waaronder de interne domeinmodule
+  `linkdossier` met de koppelingsdossiervalidator;
 - `frontend/`: Flutter-gebruikersapp; homepage en statusflows staan in `lib/main.dart`,
   broninterfaces onder `lib/backend/` en `lib/news/`, widgettests onder `test/`;
 - `frontend-admin/`: afzonderlijke Flutter-webbeheerapp en widgettests;
@@ -63,5 +65,7 @@ build met een expliciete testbackend, bijvoorbeeld
 - Widgettests inspecteren de daadwerkelijke Flutter-semantiekboom en toetsenbordfocus. Nieuwe
   zichtbare statuskopieën mogen geen tweede `SemanticsRole.status` opleveren.
 - Kotlin-tests draaien via Maven `verify`; componentgrenzen volgen de bestaande Spring
-  Modulith-structuur.
+  Modulith-structuur. Een nieuwe module krijgt een `package-info.java` met expliciete
+  `allowedDependencies` (geen wildcard) en wordt opgenomen in de moduleset van
+  `ModulithArchitectureTest`.
 - Geen echte secrets, persoonsgegevens, buildoutput of lokale overrides versioneren.

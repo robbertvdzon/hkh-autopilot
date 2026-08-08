@@ -11,6 +11,31 @@ De backendservicecontrole combineert `GET /actuator/health` en `GET /api/version
 binnen tien seconden met een geldige 200-respons slagen. Nieuws komt van `GET /api/news` en heeft
 dezelfde clienttimeout. `API_BASE_URL` is een compile-time Dart-define.
 
+## Backendmodule `linkdossier`
+
+De koppelingsdossiervalidatie zit in de zelfstandige Spring Modulith-module
+`nl.vdzon.hkh.linkdossier`. De module heeft `package-info.java` met
+`@ApplicationModule(allowedDependencies = {})` — geen wildcard, dus geen afhankelijkheden naar andere
+modules — en staat in de moduleset van `ModulithArchitectureTest`. Er is bewust geen controller,
+repository of migratie: de module is puur intern domein.
+
+- `LinkDossier.kt` bevat `LinkDossier`, `LinkDossierRecord`, `RecordDating` en `LinkDossierRelation`
+  plus de enums `RightsClassification`, `PrivacyClassification`, `DatingUncertainty` en
+  `ConfirmationStatus`.
+- Gecontroleerde waarden staan in het domeinmodel als ruwe `String?` en worden pas door `parse`
+  omgezet. Zo kan een dossier zowel een ontbrekende als een niet-herkende waarde bevatten zonder dat
+  constructie of deserialisatie faalt; de validator keurt af in plaats van te klappen. `parse` trimt
+  de invoer en vergelijkt hoofdletterongevoelig.
+- `LinkDossierValidator.validate` verzamelt alle overtredingen in twee `MutableSet<String>` en stopt
+  nooit bij de eerste. Ontdubbeling volgt uit de set en de volgorde uit `sorted()`, dus het resultaat
+  is onafhankelijk van de uitvoeringsvolgorde. De hele evaluatie zit in `runCatching`: een onverwachte
+  fout levert een geblokkeerd, objectmedia-verboden resultaat op in plaats van een uitzondering.
+- `LinkDossierValidationResult.kt` bevat het resultaattype, `DossierStatus` en de vaste veldpaden in
+  `LinkDossierFieldPaths` (`records`, `records[n].<veld>`, `relation.<veld>`). Recordpaden gebruiken
+  de invoerindex.
+- URL-validatie gebruikt `java.net.URI`: absoluut, schema `http` of `https` en een niet-lege host. Er
+  wordt geen netwerkverkeer gegenereerd.
+
 ## Flutter-webstatussemantiek
 
 Statussen gebruiken een eigen `Semantics`-container met `SemanticsRole.status` en exact één
