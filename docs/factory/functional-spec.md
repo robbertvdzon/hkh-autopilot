@@ -128,6 +128,38 @@ tussen voorgrond- en achtergrondkleur.
 Buiten scope: de daadwerkelijke publicatieworkflow zelf, opslag/REST-endpoint voor genealogische
 records en koppeling met externe archieven.
 
+## Externe verificatie (archieven.nl)
+
+Het systeem kan zelf controleren of een lokaal genealogisch record (bijvoorbeeld een bidprentje)
+overeenkomt met het publieke, vrij toegankelijke archief van archieven.nl/Noord-Hollands Archief. Er
+is geen inlogtoken nodig om deze bron te bevragen. Per verzoek wordt precies één lokaal record
+(lokale identifier, naam, geboortedatum, overlijdensdatum en de archieven.nl-koppeling `adtid`/
+`guid`) vergeleken met wat het archief teruggeeft via de resolvebare URI
+`http://opendata.archieven.nl/id/<adtid>/<guid>`, bevraagd met header `Accept: application/ld+json`.
+
+Wanneer naam en geboorte-/overlijdensdatum overeenkomen met de opgehaalde archiefkernvelden krijgt
+het record status `Verified`. Zonder match — bijvoorbeeld bij een niet-bestaande of ongeldige guid —
+krijgt het record status `Unverified`. Een `Unverified`-record kan nooit gepubliceerd worden: een
+publish-guard weigert publicatie voor elk `Unverified`-record en staat publicatie toe voor elk
+`Verified`-record. Er is nog geen bestaande publicatieworkflow in de repository om deze guard op
+aan te sluiten; een latere publicatiefeature kan hem hergebruiken.
+
+Er wordt nooit de volledige externe brondata opgeslagen: alleen de externe URI, welke velden
+gematcht zijn, het controletijdstip en de resulterende status.
+
+Alleen wanneer het archiefendpoint zelf expliciet een toegangstoken eist (vandaag niet het geval),
+toont het systeem één invoerveld hiervoor. Dat token wordt versleuteld opgeslagen en verschijnt
+nooit in leesbare vorm in een UI-respons of in logoutput.
+
+In de beheerfrontend (`frontend-admin`) wordt de externe archiefbron getoond als een link met een
+programmatisch gekoppeld aria-label/semantisch label dat aankondigt dat de link een externe bron in
+een nieuw tabblad opent, naar de bestaande toegankelijkheidsconventies van `frontend-admin`.
+
+Buiten scope: de daadwerkelijke publicatieworkflow zelf, koppeling met andere externe archieven dan
+het archieven.nl/Noord-Hollands Archief-patroon, en het daadwerkelijk bouwen van een tokenprotocol
+voor een endpoint dat vandaag geen autorisatie vereist (alleen het invoerveld en de versleutelde
+opslag ervoor zijn voorbereid).
+
 ## Verificatie
 
 Widgettests dekken alle statusvarianten, aantallen en labels van statusnodes, afwezigheid van
@@ -160,6 +192,17 @@ persoonsgegevensclassificaties, opslag uitsluitend als `intern_concept`, de opti
 conceptkoppeling en afwezigheid van media-/publicatievelden) en met frontend-admin widget- en
 toegankelijkheidstests voor de foutsamenvatting, focusverplaatsing, per-veld foutkoppeling en het
 aria-live-statusgedrag van `RecordIntakeForm`.
+
+De externe verificatie is gedekt met backend unit-, client- en integratietests: een geautomatiseerde
+integratietest tegen een fixture-/mock-archiefendpoint bevestigt de `Accept: application/ld+json`-
+header zonder autorisatietoken; minimaal twee verschillende matching-fixtures leveren `Verified` op;
+een fixture met een ongeldige guid levert `Unverified` op en een gerichte test bevestigt dat de
+publish-guard publicatie voor dat record weigert; een reflectie-/schema-assertie op de migratie/
+entiteit bevestigt dat uitsluitend de minimale verificatievelden worden opgeslagen; en een test op
+logoutput en API-respons bevestigt de afwezigheid van de tokenwaarde wanneer het mock-endpoint een
+toegangstoken vereist. Een Flutter-widgettest op de semantiekboom van `frontend-admin` bevestigt dat
+de link naar archieven.nl een aria-label/semantisch label heeft dat aankondigt dat een externe bron
+in een nieuw tabblad opent.
 
 Testergoedkeuring vereist daarnaast volledig groen, revisiongebonden bewijs voor iedere opdracht in
 `.factory/verification.yaml`. Ontbrekend bewijs, een onbekende configversie, toolfout, timeout,

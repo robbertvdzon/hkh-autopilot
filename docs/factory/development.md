@@ -13,9 +13,14 @@
   onder `nl.vdzon.hkh` met een eigen `package-info.java`, waaronder de interne domeinmodule
   `linkdossier` met de koppelingsdossiervalidator, de interne domeinmodule
   `privacyclassification` met de AVG-classificatie van genealogische records
-  (`PrivacyClassifier`/`PrivacyPublishGuard`) en de module `recordintake` met het
+  (`PrivacyClassifier`/`PrivacyPublishGuard`), de module `recordintake` met het
   `POST /api/record-intake`-endpoint (tokenverificatie, veld- en privacyvalidatie, opslag als
-  intern concept plus optionele externe conceptkoppeling, Flyway-migratie `V4__record_intake.sql`);
+  intern concept plus optionele externe conceptkoppeling, Flyway-migratie `V4__record_intake.sql`)
+  en de module `externalverification` met het `POST /api/external-verification`-endpoint
+  (bevraagt archieven.nl zonder autorisatietoken, matcht naam en datumvelden tot status
+  `Verified`/`Unverified`, `ExternalVerificationPublishGuard`, versleutelde opslag van een optioneel
+  archieftoegangstoken via `ExternalVerificationTokenCipher`, Flyway-migratie
+  `V5__external_verification.sql`);
 - `frontend/`: Flutter-gebruikersapp; homepage en statusflows staan in `lib/main.dart`,
   broninterfaces onder `lib/backend/` en `lib/news/`, widgettests onder `test/`;
 - `frontend-admin/`: afzonderlijke Flutter-webbeheerapp en widgettests;
