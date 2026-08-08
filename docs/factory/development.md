@@ -18,9 +18,11 @@
   intern concept plus optionele externe conceptkoppeling, Flyway-migratie `V4__record_intake.sql`)
   en de module `externalverification` met het `POST /api/external-verification`-endpoint
   (bevraagt archieven.nl zonder autorisatietoken, matcht naam en datumvelden tot status
-  `Verified`/`Unverified`, `ExternalVerificationPublishGuard`, versleutelde opslag van een optioneel
-  archieftoegangstoken via `ExternalVerificationTokenCipher`, Flyway-migratie
-  `V5__external_verification.sql`);
+  `Verified`/`Unverified`, beoordeelt per record en los daarvan de hergebruikslicentie tot
+  `LICENSE_KNOWN`/`LICENSE_UNKNOWN` (`ExternalVerificationLicenseEvaluator`), `ExternalVerificationPublishGuard`
+  (weigert publicatie bij `Unverified` én bij `LICENSE_UNKNOWN`), versleutelde opslag van een optioneel
+  archieftoegangstoken via `ExternalVerificationTokenCipher`, Flyway-migraties
+  `V5__external_verification.sql` en `V6__external_verification_license.sql`);
 - `frontend/`: Flutter-gebruikersapp; homepage en statusflows staan in `lib/main.dart`,
   broninterfaces onder `lib/backend/` en `lib/news/`, widgettests onder `test/`;
 - `frontend-admin/`: afzonderlijke Flutter-webbeheerapp en widgettests;

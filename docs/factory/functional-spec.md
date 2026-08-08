@@ -144,8 +144,22 @@ publish-guard weigert publicatie voor elk `Unverified`-record en staat publicati
 `Verified`-record. Er is nog geen bestaande publicatieworkflow in de repository om deze guard op
 aan te sluiten; een latere publicatiefeature kan hem hergebruiken.
 
+Naast de naam-/datumverificatie controleert het systeem ook, per record en als onderdeel van
+dezelfde bevraging, of dat specifieke archiefrecord een hergebruikslicentie vermeldt (bijvoorbeeld
+`CC0`), gelezen uit het `license`-veld van de opgehaalde JSON-LD-respons. Dit is een nieuw, los
+statusbegrip — de licentiestatus — dat niet wordt samengevoegd met de bestaande verificatiestatus
+`Verified`/`Unverified`. Vermeldt het record een licentie, dan krijgt het licentiestatus "licentie
+bekend" met de vastgestelde licentiewaarde en controledatum. Ontbreekt de licentie-informatie, dan
+krijgt het record licentiestatus `License unknown`. Dit gebeurt uitsluitend op basis van het
+antwoord van dát ene record: er wordt nooit een licentiewaarde van een ander record uit dezelfde
+archiefcollectie hergebruikt of als aanname overgenomen, ook niet wanneer andere records uit
+dezelfde collectie wel een bekende licentie hebben. De publish-guard weigert publicatie ook
+wanneer de licentiestatus `License unknown` is, onafhankelijk van de verificatiestatus — een
+`Verified`-record met `License unknown` wordt dus alsnog niet gepubliceerd.
+
 Er wordt nooit de volledige externe brondata opgeslagen: alleen de externe URI, welke velden
-gematcht zijn, het controletijdstip en de resulterende status.
+gematcht zijn, het controletijdstip, de resulterende status en de licentiestatus (met, indien
+bekend, licentiewaarde en controledatum).
 
 Alleen wanneer het archiefendpoint zelf expliciet een toegangstoken eist (vandaag niet het geval),
 toont het systeem één invoerveld hiervoor. Dat token wordt versleuteld opgeslagen en verschijnt
@@ -153,12 +167,15 @@ nooit in leesbare vorm in een UI-respons of in logoutput.
 
 In de beheerfrontend (`frontend-admin`) wordt de externe archiefbron getoond als een link met een
 programmatisch gekoppeld aria-label/semantisch label dat aankondigt dat de link een externe bron in
-een nieuw tabblad opent, naar de bestaande toegankelijkheidsconventies van `frontend-admin`.
+een nieuw tabblad opent, naar de bestaande toegankelijkheidsconventies van `frontend-admin`. De
+licentiestatus krijgt een eigen statusbadge, naast de bestaande verificatie- en privacystatusbadges,
+met zowel een tekstlabel als een icoon en een contrastratio van minimaal 4.5:1, naar het patroon van
+`PrivacyClassificationStatusView`.
 
 Buiten scope: de daadwerkelijke publicatieworkflow zelf, koppeling met andere externe archieven dan
-het archieven.nl/Noord-Hollands Archief-patroon, en het daadwerkelijk bouwen van een tokenprotocol
+het archieven.nl/Noord-Hollands Archief-patroon, het daadwerkelijk bouwen van een tokenprotocol
 voor een endpoint dat vandaag geen autorisatie vereist (alleen het invoerveld en de versleutelde
-opslag ervoor zijn voorbereid).
+opslag ervoor zijn voorbereid), en wijzigingen aan de bestaande naam-/datumverificatielogica.
 
 ## Verificatie
 
@@ -203,6 +220,16 @@ logoutput en API-respons bevestigt de afwezigheid van de tokenwaarde wanneer het
 toegangstoken vereist. Een Flutter-widgettest op de semantiekboom van `frontend-admin` bevestigt dat
 de link naar archieven.nl een aria-label/semantisch label heeft dat aankondigt dat een externe bron
 in een nieuw tabblad opent.
+
+De per-record licentiecontrole is gedekt met twee JSON-LD-fixtures (met en zonder zichtbare
+licentie) die respectievelijk licentiestatus "licentie bekend" (met waarde en controledatum) en
+`License unknown` opleveren; een gerichte test bevestigt dat de publish-guard publicatie weigert
+zodra de licentiestatus `License unknown` is, ook wanneer de verificatiestatus `Verified` is; en een
+integratietest met twee records uit dezelfde archiefcollectie bevestigt dat beide records hun eigen,
+onafhankelijke licentie-uitkomst behouden (geen afleiding van het ene record naar het andere). Een
+Flutter-widget-/semantiektest bevestigt tekstlabel én icoon van de licentiestatusbadge, en een
+gerichte kleur-/contrasttest berekent de contrastratio van de gebruikte kleurwaarden (≥4.5:1)
+volgens de WCAG 2.1-formule, als vervanging van axe-core conform de bestaande repo-conventie.
 
 Testergoedkeuring vereist daarnaast volledig groen, revisiongebonden bewijs voor iedere opdracht in
 `.factory/verification.yaml`. Ontbrekend bewijs, een onbekende configversie, toolfout, timeout,

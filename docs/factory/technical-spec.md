@@ -146,7 +146,9 @@ persisteert.
   `hkh.externalverification.archives-base-url` (env
   `HKH_EXTERNAL_VERIFICATION_ARCHIVES_BASE_URL`), uitsluitend zodat tests tegen een lokale
   fixture/mock-endpoint kunnen draaien. Er wordt geen volledige externe brondata opgeslagen; alleen
-  de kernvelden gaan naar de matcher.
+  de kernvelden (inclusief `license`) gaan naar de matcher/evaluator. `ArchiveRecordFields.license`
+  wordt gelezen uit hetzelfde JSON-LD-antwoord als naam/geboortedatum/overlijdensdatum — geen extra
+  HTTP-verzoek.
 - `ExternalVerificationMatcher.match` vergelijkt naam en geboorte-/overlijdensdatum van het lokale
   record met de opgehaalde JSON-LD-kernvelden en levert een `ExternalVerificationMatchResult` op
   met status `VERIFIED` (alle velden komen overeen) of `UNVERIFIED` (geen match, inclusief een
@@ -154,16 +156,30 @@ persisteert.
   (`ExternalVerificationMatchableFields`: `name`, `birthDate`, `deathDate` — nooit de opgehaalde
   waarden zelf) en een verplichte, niet-lege leesbare `reason`
   (`ExternalVerificationReasons`), naar het patroon van `PrivacyClassificationResult`.
-- `ExternalVerificationService.verify` orkestreert client, matcher en opslag en levert een
-  `ExternalVerificationOutcome` (opgeslagen record plus reden). `ExternalVerificationRepository`
-  (Flyway-migratie `V5__external_verification.sql`, tabel `external_verification`) slaat
-  uitsluitend de minimale verificatievelden op: externe URI, gematchte velden, controletijdstip,
-  status en — indien aanwezig — het versleutelde toegangstoken; nooit de volledige externe
-  JSON-LD-payload.
+- `ExternalVerificationLicense.kt` bevat een nieuw, los domeinbegrip voor de per-record
+  hergebruikslicentie, gescheiden van `ExternalVerificationStatus`: `ExternalVerificationLicenseStatus`
+  (`LICENSE_KNOWN`/`LICENSE_UNKNOWN`), `ExternalVerificationLicenseResult` (bewaakt in `init` dat
+  `licenseValue` uitsluitend gezet is bij `LICENSE_KNOWN`) en `ExternalVerificationLicenseEvaluator`.
+  `ExternalVerificationLicenseEvaluator.evaluate` leest uitsluitend het `license`-veld van het
+  antwoord van dát ene record (nooit een waarde van een ander record binnen dezelfde archiefcollectie
+  hergebruikt of gecachet); de hele evaluatie zit in `runCatching` en levert bij ontbrekende, lege of
+  onverwachte waarden fail-closed `LICENSE_UNKNOWN` op (`ExternalVerificationLicenseReasons`).
+- `ExternalVerificationService.verify` orkestreert client, matcher, licentie-evaluator en opslag en
+  levert een `ExternalVerificationOutcome` (opgeslagen record plus reden). `ExternalVerificationRepository`
+  (Flyway-migratie `V5__external_verification.sql` gevolgd door `V6__external_verification_license.sql`,
+  tabel `external_verification`) slaat uitsluitend de minimale verificatievelden op: externe URI,
+  gematchte velden, controletijdstip, status, licentiestatus, licentiewaarde (indien bekend),
+  licentiecontroletijdstip en — indien aanwezig — het versleutelde toegangstoken; nooit de volledige
+  externe JSON-LD-payload. `V6` voegt `license_status` (NOT NULL, default `LICENSE_UNKNOWN`),
+  `license_value` (nullable) en `license_checked_at` (NOT NULL, default `CURRENT_TIMESTAMP`) toe, met
+  een consistency-check dat `license_value` alleen gezet is bij `LICENSE_KNOWN`; bestaande rijen
+  krijgen automatisch de fail-closed default, dus backward-compatible zonder handmatige backfill.
 - `ExternalVerificationPublishGuard.assertPublishable` is een losstaande, herbruikbare guard (naar
   het patroon van `PrivacyPublishGuard`) die publicatie weigert met
-  `ExternalVerificationPublishBlockedException` wanneer de status niet `VERIFIED` is en niets doet
-  bij `VERIFIED`. Er is nog geen bestaande publicatieworkflow om op aan te sluiten.
+  `ExternalVerificationPublishBlockedException` wanneer de status niet `VERIFIED` is, én wanneer de
+  licentiestatus niet `LICENSE_KNOWN` is — beide checks zijn onafhankelijk van elkaar, dus een
+  `VERIFIED`-record met `LICENSE_UNKNOWN` wordt alsnog geweigerd. Er is nog geen bestaande
+  publicatieworkflow om op aan te sluiten.
 - `ExternalVerificationTokenCipher` versleutelt/ontsleutelt een optioneel archiefendpoint-token met
   AES-256-GCM. De sleutel komt uit `hkh.externalverification.token-key` (env
   `HKH_EXTERNAL_VERIFICATION_TOKEN_KEY`), naar het patroon van de bestaande `secrets.env`-aanpak;
@@ -176,6 +192,14 @@ persisteert.
   `Semantics`-node (`link: true`) waarvan het `label` programmatisch aankondigt dat de link een
   externe bron in een nieuw tabblad opent (`linkSemanticLabel`), naar de bestaande
   toegankelijkheidsconventies van `frontend-admin`.
+- Frontend: `frontend-admin/lib/externalverification/license_status_view.dart` bevat
+  `LicenseStatusView`, naar het patroon van `PrivacyClassificationStatusView`: tekstlabel
+  (`Licentie bekend`/`License unknown`) en icoon (`Icons.verified`/`Icons.help_outline`), nooit
+  uitsluitend via kleur. De vaste voorgrondkleuren in `LicenseStatusColors` halen tegen de witte
+  achtergrond een contrastratio van 7.87:1 (`knownForeground`) respectievelijk 6.57:1
+  (`unknownForeground`), ruim boven de WCAG 2.1 AA-minimumwaarde van 4.5:1. Het icoon krijgt een
+  eigen `semanticLabel` (`Icoon <label>`), zodat tekstlabel en icoon elk een eigen node in de
+  semantiekboom hebben.
 
 ## Flutter-webstatussemantiek
 
