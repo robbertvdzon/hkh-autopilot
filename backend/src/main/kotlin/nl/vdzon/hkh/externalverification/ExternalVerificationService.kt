@@ -30,6 +30,7 @@ class ExternalVerificationService(
         val fetchResult = runCatching { client.fetch(adtid, guid, request.accessToken) }
             .getOrElse { ArchiveFetchResult.NotFound }
         val matchResult = ExternalVerificationMatcher.match(request, fetchResult)
+        val licenseResult = ExternalVerificationLicenseEvaluator.evaluate(fetchResult)
 
         val encryptedAccessToken = request.accessToken
             ?.trim()
@@ -42,13 +43,16 @@ class ExternalVerificationService(
             matchedFields = matchResult.matchedFields,
             status = matchResult.status,
             encryptedAccessToken = encryptedAccessToken,
+            licenseStatus = licenseResult.status,
+            licenseValue = licenseResult.licenseValue,
         )
 
         log.info(
-            "External verification completed for local record {}: status={}, matchedFields={}",
+            "External verification completed for local record {}: status={}, matchedFields={}, licenseStatus={}",
             record.localIdentifier,
             record.status,
             record.matchedFields,
+            record.licenseStatus,
         )
 
         return ExternalVerificationOutcome(record, matchResult.reason)

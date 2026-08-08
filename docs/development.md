@@ -59,12 +59,19 @@ endpoint (`http://opendata.archieven.nl/id/<adtid>/<guid>`, queried with
 `Accept: application/ld+json`, no authorization token unless the endpoint itself explicitly
 requires one). Matching name and birth/death date fields yield status `VERIFIED`; no match
 (including a non-existent or invalid guid) yields `UNVERIFIED`, for which
-`ExternalVerificationPublishGuard` refuses publication. Only the minimal verification fields
-(external URI, matched fields, checked-at timestamp and status) are persisted
-(`V5__external_verification.sql`) — never the full external JSON-LD payload. An optional archive
-access token is encrypted with AES-256-GCM (`ExternalVerificationTokenCipher`) and never shown,
-logged or returned in plain text. `frontend-admin` shows the archive link with an aria-label that
-announces it opens an external source in a new tab. Configuration and behavior are documented in
+`ExternalVerificationPublishGuard` refuses publication. The same response is also evaluated,
+per record, for a reuse license (e.g. `CC0`) via `ExternalVerificationLicenseEvaluator` — a
+separate, fail-closed status (`LICENSE_KNOWN`/`LICENSE_UNKNOWN`) independent of the match status
+and never inferred from another record in the same archive collection. `ExternalVerificationPublishGuard`
+also refuses publication when the license status is `LICENSE_UNKNOWN`, regardless of the match
+status. Only the minimal verification fields (external URI, matched fields, checked-at timestamp,
+status, license status, license value when known, and license checked-at timestamp) are persisted
+(`V5__external_verification.sql`, extended by `V6__external_verification_license.sql`) — never the
+full external JSON-LD payload. An optional archive access token is encrypted with AES-256-GCM
+(`ExternalVerificationTokenCipher`) and never shown, logged or returned in plain text.
+`frontend-admin` shows the archive link with an aria-label that announces it opens an external
+source in a new tab, plus a separate `LicenseStatusView` status badge (text label + icon) next to
+the existing verification/privacy badges. Configuration and behavior are documented in
 [factory/technical-spec.md](factory/technical-spec.md) and
 [factory/secrets-local.md](factory/secrets-local.md).
 

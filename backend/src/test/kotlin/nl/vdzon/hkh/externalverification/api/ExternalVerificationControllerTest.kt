@@ -6,6 +6,7 @@ import nl.vdzon.hkh.externalverification.ArchiveFetchResult
 import nl.vdzon.hkh.externalverification.ArchiveRecordFields
 import nl.vdzon.hkh.externalverification.ArchivesNlClient
 import nl.vdzon.hkh.externalverification.ExternalVerificationFieldPaths
+import nl.vdzon.hkh.externalverification.ExternalVerificationLicenseStatus
 import nl.vdzon.hkh.externalverification.ExternalVerificationRecord
 import nl.vdzon.hkh.externalverification.ExternalVerificationService
 import nl.vdzon.hkh.externalverification.ExternalVerificationStatus
@@ -28,7 +29,7 @@ class ExternalVerificationControllerTest {
         val controller = controller(
             store = store,
             client = ArchivesNlClient { _, _, _ ->
-                ArchiveFetchResult.Found(ArchiveRecordFields("Jan Jansen", "1900-01-01", "1980-05-05"))
+                ArchiveFetchResult.Found(ArchiveRecordFields("Jan Jansen", "1900-01-01", "1980-05-05", "CC0"))
             },
         )
 
@@ -37,7 +38,26 @@ class ExternalVerificationControllerTest {
         assertEquals(HttpStatus.CREATED, response.statusCode)
         val body = response.body as ExternalVerificationResponse
         assertEquals(ExternalVerificationStatus.VERIFIED.name, body.status)
+        assertEquals(ExternalVerificationLicenseStatus.LICENSE_KNOWN.name, body.licenseStatus)
+        assertEquals("CC0", body.licenseValue)
         assertEquals(1, store.created.size)
+    }
+
+    @Test
+    fun `stores a record with license unknown when the fetched record has no license field`() {
+        val store = RecordingStore()
+        val controller = controller(
+            store = store,
+            client = ArchivesNlClient { _, _, _ ->
+                ArchiveFetchResult.Found(ArchiveRecordFields("Jan Jansen", "1900-01-01", "1980-05-05"))
+            },
+        )
+
+        val response = controller.verify(validRequest())
+
+        val body = response.body as ExternalVerificationResponse
+        assertEquals(ExternalVerificationLicenseStatus.LICENSE_UNKNOWN.name, body.licenseStatus)
+        assertEquals(null, body.licenseValue)
     }
 
     @Test
@@ -99,6 +119,8 @@ class ExternalVerificationControllerTest {
             matchedFields: List<String>,
             status: ExternalVerificationStatus,
             encryptedAccessToken: String?,
+            licenseStatus: ExternalVerificationLicenseStatus,
+            licenseValue: String?,
         ): ExternalVerificationRecord {
             val record = ExternalVerificationRecord(
                 id = nextId++,
@@ -107,6 +129,9 @@ class ExternalVerificationControllerTest {
                 matchedFields = matchedFields,
                 status = status.name,
                 checkedAt = Instant.now(),
+                licenseStatus = licenseStatus.name,
+                licenseValue = licenseValue,
+                licenseCheckedAt = Instant.now(),
             )
             created += record
             return record

@@ -32,6 +32,9 @@ data class ExternalVerificationResponse(
     val matchedFields: List<String>,
     val checkedAt: Instant,
     val reason: String,
+    val licenseStatus: String,
+    val licenseValue: String?,
+    val licenseCheckedAt: Instant,
 )
 
 /**
@@ -63,6 +66,9 @@ class ExternalVerificationController(
                 matchedFields = outcome.record.matchedFields,
                 checkedAt = outcome.record.checkedAt,
                 reason = outcome.reason,
+                licenseStatus = outcome.record.licenseStatus,
+                licenseValue = outcome.record.licenseValue,
+                licenseCheckedAt = outcome.record.licenseCheckedAt,
             ),
         )
     }
