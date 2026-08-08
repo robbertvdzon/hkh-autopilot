@@ -10,6 +10,24 @@ package nl.vdzon.hkh.privacyclassification
 data class GenealogicalRecord(
     val deceasedStatus: String? = null,
     val nextOfKin: LivingNextOfKinFields = LivingNextOfKinFields(),
+    val namedPersons: List<NamedPerson> = emptyList(),
+)
+
+/**
+ * Eén in het record genoemde persoon (de hoofdpersoon of een familielid), voor de FamilySearch
+ * 110/95-jaarregel in [LivingPersonAgeRule].
+ *
+ * De datumvelden zijn met opzet als ruwe tekst gemodelleerd, naar het patroon van
+ * `ExternalVerificationRequest.birthDate`: zo kan een persoon zowel een ontbrekende (`null`) als
+ * een onleesbare waarde bevatten zonder dat constructie faalt; [LivingPersonAgeRule] beoordeelt
+ * zulke waarden fail-closed.
+ */
+data class NamedPerson(
+    val birthDate: String? = null,
+    val marriageDate: String? = null,
+    val childBirthDate: String? = null,
+    val deathDate: String? = null,
+    val burialDate: String? = null,
 )
 
 /**

@@ -121,6 +121,18 @@ geblokkeerd record en staat publicatie toe voor elk `Processable`-record. Er is 
 publicatieworkflow in de repository om deze guard op aan te sluiten; een latere publicatiefeature kan
 hem hergebruiken.
 
+Aanvullend hierop wordt per in het record genoemde persoon (de hoofdpersoon of een familielid)
+beoordeeld of deze vermoedelijk nog leeft, volgens de FamilySearch 110/95-jaarregel: een extern
+gedocumenteerde, niet-wettelijke vuistregel uit de genealogiepraktijk (FamilySearch), geen
+wettelijke AVG-norm. Een persoon is vermoedelijk levend wanneer er geen overlijdens- of
+begrafenisdatum bekend is, én de persoon jonger dan 110 jaar zou zijn, of minder dan 95 jaar
+geleden trouwde of een kind kreeg (grenzen inclusief). Ontbrekende of onleesbare datumvelden leiden
+altijd tot een fail-closed blokkade, nooit tot automatische vrijgave. Zodra één genoemde persoon zo
+wordt aangemerkt, blijft het hele record `Blocked`, aanvullend op de bestaande
+overlijdensstatus-/nabestaande-controles. Bekende beperking: datums worden verwacht met volledige
+dag-precisie (ISO-8601); een datum met alleen een jaartal wordt ook verwerkt (met 1 januari als
+impliciete dag), maar fijnere granulariteit dan dag of jaar wordt niet ondersteund.
+
 In de beheerfrontend (`frontend-admin`) wordt de classificatiestatus altijd getoond met zowel een
 tekstlabel als een icoon, nooit uitsluitend via kleur, met een contrastratio van minimaal 4.5:1
 tussen voorgrond- en achtergrondkleur.
