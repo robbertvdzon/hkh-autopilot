@@ -101,6 +101,15 @@ expose one polite Flutter web status node per active flow. The two retry actions
 focus order, show a three-pixel focus border and support Enter and Space without moving focus
 programmatically.
 
+The homepage also renders a discover block (`lib/news/discover_section.dart`) below the latest-news
+section: a labeled search field and entity chips (`PLEK`/`PERSOON`/`GEBEURTENIS`), both querying
+`GET /api/news` with optional `q`/`entity` parameters. A search or chip click shows a results list
+(title, summary, entity badges, source line) or, for zero results, a non-empty empty state with
+suggestion chips from the same aggregated entity list; each result opens a detail view (full text,
+publication date, source) with a back action. It is the homepage's only primary discovery action,
+fully keyboard-operable, and exposes its result count through a `Semantics(liveRegion: true)` node
+that changes after every search or chip selection.
+
 Run the frontend checks with:
 
 ```bash

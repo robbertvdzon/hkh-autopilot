@@ -52,25 +52,31 @@ class _NewsSource implements LatestNewsSource {
   final bool error;
 
   @override
-  Future<List<LatestNewsItem>> loadLatestNews() async {
+  Future<NewsSearchResult> loadLatestNews({String? q, String? entity}) async {
     if (error) throw StateError('offline');
-    return items;
+    return NewsSearchResult(items: items, total: items.length, entities: const []);
   }
 }
 
 class _DeferredNewsSource implements LatestNewsSource {
-  final result = Completer<List<LatestNewsItem>>();
+  final result = Completer<NewsSearchResult>();
 
   @override
-  Future<List<LatestNewsItem>> loadLatestNews() => result.future;
+  Future<NewsSearchResult> loadLatestNews({String? q, String? entity}) =>
+      result.future;
 }
 
+/// Faalt op de EERSTE aanroep en levert bij elke volgende aanroep dezelfde
+/// pending [retryResult] op. De homepage bevat twee onafhankelijke
+/// consumenten van [LatestNewsSource] (`_LatestNewsSection` en
+/// `DiscoverSection`); `_LatestNewsSection` mount als eerste (hoger in de
+/// widgetboom), dus krijgt de eerste, foutieve aanroep.
 class _RetryNewsSource implements LatestNewsSource {
-  final retryResult = Completer<List<LatestNewsItem>>();
+  final retryResult = Completer<NewsSearchResult>();
   int calls = 0;
 
   @override
-  Future<List<LatestNewsItem>> loadLatestNews() {
+  Future<NewsSearchResult> loadLatestNews({String? q, String? entity}) {
     calls++;
     if (calls == 1) return Future.error(StateError('offline'));
     return retryResult.future;
@@ -97,7 +103,9 @@ void main() {
       'Laatste nieuws wordt geladen.',
     ]);
 
-    newsSource.result.complete([_news]);
+    newsSource.result.complete(
+      NewsSearchResult(items: [_news], total: 1, entities: const []),
+    );
     await tester.pumpAndSettle();
     _expectStatuses(tester, [
       'Service beschikbaar.',
@@ -214,13 +222,17 @@ void main() {
 
       await tester.sendKeyEvent(keyCase.key);
       await tester.pump();
-      expect(newsSource.calls, 2);
+      // Call 1: _LatestNewsSection.initState (error). Call 2: DiscoverSection.initState
+      // (pending, shares retryResult). Call 3: the retry triggered above.
+      expect(newsSource.calls, 3);
       _expectStatuses(tester, [
         'Service beschikbaar.',
         'Laatste nieuws wordt geladen.',
       ]);
 
-      newsSource.retryResult.complete([_news]);
+      newsSource.retryResult.complete(
+        NewsSearchResult(items: [_news], total: 1, entities: const []),
+      );
       await tester.pumpAndSettle();
       _expectStatuses(tester, [
         'Service beschikbaar.',

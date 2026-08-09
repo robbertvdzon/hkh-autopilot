@@ -31,17 +31,19 @@ class BackendClient implements BackendStatusSource, LatestNewsSource {
   }
 
   @override
-  Future<List<LatestNewsItem>> loadLatestNews() async {
-    final response = await _client
-        .get(Uri.parse('$apiBaseUrl/api/news'))
-        .timeout(const Duration(seconds: 10));
+  Future<NewsSearchResult> loadLatestNews({String? q, String? entity}) async {
+    final queryParameters = <String, String>{
+      if (q != null && q.isNotEmpty) 'q': q,
+      if (entity != null && entity.isNotEmpty) 'entity': entity,
+    };
+    final uri = Uri.parse('$apiBaseUrl/api/news').replace(
+      queryParameters: queryParameters.isEmpty ? null : queryParameters,
+    );
+    final response = await _client.get(uri).timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) {
       throw StateError('Het laatste nieuws kon niet worden geladen.');
     }
     final json = jsonDecode(response.body) as Map<String, dynamic>;
-    final items = json['items'] as List<dynamic>;
-    return items
-        .map((item) => LatestNewsItem.fromJson(item as Map<String, dynamic>))
-        .toList(growable: false);
+    return NewsSearchResult.fromJson(json);
   }
 }
