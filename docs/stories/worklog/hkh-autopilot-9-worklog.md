@@ -59,3 +59,26 @@ Done / rationale:
 - Vangnet: `mvn -f backend/pom.xml clean verify`, `flutter analyze`/`flutter test`/`flutter build web`
   (frontend), `flutter analyze`/`flutter test` (frontend-admin) — alle groen, zie testresultaten
   hieronder.
+
+## Review-notities (hkh-55)
+
+- Diff (`main...HEAD`, commit `abf6b54`) beoordeeld tegen de story-AC's, `technical-spec.md` en
+  `ModulithArchitectureTest`. Alle AC's zijn concreet gedekt door tests: routecontracttest (2
+  controllers/2 routes ongewijzigd), OpenAPI-schema-test (`LatestNewsListResponse`/
+  `LatestNewsItemResponse`/`AggregatedNewsEntityResponse` + `q`/`entity`-parameters), gazetteer-unit
+  tests (geen-match, hoofdletter/diakrieten, heel-woord, dedup, sortering per type/eerste-voorkomen),
+  integratietests voor vrije tekst + bronvermelding, entiteitsfilter met typelabel, leeg resultaat
+  (HTTP 200, total=0) voor zowel `q` als `entity`, domeinisolatie op responsniveau
+  (recordintake/privacyclassificatie/externalverification-achtige velden afwezig) en de
+  niet-via-`POST /api/admin/news`-fixture (aparte JDBC-tabel) die nooit in entiteiten/zoekresultaten
+  verschijnt. `nl.vdzon.hkh.news.entity` volgt hetzelfde subpackage-patroon als het bestaande
+  `nl.vdzon.hkh.news.api` (geen eigen `package-info.java`, blijft binnen de `news`-module), dus
+  `ModulithArchitectureTest` blijft van toepassing zonder wijziging. Frontend (`latest_news.dart`,
+  `backend_client.dart`) en de bijbehorende test zijn correct bijgewerkt op `{items, total,
+  entities}`; `frontend-admin` terecht ongewijzigd (roept alleen `POST /api/admin/news` aan). De
+  bestaande `PreviewDataApiIntegrationTest` is terecht als boyscout-fix aangepast aan het nieuwe
+  responsformaat.
+- [suggestie] `LatestNewsService.findAll()` (`LatestNewsService.kt:21`) wordt sinds deze wijziging
+  nergens meer aangeroepen (de controller gebruikt nu uitsluitend `search`); dode code, geen
+  blocker.
+- Geen bugs, regressies of scope-overschrijding gevonden. Geoordeeld: akkoord.
