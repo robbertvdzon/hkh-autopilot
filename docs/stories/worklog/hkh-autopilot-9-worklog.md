@@ -82,3 +82,36 @@ Done / rationale:
   nergens meer aangeroepen (de controller gebruikt nu uitsluitend `search`); dode code, geen
   blocker.
 - Geen bugs, regressies of scope-overschrijding gevonden. Geoordeeld: akkoord.
+
+## Test-notities (hkh-56)
+
+- Geen preview-URL/-namespace beschikbaar (`deployment.md` velden leeg); getest lokaal tegen de
+  volledige verificatiesuite uit `.factory/verification.yaml`. Geen tijdelijke testdata aangemaakt
+  (bestaande integratietests dekken alle AC's al met eigen fixtures/cleanup via testcontainers).
+- `mvn -B --no-transfer-progress clean verify` (backend): BUILD SUCCESS, 216/216 tests, 0
+  failures/errors — inclusief alle nieuwe/aangepaste `LatestNewsApiIntegrationTest`- en
+  `NewsEntityMatcherTest`-gevallen (routecontract 2/2, OpenAPI-schemacontract, vrije tekstzoek +
+  bronvermelding, entiteitsfilter + typelabel, leeg resultaat q/entity, domeinisolatie, niet-via-
+  admin-create-fixture blijft onzichtbaar, gazetteer-matching: geen match, hoofdletter/diakrieten,
+  heel-woord, dedup, sortering).
+  Handmatig tegen de broncode geverifieerd: `LatestNewsController` registreert nog steeds precies
+  de 2 bestaande routes (`GET /api/news`, `POST /api/admin/news`); alleen velden/queryparameters
+  toegevoegd.
+- `flutter analyze` (frontend): geen issues.
+- `flutter test` (frontend): standaard concurrente run toonde alleen `widget_test.dart` (11/11),
+  `backend_client_test.dart` ontbrak in de output — bekend omgevingsartefact
+  (`frontend-admin-flutter-test-concurrency-artifact`, blijkt ook in `frontend` voor te komen).
+  Herdraaid met `flutter test -j 1`: beide bestanden geladen, 11/11 groen (incl. de bijgewerkte
+  `backend_client_test.dart` op het `{items, total, entities}`-contract). Geen echte regressie,
+  puur weergave-artefact van de parallelle runner.
+- `flutter build web` (frontend): `✓ Built build/web`.
+- `flutter analyze` (frontend-admin): geen issues.
+- `flutter test` (frontend-admin): 22/22 groen (standaard concurrente run, alle bestanden zichtbaar
+  geladen — geen artefact hier).
+- Contractwijziging in `frontend/lib/news/latest_news.dart` en
+  `frontend/lib/backend/backend_client.dart` (parsing van `{items, total, entities}` i.p.v. kale
+  array) handmatig tegen de diff geverifieerd: geen crash-risico op ontbrekende `entities`/`source`
+  (defaults). `frontend-admin` roept terecht alleen `POST /api/admin/news` aan, geen wijziging
+  nodig/aanwezig.
+- Conclusie: alle AC's uit de story zijn gedekt door groene, betekenisvolle tests; vangnet volledig
+  groen. Akkoord — `tested`.
