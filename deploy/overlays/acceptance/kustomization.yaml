@@ -65,7 +65,7 @@ images:
   newTag: sha-44194e5-acceptance
 - name: backend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-backend
-  newTag: sha-95efa08
+  newTag: sha-bb07d56
 - name: frontend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-frontend
-  newTag: sha-44194e5-acceptance
+  newTag: sha-bb07d56-acceptance
