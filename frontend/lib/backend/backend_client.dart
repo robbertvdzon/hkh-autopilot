@@ -38,8 +38,9 @@ class BackendClient implements BackendStatusSource, LatestNewsSource {
     if (response.statusCode != 200) {
       throw StateError('Het laatste nieuws kon niet worden geladen.');
     }
-    final json = jsonDecode(response.body) as List<dynamic>;
-    return json
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    final items = json['items'] as List<dynamic>;
+    return items
         .map((item) => LatestNewsItem.fromJson(item as Map<String, dynamic>))
         .toList(growable: false);
   }

@@ -35,10 +35,11 @@ class PreviewDataApiIntegrationTest(
     fun `startup creates deterministic data and ensure remains idempotent`() {
         mockMvc.get("/api/news").andExpect {
             status { isOk() }
-            jsonPath("$.length()") { value(5) }
-            jsonPath("$[0].id") { value(-1) }
-            jsonPath("$[0].title") { value("Nieuwe foto's van de Kerkweg beschreven") }
-            jsonPath("$[4].id") { value(-5) }
+            jsonPath("$.total") { value(5) }
+            jsonPath("$.items.length()") { value(5) }
+            jsonPath("$.items[0].id") { value(-1) }
+            jsonPath("$.items[0].title") { value("Nieuwe foto's van de Kerkweg beschreven") }
+            jsonPath("$.items[4].id") { value(-5) }
         }
 
         jdbcTemplate.update(
