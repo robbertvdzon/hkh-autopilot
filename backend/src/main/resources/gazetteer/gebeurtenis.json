@@ -1,0 +1,8 @@
+[
+  { "canonicalLabel": "Kermis", "aliases": ["kermis"] },
+  { "canonicalLabel": "Open Monumentendag", "aliases": ["Open Monumentendag"] },
+  { "canonicalLabel": "Historische wandeling", "aliases": ["historische wandeling"] },
+  { "canonicalLabel": "HKH-lezing", "aliases": ["lezing"] },
+  { "canonicalLabel": "Jaarmarkt", "aliases": ["jaarmarkt"] },
+  { "canonicalLabel": "Fotoavond", "aliases": ["fotoavond"] }
+]
