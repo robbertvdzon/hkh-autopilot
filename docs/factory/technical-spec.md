@@ -47,9 +47,64 @@ blijven de enige twee, gedekt door een routecontracttest op `RequestMappingHandl
   `q`/`entity`-queryparameters, zodat een vervolgstory hierop kan voortbouwen zonder handmatige
   afstemming.
 - Frontend: `frontend/lib/news/latest_news.dart` heeft een nieuwe `NewsEntity`-klasse en
-  `LatestNewsItem.entities` (default leeg)/`source` (optioneel) gekregen;
-  `frontend/lib/backend/backend_client.dart#loadLatestNews` parset nu `{items: [...]}` in plaats
-  van een kale array. `frontend-admin` roept alleen `POST /api/admin/news` aan en is ongewijzigd.
+  `LatestNewsItem.entities` (default leeg)/`source` (optioneel) gekregen. `LatestNewsSource.
+  loadLatestNews` accepteert nu optionele `q`/`entity`-parameters en retourneert het volledige
+  `NewsSearchResult` (`items`, `total`, `entities: List<AggregatedNewsEntity>`) in plaats van een
+  kale itemlijst — een breaking change ten opzichte van de vorige story, bewust doorgevoerd omdat
+  het homepage-ontdekblok (hieronder) zowel de items als de geaggregeerde entiteiten nodig heeft.
+  `frontend/lib/backend/backend_client.dart#loadLatestNews` bouwt `q`/`entity` op als
+  queryparameters (weggelaten wanneer leeg/`null`) en parset de volledige
+  `{items, total, entities}`-respons via `NewsSearchResult.fromJson`. `frontend-admin` roept alleen
+  `POST /api/admin/news` aan en is ongewijzigd.
+
+## Homepage-ontdekblok (gebruikersfrontend)
+
+`frontend/lib/news/discover_section.dart` bevat `DiscoverSection`, het zoek-/ontdekblok op de
+homepage (`frontend/lib/main.dart`, route `/`), naast de bestaande servicestatus- en "Laatste
+nieuws"-secties (na `_LatestNewsSection` in de widgetboom, zodat de bestaande Tab-volgorde tussen
+de productvisieknop en de "Opnieuw proberen"-knop van die sectie ongewijzigd blijft). Het blok is
+de enige "primaire ontdekactie" op de homepage; er is geen los, tweede toegankelijkheidspad.
+
+- Databron is uitsluitend het bestaande `GET /api/news`-contract via `LatestNewsSource.
+  loadLatestNews`, zonder nieuwe backendroute of -contractwijziging. `DiscoverSection` doet bij
+  `initState` een ongefilterde aanroep om de geaggregeerde `entities` te tonen als entiteitchips,
+  onafhankelijk van elke latere zoekopdracht of chipselectie.
+- Componenten: een gelabeld `TextField` (`Zoek in nieuwsberichten`), een rij `ActionChip`s per
+  geaggregeerde entiteit (`<type>: <label>`, `PLEK`/`PERSOON`/`GEBEURTENIS`), een resultatenlijst
+  (titel, samenvatting, entiteitstype-badges, bronregel) of — bij nul resultaten — een niet-lege
+  lege-staat (`_EmptyState`) met suggestiechips uit diezelfde, van het filter onafhankelijke
+  `entities`-lijst, en een detailweergave (`NewsDetailPage`, volledige berichttekst,
+  publicatiedatum, bron) met een `AppBar`-terugknop, naar het patroon van `ProductVisionPage`
+  (`Navigator.push`/`pop`, geen los "terug"-widget op dezelfde pagina).
+- Het zoekveld gebruikt bewust `onEditingComplete` in plaats van `onSubmitted`: Flutter's
+  standaard `onSubmitted`-afhandeling unfocust het veld eerst, wat de Tab-volgorde na een
+  zoekopdracht zou terugzetten naar het begin van de pagina; `onEditingComplete` roept de
+  zoekactie aan zonder de focus te verliezen.
+- Toegankelijkheid volgt de bestaande repo-conventie: de resultatentelling
+  (`discover-result-count`) staat in `Semantics(liveRegion: true)` naar het `RecordIntakeForm`-
+  patroon en de tekst wijzigt bij elke nieuwe zoekactie of chipselectie. Zoekveld, chips,
+  resultaatkaarten en de terug-/wisknop zijn volledig met Tab/Enter/Spatie bedienbaar: chips en de
+  resultaatkaart (`InkWell`) gebruiken Flutter's standaard `ActivateIntent`-toetsenbordafhandeling,
+  de wis-/terugknoppen hergebruiken de bestaande `_focusBorderStyle`-driepixel-focusrand (naar het
+  patroon van `_retryButtonStyle` in `main.dart`).
+- Badge-/chipkleuren staan in `NewsEntityBadgeColors` (nieuw), naar het patroon van
+  `PrivacyClassificationStatusColors`: vaste voorgrondkleuren tegen een witte achtergrond, elk
+  ≥4.5:1 (PLEK 7.87:1, PERSOON 8.63:1, GEBEURTENIS 6.57:1). Elke badge is een eigen
+  `Semantics(label: '<type>: <label>')`-node met `ExcludeSemantics` op de visuele `Container`,
+  zodat de badge één semantiekknoop blijft.
+- Alle gerenderde velden komen uitsluitend uit `LatestNewsItem`/`NewsEntity`/
+  `AggregatedNewsEntity`; er wordt nooit record-intake-, privacyclassificatie- of
+  externe-verificatiedata gebruikt of getoond (afgedwongen doordat `DiscoverSection` alleen
+  `lib/news/latest_news.dart` importeert, gecontroleerd door een gerichte test op de brontekst).
+- Getest met Flutter widget-/semantiektests (`frontend/test/discover_section_test.dart`): chips uit
+  de API-`entities`, chipklik toont resultaten met niet-lege bronregel, een onbekende zoekterm
+  toont de lege staat met suggestiechips, een resultaatkaart opent de detailweergave (volledige
+  tekst/datum/bron) met werkende terugknop, een volledig toetsenbord-only doorloop
+  (`tester.sendKeyEvent`, Enter/Spatie, geen tap) van zoekveld → chip → resultaatkaart →
+  terug-/wisknop, een semantiekboomtest op labels/rollen van elk interactief element, een
+  kleur-/contrasttest (WCAG-formule, ≥4.5:1) op `NewsEntityBadgeColors`, de
+  `liveRegion`-telling die wijzigt per zoekactie/chipselectie, en een test die bevestigt dat alleen
+  `LatestNewsItem`/`NewsEntity`/`AggregatedNewsEntity`-velden gebruikt worden.
 
 ## Backendmodule `linkdossier`
 

@@ -5,6 +5,7 @@ import 'package:flutter/semantics.dart';
 import 'backend/backend_client.dart';
 import 'backend/backend_status.dart';
 import 'config/app_config.dart';
+import 'news/discover_section.dart';
 import 'news/latest_news.dart';
 import 'product_vision_page.dart';
 import 'self_update_prompt.dart';
@@ -223,6 +224,8 @@ class _ReadyState extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _LatestNewsSection(source: newsSource),
+        const SizedBox(height: 28),
+        DiscoverSection(source: newsSource),
       ],
     );
   }
@@ -238,7 +241,7 @@ class _LatestNewsSection extends StatefulWidget {
 }
 
 class _LatestNewsSectionState extends State<_LatestNewsSection> {
-  late Future<List<LatestNewsItem>> _news;
+  late Future<NewsSearchResult> _news;
 
   @override
   void initState() {
@@ -262,7 +265,7 @@ class _LatestNewsSectionState extends State<_LatestNewsSection> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<LatestNewsItem>>(
+    return FutureBuilder<NewsSearchResult>(
       future: _news,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
@@ -301,7 +304,7 @@ class _LatestNewsSectionState extends State<_LatestNewsSection> {
             ),
           );
         }
-        final news = snapshot.requireData;
+        final news = snapshot.requireData.items;
         if (news.isEmpty) {
           return const Card(
             child: Padding(

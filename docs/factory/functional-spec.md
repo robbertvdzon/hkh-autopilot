@@ -3,8 +3,9 @@
 ## Gebruikersfrontend
 
 De homepage (`/`) toont eerst de servicecontrole. Na een succesvolle controle blijft de bestaande
-ontdekintroductie, productvisieactie en servicekaart staan en wordt daaronder het laatste nieuws
-geladen. Routes, navigatie en zichtbare inhoudsvolgorde worden niet door statussemantiek gewijzigd.
+ontdekintroductie, productvisieactie en servicekaart staan, wordt daaronder het laatste nieuws
+geladen en volgt daarna het homepage-ontdekblok (zie "Homepage-ontdekblok" hieronder). Routes,
+navigatie en zichtbare inhoudsvolgorde worden niet door statussemantiek gewijzigd.
 
 De beleefde statusmeldingen zijn:
 
@@ -51,6 +52,35 @@ externe-verificatiedata.
 
 Buiten scope: nieuwe REST-routes/controllers, een concept/publicatie-workflow en
 NLP/NER-gebaseerde entiteitsherkenning.
+
+## Homepage-ontdekblok (gebruikersfrontend)
+
+Op de homepage staat, naast de bestaande servicestatus- en "Laatste nieuws"-secties, een
+ontdekblok waarmee bezoekers uitsluitend al gepubliceerd nieuws doorzoeken: nooit gegevens uit
+interne beoordelings-, privacyclassificatie- of externe-verificatieprocessen. Het blok bestaat uit
+een gelabeld zoekveld en een rij klikbare entiteitchips (plek/persoon/gebeurtenis), gevuld met de
+geaggregeerde entiteiten uit het bestaande `GET /api/news`-contract. Dit is de enige "primaire
+ontdekactie" op de homepage; er is geen los, tweede toegankelijkheidspad ernaast.
+
+Een chipklik of zoekopdracht toont een resultatenlijst: per resultaat een titel, samenvatting, een
+badge per gekoppelde entiteit (met het entiteitstype) en de niet-lege bronregel uit de respons.
+Levert de zoekopdracht of chip nul resultaten op, dan verschijnt een niet-lege lege staat met
+suggestiechips — de geaggregeerde entiteitenlijst, die onafhankelijk van het actieve filter blijft
+— in plaats van een lege of foutieve weergave.
+
+Elk resultaat is aan te klikken en opent een detailweergave met de volledige berichttekst, de
+publicatiedatum en de bronvermelding, plus een terugknop die naar de resultatenlijst terugkeert
+zonder de eerdere zoekopdracht of chipselectie te verliezen.
+
+Alle interactieve elementen (zoekveld, chips, resultaatkaarten, terug- en wisknop) zijn volledig
+met het toetsenbord bedienbaar: bereikbaar via Tab in logische volgorde en te activeren met Enter
+of spatie. Het aantal resultaten wordt na elke zoekopdracht of chipselectie hoorbaar aangekondigd
+voor schermlezers via een live statusgebied, en wijzigt telkens wanneer het aantal verandert.
+Badges en chips gebruiken vaste kleuren met een contrastratio van minimaal 4.5:1.
+
+Buiten scope: elke wijziging aan `GET /api/news` zelf, en elke reconciliatie met kandidaten uit
+interne beoordelings-/verificatieprocessen — dat is een orchestrator-aangelegenheid, geen
+frontendwerk.
 
 ## Koppelingsdossier (backend)
 
@@ -301,7 +331,22 @@ zoekterm als een onbekende entiteit, afwezigheid van record-intake-/privacyclass
 externe-verificatievelden in de respons, en een fixture die een bericht buiten `latest_news` om
 rechtstreeks in de store-laag plaatst en aantoont dat dit nooit in entiteiten of zoekresultaten
 verschijnt. Een Flutter-test op `backend_client_test.dart` dekt dat de gebruikersfrontend het
-nieuwe `{items, total, entities}`-responscontract correct blijft parsen.
+`{items, total, entities}`-responscontract correct parset, inclusief het meesturen van optionele
+`q`/`entity`-queryparameters en het weglaten ervan wanneer beide ontbreken.
+
+Het homepage-ontdekblok is gedekt met Flutter widget-/semantiektests
+(`discover_section_test.dart`): entiteitchips die uit de API-`entities` renderen en waarvan een
+klik een resultatenlijst met minimaal 1 item en een niet-lege bronregel toont; een onbekende
+zoekterm die de niet-lege lege staat met suggestiechips toont; een resultaatkaart die de
+detailweergave (volledige tekst, publicatiedatum, bron) opent met een werkende terugknop naar de
+resultatenlijst; een volledig toetsenbord-only doorloop (`tester.sendKeyEvent`, geen tap/muis) van
+zoekveld, chip, resultaatkaart en terug-/wisknop, elk uitsluitend geactiveerd met Enter of spatie;
+een semantiekboomtest die het label/de rol van elk interactief element bevestigt; een gerichte
+kleur-/contrasttest (WCAG-formule, ≥4.5:1) op de badge-/chipkleuren; een test die bevestigt dat de
+resultatentelling via `Semantics(liveRegion: true)` loopt en na elke zoekactie/chipselectie
+wijzigt; en een test die aantoont dat uitsluitend `LatestNewsItem`/`NewsEntity`/
+`AggregatedNewsEntity`-velden gerenderd worden, nooit record-intake-, privacyclassificatie- of
+externe-verificatiedata.
 
 Testergoedkeuring vereist daarnaast volledig groen, revisiongebonden bewijs voor iedere opdracht in
 `.factory/verification.yaml`. Ontbrekend bewijs, een onbekende configversie, toolfout, timeout,
