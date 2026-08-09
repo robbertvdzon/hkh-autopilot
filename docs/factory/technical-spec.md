@@ -11,6 +11,46 @@ De backendservicecontrole combineert `GET /actuator/health` en `GET /api/version
 binnen tien seconden met een geldige 200-respons slagen. Nieuws komt van `GET /api/news` en heeft
 dezelfde clienttimeout. `API_BASE_URL` is een compile-time Dart-define.
 
+## Backendmodule `news`
+
+De module `nl.vdzon.hkh.news` (inclusief de subpackage `news.api` en `news.entity`) levert het
+bestaande `GET /api/news`/`POST /api/admin/news`-contract en de daarop afgeleide entiteits- en
+zoekfunctionaliteit. De module staat in de moduleset van `ModulithArchitectureTest`; er is geen
+nieuwe route of controller bijgekomen — `LatestNewsController` en `AdminLatestNewsController`
+blijven de enige twee, gedekt door een routecontracttest op `RequestMappingHandlerMapping`.
+
+- Entiteitsherkenning is deterministisch en gebaseerd op een statische gazetteer, geen NLP/NER:
+  `nl.vdzon.hkh.news.entity.NewsGazetteer` laadt per entiteitstype (`NewsEntityType`: `PLEK`,
+  `PERSOON`, `GEBEURTENIS`) een lijst `GazetteerEntry` (`canonicalLabel` + `aliases`) vanaf het
+  classpath uit `backend/src/main/resources/gazetteer/{plek,persoon,gebeurtenis}.json`, via
+  `NewsGazetteerLoader`/`NewsGazetteerConfiguration` (Spring-bean). `NewsEntityMatcher.match` matcht
+  elke alias case-insensitive, diakrieten-genormaliseerd (`Normalizer.Form.NFD` +
+  verwijdering van `\p{Mn}`-marks) en op heel woord (`\b`-regex) tegen titel + samenvatting samen,
+  dedupliceert op `canonicalLabel` en sorteert op entiteitstype-ordinal, daarbinnen op eerste
+  voorkomen in de tekst. Geen match levert een lege lijst op, nooit een fout.
+- `LatestNewsService.search(q, entity)` combineert `LatestNewsStore.findAll()` met de matcher en
+  past de optionele queryparameters `q` (case-insensitive substring op titel of samenvatting) en
+  `entity` (case-insensitive vergelijking met een `canonicalLabel`) toe als AND-filter. Het
+  resultaat (`NewsSearchResult`) bevat `items` (elk bericht met zijn eigen entiteitenlijst),
+  `total` en de top-level `entities`: de geaggregeerde, van het filter onafhankelijke telling per
+  entiteit over alle berichten in `latest_news`.
+- `LatestNewsController#findAll` (nog steeds `GET /api/news`) accepteert de optionele
+  `q`/`entity`-queryparameters en retourneert `LatestNewsListResponse` (`items`, `total`,
+  `entities`) in plaats van een kale array. Elk item krijgt een `source`-bronvermelding in de vorm
+  "Afkomstig uit gepubliceerd HKH-nieuwsbericht, gepubliceerd op `<publishedAt>`". `POST
+  /api/admin/news` (aanmaken, `LatestNewsResponse`) is ongewijzigd: alleen berichten die via die
+  create-flow in `latest_news` terechtkomen, worden ooit meegenomen in entiteiten of
+  zoekresultaten.
+- Het uitgebreide responscontract is als build-documentatie vastgelegd via een springdoc
+  OpenAPI-schematest: die leest `/v3/api-docs` en bevestigt de schemavelden van
+  `LatestNewsListResponse`/`LatestNewsItemResponse`/`AggregatedNewsEntityResponse` en de
+  `q`/`entity`-queryparameters, zodat een vervolgstory hierop kan voortbouwen zonder handmatige
+  afstemming.
+- Frontend: `frontend/lib/news/latest_news.dart` heeft een nieuwe `NewsEntity`-klasse en
+  `LatestNewsItem.entities` (default leeg)/`source` (optioneel) gekregen;
+  `frontend/lib/backend/backend_client.dart#loadLatestNews` parset nu `{items: [...]}` in plaats
+  van een kale array. `frontend-admin` roept alleen `POST /api/admin/news` aan en is ongewijzigd.
+
 ## Backendmodule `linkdossier`
 
 De koppelingsdossiervalidatie zit in de zelfstandige Spring Modulith-module

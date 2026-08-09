@@ -21,6 +21,37 @@ De actie ‘Opnieuw proberen’ volgt de bijbehorende foutmelding in lees- en fo
 bereikbaar, toont bij focus een contrasterende rand van drie pixels en werkt met Enter en spatie.
 Een retry toont eerst opnieuw de passende laadstatus en daarna één uitkomst.
 
+## Nieuwsentiteiten en zoekfilter (backend)
+
+Het bestaande `GET /api/news`-contract is uitgebreid, zonder nieuwe route of pagina: elk
+nieuwsbericht krijgt automatisch labels voor plekken, personen en gebeurtenissen die erin genoemd
+worden, en bezoekers kunnen het nieuws doorzoeken op vrije tekst of op zo'n label. Alleen berichten
+die via de bestaande admin-createflow in `latest_news` staan doen mee; er is geen concept- of
+publicatiestatus.
+
+Entiteitsherkenning gebeurt deterministisch via een statische, in de repo onderhouden gazetteer per
+entiteitstype (plek, persoon, gebeurtenis), niet via NLP/NER. Matching is hoofdletterongevoelig,
+diakrieten-genormaliseerd en op heel woord, tegen titel en samenvatting samen. Bij meerdere matches
+worden alle gevonden entiteiten getoond, gededupliceerd op het canonieke label, gesorteerd op
+entiteitstype (plek, persoon, gebeurtenis) en daarbinnen op eerste voorkomen in de tekst. Het
+getoonde label is altijd het canonieke label uit de gazetteer, niet de letterlijke tekst uit het
+bericht. Geen match levert een lege entiteitenlijst op voor dat bericht, nooit een fout.
+
+De respons bevat per bericht een niet-lege bronvermelding ("Afkomstig uit gepubliceerd
+HKH-nieuwsbericht", met publicatiedatum) en, naast de losse berichten, een geaggregeerde
+entiteitenlijst met itemtelling over alle gepubliceerde berichten.
+
+De twee nieuwe, los combineerbare (AND) queryparameters zijn een vrije zoekterm (matcht op titel of
+samenvatting) en een entiteitsfilter (matcht op een gekozen entiteit). Filtering op entiteit
+retourneert uitsluitend berichten die aan die entiteit gekoppeld zijn, elk met het juiste
+entiteitstype-label. Een zoekterm of entiteit zonder matches levert een expliciet leeg resultaat op
+(HTTP 200, lege lijst, totaal 0), zonder foutstatus of exceptie. Geen enkel veld of queryparameter
+uit deze uitbreiding leest of retourneert record-intake-, privacyclassificatie- of
+externe-verificatiedata.
+
+Buiten scope: nieuwe REST-routes/controllers, een concept/publicatie-workflow en
+NLP/NER-gebaseerde entiteitsherkenning.
+
 ## Koppelingsdossier (backend)
 
 Een koppelingsdossier legt vast dat één HKH-record bij één extern record hoort. Het bestaat uit exact
@@ -258,6 +289,19 @@ onafhankelijke licentie-uitkomst behouden (geen afleiding van het ene record naa
 Flutter-widget-/semantiektest bevestigt tekstlabel én icoon van de licentiestatusbadge, en een
 gerichte kleur-/contrasttest berekent de contrastratio van de gebruikte kleurwaarden (≥4.5:1)
 volgens de WCAG 2.1-formule, als vervanging van axe-core conform de bestaande repo-conventie.
+
+De nieuwsentiteiten en het zoekfilter zijn gedekt met backend unit- en integratietests: de
+gazetteer-matcher zelf (geen match, hoofdletter-/diakrietenongevoeligheid, heel-woord-matching,
+dedup op canoniek label en sortering per type/eerste-voorkomen), een routecontracttest die
+bevestigt dat de news-module nog steeds precies twee controllers/twee routes registreert, een
+OpenAPI-schematest (`/v3/api-docs`) die het uitgebreide responscontract als build-documentatie
+vastlegt, integratietests voor vrije-tekstzoek met niet-lege bronvermelding, entiteitsfilter met
+correct typelabel, een expliciet leeg resultaat (HTTP 200, totaal 0) voor zowel een onvindbare
+zoekterm als een onbekende entiteit, afwezigheid van record-intake-/privacyclassificatie-/
+externe-verificatievelden in de respons, en een fixture die een bericht buiten `latest_news` om
+rechtstreeks in de store-laag plaatst en aantoont dat dit nooit in entiteiten of zoekresultaten
+verschijnt. Een Flutter-test op `backend_client_test.dart` dekt dat de gebruikersfrontend het
+nieuwe `{items, total, entities}`-responscontract correct blijft parsen.
 
 Testergoedkeuring vereist daarnaast volledig groen, revisiongebonden bewijs voor iedere opdracht in
 `.factory/verification.yaml`. Ontbrekend bewijs, een onbekende configversie, toolfout, timeout,
