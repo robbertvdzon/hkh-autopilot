@@ -3,6 +3,7 @@ package nl.vdzon.hkh.recordintake.api
 import java.time.Instant
 import nl.vdzon.hkh.recordintake.PRIVACY_CLASSIFICATION_BLOCKED_CODE
 import nl.vdzon.hkh.recordintake.RecordIntake
+import nl.vdzon.hkh.recordintake.RecordIntakeExternalArchiveOutcome
 import nl.vdzon.hkh.recordintake.RecordIntakeExternalLinkInput
 import nl.vdzon.hkh.recordintake.RecordIntakeService
 import nl.vdzon.hkh.recordintake.RecordIntakeTokenVerifier
@@ -32,6 +33,9 @@ data class RecordIntakeRequest(
     val privacyClassification: String? = null,
     val accessUrl: String? = null,
     val externalLink: RecordIntakeExternalLinkRequest? = null,
+    val deceasedStatus: String? = null,
+    val nextOfKinConfirmed: Boolean? = null,
+    val confirmExternalArchiveData: Boolean? = null,
 )
 
 data class RecordIntakeFieldErrorsResponse(val fieldErrors: List<String>)
@@ -40,18 +44,28 @@ data class RecordIntakeRejectionResponse(val errorCode: String)
 
 data class RecordIntakeExternalLinkResponse(val id: Long, val status: String)
 
+data class RecordIntakeExternalArchiveDataResponse(
+    val stored: Boolean,
+    val reason: String,
+    val license: String?,
+    val sourceUri: String?,
+    val fetchedAt: Instant?,
+)
+
 data class RecordIntakeResponse(
     val id: Long,
     val status: String,
     val createdAt: Instant,
     val externalLink: RecordIntakeExternalLinkResponse?,
+    val externalArchiveData: RecordIntakeExternalArchiveDataResponse?,
 )
 
 /**
  * Neemt per verzoek precies één record-intake in. Leest en verifieert eerst het
  * `Authorization: Bearer`-token; pas daarna wordt het record gevalideerd en, indien geldig,
  * opgeslagen als intern concept. De respons bevat uitsluitend metadata: nooit een tokenwaarde,
- * header, claim of publicatie-/objectmediaveld.
+ * header, claim, publicatie-/objectmediaveld of de opgehaalde externe naam-/datumwaarden zelf -
+ * alleen of ze opgeslagen zijn en waarom (niet).
  */
 @RestController
 @RequestMapping("/api/record-intake")
@@ -84,6 +98,7 @@ class RecordIntakeController(
                 status = created.record.status,
                 createdAt = created.record.createdAt,
                 externalLink = created.externalLink?.let { RecordIntakeExternalLinkResponse(it.id, it.status) },
+                externalArchiveData = created.externalArchiveOutcome?.toResponse(),
             ),
         )
     }
@@ -99,6 +114,14 @@ class RecordIntakeController(
         const val BEARER_PREFIX = "Bearer "
     }
 }
+
+private fun RecordIntakeExternalArchiveOutcome.toResponse() = RecordIntakeExternalArchiveDataResponse(
+    stored = stored,
+    reason = reason,
+    license = license,
+    sourceUri = sourceUri,
+    fetchedAt = fetchedAt,
+)
 
 private fun RecordIntakeRequest.toDomain() = RecordIntake(
     localIdentifier = localIdentifier,
@@ -116,4 +139,7 @@ private fun RecordIntakeRequest.toDomain() = RecordIntake(
             uncertainty = it.uncertainty,
         )
     },
+    deceasedStatus = deceasedStatus,
+    nextOfKinConfirmed = nextOfKinConfirmed,
+    confirmExternalArchiveData = confirmExternalArchiveData,
 )

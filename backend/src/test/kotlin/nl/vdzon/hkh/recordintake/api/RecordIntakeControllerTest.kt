@@ -4,10 +4,14 @@ import java.time.Instant
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+import nl.vdzon.hkh.externalverification.ArchiveFetchResult
+import nl.vdzon.hkh.externalverification.ArchivesNlClient
+import nl.vdzon.hkh.privacyclassification.DeceasedStatus
 import nl.vdzon.hkh.recordintake.PRIVACY_CLASSIFICATION_BLOCKED_CODE
 import nl.vdzon.hkh.recordintake.RECORD_INTAKE_EXTERNAL_LINK_STATUS_CONCEPT
 import nl.vdzon.hkh.recordintake.RECORD_INTAKE_STATUS_INTERN_CONCEPT
 import nl.vdzon.hkh.recordintake.RecordIntake
+import nl.vdzon.hkh.recordintake.RecordIntakeExternalArchiveDataToStore
 import nl.vdzon.hkh.recordintake.RecordIntakeExternalLink
 import nl.vdzon.hkh.recordintake.RecordIntakeExternalLinkInput
 import nl.vdzon.hkh.recordintake.RecordIntakeRecord
@@ -151,20 +155,29 @@ class RecordIntakeControllerTest {
     private fun controller(
         tokenVerifier: RecordIntakeTokenVerifier = RecordIntakeTokenVerifier { RecordIntakeTokenIdentity("collection-manager-1") },
         store: RecordIntakeStore = RecordingStore(),
-    ) = RecordIntakeController(tokenVerifier, validator, RecordIntakeService(store, validator))
+        archivesNlClient: ArchivesNlClient = ArchivesNlClient { _, _, _ -> ArchiveFetchResult.NotFound },
+    ) = RecordIntakeController(tokenVerifier, validator, RecordIntakeService(store, validator, archivesNlClient))
 
     private class RecordingStore : RecordIntakeStore {
         val createdRecords = mutableListOf<RecordIntake>()
         val createdLinks = mutableListOf<Pair<Long, RecordIntakeExternalLinkInput>>()
         private var nextId = 1L
 
-        override fun create(intake: RecordIntake): RecordIntakeRecord {
+        override fun create(intake: RecordIntake, archiveData: RecordIntakeExternalArchiveDataToStore?): RecordIntakeRecord {
             createdRecords += intake
             return RecordIntakeRecord(
                 id = nextId++,
                 localIdentifier = intake.localIdentifier!!.trim(),
                 status = RECORD_INTAKE_STATUS_INTERN_CONCEPT,
                 createdAt = Instant.now(),
+                deceasedStatus = DeceasedStatus.parse(intake.deceasedStatus).wireValue,
+                nextOfKinConfirmed = intake.nextOfKinConfirmed,
+                archiveName = null,
+                archiveBirthDate = null,
+                archiveDeathDate = null,
+                archiveLicense = null,
+                archiveSourceUri = null,
+                archiveFetchedAt = null,
             )
         }
 

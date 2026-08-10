@@ -1,25 +1,34 @@
 package nl.vdzon.hkh.recordintake
 
 import java.sql.ResultSet
+import java.sql.Timestamp
+import nl.vdzon.hkh.privacyclassification.DeceasedStatus
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.core.RowMapper
 import org.springframework.stereotype.Repository
 
 interface RecordIntakeStore {
-    fun create(intake: RecordIntake): RecordIntakeRecord
+    fun create(intake: RecordIntake, archiveData: RecordIntakeExternalArchiveDataToStore?): RecordIntakeRecord
     fun createExternalLink(recordIntakeId: Long, link: RecordIntakeExternalLinkInput): RecordIntakeExternalLink
 }
 
 @Repository
 class RecordIntakeRepository(private val jdbcTemplate: JdbcTemplate) : RecordIntakeStore {
-    override fun create(intake: RecordIntake): RecordIntakeRecord = jdbcTemplate.query(
+    override fun create(
+        intake: RecordIntake,
+        archiveData: RecordIntakeExternalArchiveDataToStore?,
+    ): RecordIntakeRecord = jdbcTemplate.query(
         """
         INSERT INTO record_intake (
             local_identifier, title, description, dating, provenance, rights_status,
-            privacy_classification, access_url
+            privacy_classification, access_url, deceased_status, next_of_kin_confirmed,
+            archive_name, archive_birth_date, archive_death_date, archive_license,
+            archive_source_uri, archive_fetched_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        RETURNING id, local_identifier, status, created_at
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING id, local_identifier, status, created_at, deceased_status, next_of_kin_confirmed,
+            archive_name, archive_birth_date, archive_death_date, archive_license,
+            archive_source_uri, archive_fetched_at
         """.trimIndent(),
         recordRowMapper,
         intake.localIdentifier?.trim(),
@@ -30,6 +39,14 @@ class RecordIntakeRepository(private val jdbcTemplate: JdbcTemplate) : RecordInt
         intake.rightsStatus?.trim(),
         intake.privacyClassification?.trim(),
         intake.accessUrl?.trim(),
+        DeceasedStatus.parse(intake.deceasedStatus).wireValue,
+        intake.nextOfKinConfirmed,
+        archiveData?.name,
+        archiveData?.birthDate,
+        archiveData?.deathDate,
+        archiveData?.license,
+        archiveData?.sourceUri,
+        archiveData?.fetchedAt?.let { Timestamp.from(it) },
     ).single()
 
     override fun createExternalLink(
@@ -55,6 +72,14 @@ class RecordIntakeRepository(private val jdbcTemplate: JdbcTemplate) : RecordInt
                 localIdentifier = result.getString("local_identifier"),
                 status = result.getString("status"),
                 createdAt = result.getTimestamp("created_at").toInstant(),
+                deceasedStatus = result.getString("deceased_status"),
+                nextOfKinConfirmed = result.getObject("next_of_kin_confirmed") as Boolean?,
+                archiveName = result.getString("archive_name"),
+                archiveBirthDate = result.getString("archive_birth_date"),
+                archiveDeathDate = result.getString("archive_death_date"),
+                archiveLicense = result.getString("archive_license"),
+                archiveSourceUri = result.getString("archive_source_uri"),
+                archiveFetchedAt = result.getTimestamp("archive_fetched_at")?.toInstant(),
             )
         }
         val externalLinkRowMapper = RowMapper { result: ResultSet, _: Int ->

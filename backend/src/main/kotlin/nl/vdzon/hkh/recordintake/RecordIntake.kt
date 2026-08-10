@@ -17,6 +17,15 @@ data class RecordIntake(
     val privacyClassification: String? = null,
     val accessUrl: String? = null,
     val externalLink: RecordIntakeExternalLinkInput? = null,
+    /** Overlijdensstatus van de hoofdpersoon; fail-closed `ONBEKEND` zonder expliciete invoer. */
+    val deceasedStatus: String? = null,
+    /** Bevestigt of het record gegevens van een nog levende nabestaande bevat. */
+    val nextOfKinConfirmed: Boolean? = null,
+    /**
+     * Vraagt op bij opslaan een servergezijdige herhaalde bevraging van `externalLink.durableUrl`
+     * aan; de eventueel eerder door de client getoonde preview-data wordt hiervoor nooit vertrouwd.
+     */
+    val confirmExternalArchiveData: Boolean? = null,
 )
 
 /** Optionele koppeling naar een extern archiefrecord. Alleen geldig als alle drie de velden geldig zijn. */
