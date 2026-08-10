@@ -162,3 +162,29 @@ Gedaan:
 - Niet gedaan / buiten scope: geen wijziging aan de backend-contracten, aan `externalverification`/
   `privacyclassification`, of aan `frontend/` (gebruikersapp) - deze story raakt uitsluitend
   `frontend-admin`.
+
+## Review hkh-68 (2026-08-10)
+
+- Diff-scope geverifieerd: commit 02c96f5 (t.o.v. 4ead69d) raakt uitsluitend
+  `frontend-admin/` (lib + tests) en deze worklog; geen backend-wijzigingen, conform de claim dat
+  hkh-67 al is opgeleverd/goedgekeurd.
+- Debounce/dedupe (`_onDurableUrlChanged`, `_fetchArchivePreview` met request-id-guard) geverifieerd
+  in code en test `rapid successive durable url edits trigger only one debounced preview call`
+  (AC1): precies 1 aanroep na drie snelle wijzigingen.
+  `_clearForm()` annuleert de net door `controller.clear()` zelf aangemaakte timer, geen stray call.
+- Focus-verlies-fetch, "Ophalen"-force-fetch, opslaan-zonder-externe-data (niet-matchend patroon +
+  "Geen match") en bevestigen-stuurt-alle-velden getest en groen (AC2, AC6).
+  Toetsenbord-only Tab/Enter/Spatie-doorloop van Ophalen -> Bevestig -> Sla op zonder werkt (AC8).
+- `ExternalArchivePreviewPanel`: `Semantics(liveRegion: true)`, tekst+icoon-statuslabel (nooit
+  kleur-only), en WCAG 2.1 AA-contrasttest (>=4.5:1) voor alle drie de statuskleuren, groen.
+- Gericht gedraaid: `flutter test test/record_intake_form_test.dart
+  test/external_archive_preview_panel_test.dart test/widget_test.dart --concurrency=1` (18/18 groen)
+  en `flutter analyze` in `frontend-admin/` (geen meldingen). Backend/hkh-67 niet opnieuw gedraaid
+  (buiten scope van deze subtaak, al goedgekeurd).
+- AC3/4/5/7 (backend persistentieregel) niet opnieuw inhoudelijk herbeoordeeld; frontend geeft
+  `deceasedStatus`/`nextOfKinConfirmed`/`confirmExternalArchiveData` correct door aan de reeds
+  goedgekeurde backend-contracten.
+- [info] Bestaande knop "Intake indienen" is bewust niet hernoemd naar "Opslaan record"; de
+  beschrijving gebruikt die naam beschrijvend, geen letterlijke rename-opdracht. Gedocumenteerde,
+  redelijke keuze, geen blocker.
+- Geen blockers gevonden. Akkoord.
