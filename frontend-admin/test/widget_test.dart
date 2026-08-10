@@ -29,6 +29,13 @@ class _RecordIntakeSource implements AdminRecordIntakeSource {
     status: 'intern_concept',
     externalLinkCreated: false,
   );
+
+  @override
+  Future<RecordIntakeExternalArchivePreviewResult> previewExternalArchiveData({
+    required String durableUrl,
+  }) async => const RecordIntakeExternalArchivePreviewResult(
+    status: RecordIntakeExternalArchivePreviewStatus.unreachable,
+  );
 }
 
 class _AuthenticatedSession implements AdminSessionSource {
