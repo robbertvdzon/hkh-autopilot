@@ -33,6 +33,9 @@ class RecordIntakeInput {
     required this.privacyClassification,
     required this.accessUrl,
     this.externalLink,
+    this.deceasedStatus,
+    this.nextOfKinConfirmed,
+    this.confirmExternalArchiveData,
   });
 
   final String localIdentifier;
@@ -45,6 +48,17 @@ class RecordIntakeInput {
   final String accessUrl;
   final RecordIntakeExternalLinkInput? externalLink;
 
+  /// Overlijdensstatus van de hoofdpersoon (`onbekend`/`overleden`/`levend`); fail-closed
+  /// `onbekend` zonder expliciete invoer.
+  final String? deceasedStatus;
+
+  /// Bevestigt of het record gegevens van een nog levende nabestaande bevat.
+  final bool? nextOfKinConfirmed;
+
+  /// Vraagt bij opslaan een servergezijdige herhaalde bevraging van `externalLink.durableUrl` aan;
+  /// de eerder getoonde preview-data wordt hiervoor nooit vertrouwd.
+  final bool? confirmExternalArchiveData;
+
   Map<String, dynamic> toJson() => {
     'localIdentifier': localIdentifier,
     'title': title,
@@ -55,6 +69,10 @@ class RecordIntakeInput {
     'privacyClassification': privacyClassification,
     'accessUrl': accessUrl,
     if (externalLink != null) 'externalLink': externalLink!.toJson(),
+    if (deceasedStatus != null) 'deceasedStatus': deceasedStatus,
+    if (nextOfKinConfirmed != null) 'nextOfKinConfirmed': nextOfKinConfirmed,
+    if (confirmExternalArchiveData != null)
+      'confirmExternalArchiveData': confirmExternalArchiveData,
   };
 }
 
@@ -62,10 +80,48 @@ class RecordIntakeCreationResult {
   const RecordIntakeCreationResult({
     required this.status,
     required this.externalLinkCreated,
+    this.externalArchiveDataStored = false,
+    this.externalArchiveDataReason,
   });
 
   final String status;
   final bool externalLinkCreated;
+
+  /// Alleen `true` wanneer naam, geboortedatum en sterftedatum daadwerkelijk opgeslagen zijn.
+  final bool externalArchiveDataStored;
+
+  /// Leesbare toelichting van de dubbele fail-closed classificatie-uitkomst, aanwezig zodra de
+  /// server een externe-archiefdatabeoordeling heeft uitgevoerd.
+  final String? externalArchiveDataReason;
+}
+
+/// Machineleesbare statuslabels van het niet-persisterende previewendpoint, gelijk aan
+/// `RecordIntakeExternalArchivePreviewStatus` in de backend.
+class RecordIntakeExternalArchivePreviewStatus {
+  const RecordIntakeExternalArchivePreviewStatus._();
+
+  static const String verified = 'GEVERIFIEERD';
+  static const String noMatch = 'GEEN_MATCH';
+  static const String unreachable = 'NIET_BEREIKBAAR';
+}
+
+/// Niet-persisterende preview van de externe archiefbron voor een `durableUrl`.
+class RecordIntakeExternalArchivePreviewResult {
+  const RecordIntakeExternalArchivePreviewResult({
+    required this.status,
+    this.name,
+    this.birthDate,
+    this.deathDate,
+    this.license,
+    this.sourceUri,
+  });
+
+  final String status;
+  final String? name;
+  final String? birthDate;
+  final String? deathDate;
+  final String? license;
+  final String? sourceUri;
 }
 
 /// Machineleesbare veldfouten; geen conceptrecord is aangemaakt.
@@ -84,6 +140,11 @@ abstract interface class AdminRecordIntakeSource {
   Future<RecordIntakeCreationResult> create({
     required AdminIdentity identity,
     required RecordIntakeInput input,
+  });
+
+  /// Bevraagt het niet-persisterende previewendpoint voor een `durableUrl`, zonder autorisatie.
+  Future<RecordIntakeExternalArchivePreviewResult> previewExternalArchiveData({
+    required String durableUrl,
   });
 }
 
@@ -112,9 +173,14 @@ class AdminRecordIntakeClient implements AdminRecordIntakeSource {
 
     if (response.statusCode == 201) {
       final json = jsonDecode(response.body) as Map<String, dynamic>;
+      final externalArchiveData =
+          json['externalArchiveData'] as Map<String, dynamic>?;
       return RecordIntakeCreationResult(
         status: json['status'] as String,
         externalLinkCreated: json['externalLink'] != null,
+        externalArchiveDataStored:
+            externalArchiveData?['stored'] as bool? ?? false,
+        externalArchiveDataReason: externalArchiveData?['reason'] as String?,
       );
     }
     if (response.statusCode == 400) {
@@ -127,5 +193,33 @@ class AdminRecordIntakeClient implements AdminRecordIntakeSource {
       throw const RecordIntakePrivacyBlocked();
     }
     throw StateError('Record-intake geweigerd (${response.statusCode}).');
+  }
+
+  @override
+  Future<RecordIntakeExternalArchivePreviewResult> previewExternalArchiveData({
+    required String durableUrl,
+  }) async {
+    final response = await _client
+        .post(
+          Uri.parse('$apiBaseUrl/api/record-intake/external-archive-preview'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'durableUrl': durableUrl}),
+        )
+        .timeout(const Duration(seconds: 10));
+
+    if (response.statusCode != 200) {
+      return const RecordIntakeExternalArchivePreviewResult(
+        status: RecordIntakeExternalArchivePreviewStatus.unreachable,
+      );
+    }
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    return RecordIntakeExternalArchivePreviewResult(
+      status: json['status'] as String,
+      name: json['name'] as String?,
+      birthDate: json['birthDate'] as String?,
+      deathDate: json['deathDate'] as String?,
+      license: json['license'] as String?,
+      sourceUri: json['sourceUri'] as String?,
+    );
   }
 }

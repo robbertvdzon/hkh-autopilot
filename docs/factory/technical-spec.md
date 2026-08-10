@@ -135,8 +135,10 @@ repository of migratie: de module is puur intern domein.
 
 De intake van precies één lokaal collectierecord zit in de zelfstandige Spring Modulith-module
 `nl.vdzon.hkh.recordintake` (inclusief de subpackage `recordintake.api`), met `package-info.java`
-en `@ApplicationModule(allowedDependencies = {})` — geen afhankelijkheid op andere modules, ook niet
-op `auth`. De module staat in de moduleset van `ModulithArchitectureTest`.
+en `@ApplicationModule(allowedDependencies = {"externalverification", "privacyclassification"})` —
+expliciete, niet-wildcard afhankelijkheden op die twee modules (nog steeds geen afhankelijkheid op
+`auth`). De module staat in de moduleset van `ModulithArchitectureTest`, met beide afhankelijkheden
+opgenomen in de moduleset-verificatie.
 
 - `POST /api/record-intake` (`RecordIntakeController`, patroon van `LatestNewsController`) leest de
   `Authorization: Bearer`-header, verifieert eerst het token en valideert daarna pas het record.
@@ -173,6 +175,48 @@ op `auth`. De module staat in de moduleset van `ModulithArchitectureTest`.
   `FocusNode` en `errorText`, status via tekst plus `Semantics(liveRegion: true)`) en
   `AdminRecordIntakeClient`, die het bestaande gemaskeerde tokenmechanisme (`AdminIdentity.
   requestHeaders`) hergebruikt: er is geen apart invoerveld voor autorisatiebewijs.
+- `RecordIntake.kt` heeft twee nieuwe velden gekregen: `deceasedStatus` (ruwe `String?`, fail-closed
+  `ONBEKEND` zonder invoer) en `nextOfKinConfirmed` (`Boolean?`), plus `confirmExternalArchiveData`
+  (`Boolean?`) dat aanvraagt dat de service de externe bron servergezijdig herbevraagt. Flyway-
+  migratie `V8__record_intake_deceased_status_and_archive_data.sql` voegt aan `record_intake` de
+  kolommen `deceased_status`, `next_of_kin_confirmed` en de niet-persoonsgebonden `archive_name`,
+  `archive_birth_date`, `archive_death_date`, `archive_license`, `archive_source_uri` en
+  `archive_fetched_at` toe.
+- `RecordIntakeArchiveUrlPattern.parse` herkent of een `durableUrl` het patroon
+  `http://opendata.archieven.nl/id/<adtid>/<guid>` volgt (`Regex.matchEntire`) en levert bij een
+  match een `ArchiveUrlReference(adtid, guid)` op, anders `null`, zonder dat er ooit een
+  netwerkaanroep gedaan wordt.
+- `POST /api/record-intake/external-archive-preview` (`RecordIntakeExternalArchivePreviewController`)
+  is een apart, niet-persisterend previewendpoint: het toetst `durableUrl` tegen
+  `RecordIntakeArchiveUrlPattern`, bevraagt bij een match `ArchivesNlClient.fetch` (module
+  `externalverification`, zonder autorisatietoken) en retourneert uitsluitend de gestructureerde
+  kernvelden (naam, geboorte-/sterftedatum, licentie, bron-URI) met een statuslabel
+  (`GEVERIFIEERD`/`GEEN_MATCH`/`NIET_BEREIKBAAR`); de ruwe externe respons wordt hier nooit bewaard.
+- `RecordIntakeService.create` roept, wanneer `confirmExternalArchiveData == true` en
+  `externalLink.durableUrl` het archieven.nl-patroon volgt, de externe bron opnieuw aan — de eerder
+  via het previewendpoint aan de client getoonde data wordt nooit vertrouwd of hergebruikt. Het
+  bouwt daarna, naar het patroon van `PrivacyClassificationResult`, een tijdelijk lokaal en een
+  tijdelijk extern `GenealogicalRecord` (module `privacyclassification`) op en classificeert beide
+  met `PrivacyClassifier.classify()`. `RecordIntakeExternalArchiveOutcome.stored` is alleen `true`
+  wanneer beide classificaties `PROCESSABLE` opleveren; alleen dan slaat `RecordIntakeStore.create`
+  naam/geboorte-/sterftedatum daadwerkelijk op. Licentie, bron-URI en ophaaldatum
+  (`RecordIntakeExternalArchiveDataToStore`) worden bij een geslaagde bevraging altijd opgeslagen,
+  ongeacht de classificatie-uitkomst; de vaste, niet-lege redenteksten staan in
+  `RecordIntakeExternalArchiveReasons`. `RecordIntakeResponse.externalArchiveData` geeft de
+  beheerder terug of de externe kernvelden opgeslagen zijn en waarom (niet) — nooit de opgehaalde
+  naam-/datumwaarden zelf.
+- Frontend: `RecordIntakeForm` debounct wijzigingen aan het duurzame-URL-veld met een
+  `Timer`-gebaseerde cooldown van 400 ms (standaard Flutter-mechanisme, geen nieuwe library): elke
+  wijziging annuleert de vorige timer, en zowel het verlaten van het veld (focusverlies) als de
+  nieuwe knop "Ophalen" triggeren direct een aanroep buiten de debounce om. Een oplopende
+  requestId-teller negeert verouderde, nog lopende previewresponses. `ExternalArchivePreviewPanel`
+  (`frontend-admin/lib/recordintake/external_archive_preview_panel.dart`) toont het paneel
+  "Brongegevens (extern, ter controle)" als `Semantics(liveRegion: true)`-regio, met vaste
+  voorgrondkleuren in `ExternalArchivePreviewStatusColors` (`verifiedForeground` 7.87:1,
+  `noMatchForeground` 5.93:1, `unreachableForeground` 6.57:1 tegen een witte achtergrond, ruim boven
+  de WCAG 2.1 AA-minimumwaarde van 4.5:1) en de knoppen "Bevestig brongegevens en gebruik bij
+  record"/"Sla op zonder externe brongegevens", beide met Material's standaard Tab/Enter/Spatie-
+  bediening.
 
 ## Backendmodule `privacyclassification`
 

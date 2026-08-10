@@ -164,9 +164,48 @@ privacyblokkade worden via tekst en een aria-live-statusgebied gecommuniceerd, n
 kleur. Tokeninhoud, claims of headers worden nooit getoond, gelogd of opgeslagen; afwijzingen bevatten
 alleen een technische foutcode (bijvoorbeeld `PRIVACY_CLASSIFICATION_BLOCKED`).
 
+Twee nieuwe, nullable velden worden ingevuld in dezelfde bevestigingsstap als de bestaande
+privacyclassificatie: `deceasedStatus` (`onbekend`/`overleden`/`levend`, fail-closed `onbekend`
+zonder expliciete invoer) en `nextOfKinConfirmed`, die bevestigt of het record gegevens van een nog
+levende nabestaande bevat. Het bestaande `privacyClassification`-veld en zijn fail-closed regel
+blijven ongewijzigd; een curator kan een bevestigd-overleden genealogisch record legitiem als
+"geen persoonsgegevens" classificeren omdat de AVG niet geldt voor overleden personen.
+
+Bij het invullen/verlaten van het bestaande veld voor de duurzame URL, of bij klikken op de nieuwe
+knop "Ophalen", herkent het systeem of de opgegeven URL het patroon
+`http://opendata.archieven.nl/id/<adtid>/<guid>` volgt. Zo ja, dan bevraagt het systeem de
+bestaande, keyloze `ArchivesNlClient` en toont een niet-blokkerend paneel "Brongegevens (extern,
+ter controle)" met naam, geboortedatum, sterftedatum, licentie, bron-URI en een statuslabel
+(Geverifieerd/Geen match/Niet bereikbaar). Volgt de URL het patroon niet, dan toont het paneel
+direct "Niet bereikbaar" zonder aanroep. Opeenvolgende wijzigingen aan het veld triggeren een
+gedebouncte aanroep — één netwerkaanroep na de laatste wijziging binnen de cooldown — client-side
+geïmplementeerd zonder nieuwe library.
+
+Naast het paneel staan twee acties: "Bevestig brongegevens en gebruik bij record" en "Sla op zonder
+externe brongegevens". Beide laten "Opslaan record" beschikbaar en functioneel. Bij bevestigen en
+opslaan bevraagt de backend de externe bron opnieuw (de eerder aan de curator getoonde preview-data
+wordt hiervoor nooit vertrouwd of hergebruikt) en classificeert zowel een lokaal als een extern
+samengesteld, tijdelijk en niet-persistent genealogisch record met de bestaande
+`PrivacyClassifier.classify()`. Alleen wanneer zowel de lokale als de externe classificatie
+`Processable` opleveren, worden naam, geboortedatum en sterftedatum daadwerkelijk opgeslagen. In
+elk ander geval — lokaal `Blocked`, `deceasedStatus` nog `onbekend`, of externe classificatie
+`Blocked` (inclusief "geen sterftedatum gevonden ondanks lokaal bevestigd overlijden") — weigert het
+systeem persistentie van deze velden en toont een expliciete melding die de reden benoemt. Licentie,
+bron-URI en ophaaldatum zijn niet-persoonsgebonden en worden altijd opgeslagen bij een succesvolle
+bevraging, ongeacht de classificatie-uitkomst. Bij "Sla op zonder externe brongegevens" wordt geen
+van de externe kernvelden opgeslagen. Er wordt uitsluitend gestructureerde data opgeslagen; de ruwe
+JSON-LD-respons wordt nooit bewaard.
+
+Het paneel gebruikt `Semantics(liveRegion: true)`, naar het bestaande patroon van
+`RecordIntakeForm`. Alle drie de knoppen ("Ophalen", "Bevestig brongegevens en gebruik bij record",
+"Sla op zonder externe brongegevens") zijn met Tab bereikbaar in logische volgorde en met
+Enter/Spatie te activeren.
+
 Buiten scope: de publicatie-workflow zelf, objectmedia-opslag, verwerkingsgrondslag/doel/
-bewaartermijn-registratie en koppeling met andere externe archieven dan het
-Noord-Hollands Archief-patroon.
+bewaartermijn-registratie, koppeling met andere externe archieven dan het
+Noord-Hollands Archief-patroon, publieke weergave van de externe brongegevens, een nieuw extern
+protocol/token, en wijziging aan de bestaande route `POST /api/external-verification` of aan de
+bestaande matcher-/publish-guardlogica van `externalverification`.
 
 ## Privacyclassificatie (genealogische records)
 
@@ -298,6 +337,19 @@ persoonsgegevensclassificaties, opslag uitsluitend als `intern_concept`, de opti
 conceptkoppeling en afwezigheid van media-/publicatievelden) en met frontend-admin widget- en
 toegankelijkheidstests voor de foutsamenvatting, focusverplaatsing, per-veld foutkoppeling en het
 aria-live-statusgedrag van `RecordIntakeForm`.
+
+De externe-archiefpreview en de dubbele fail-closed persistentieregel zijn gedekt met een
+backend-integratietest tegen een fixture-archiefendpoint (patroonherkenning, Geverifieerd/Geen
+match/Niet bereikbaar), een backend-test dat opslaan zonder externe gegevens alsnog slaagt, een
+opslagtest die bevestigt dat naam/geboorte-/sterftedatum/licentie/bron-URI/ophaaldatum alleen bij
+een dubbel `Processable`-resultaat opgeslagen worden (en leeg blijven bij lokaal `Blocked`,
+`deceasedStatus` nog `onbekend`, of externe `Blocked` inclusief ontbrekende sterftedatum), en een
+reflectie-/opslagtest die bevestigt dat de volledige/ruwe externe respons nergens bewaard wordt. Een
+frontend-widgettest simuleert snel opeenvolgende invoerwijzigingen van de duurzame URL en telt het
+aantal netwerkaanroepen (precies één na de debounce-cooldown), en een Flutter widget-/
+semantiektest bevestigt de `Semantics(liveRegion: true)`-regio van het paneel en de Tab/Enter/
+Spatie-bedienbaarheid van alle drie de knoppen, aangevuld met een gerichte WCAG 2.1-contrasttest
+(≥4.5:1) op de gebruikte statuskleuren.
 
 De externe verificatie is gedekt met backend unit-, client- en integratietests: een geautomatiseerde
 integratietest tegen een fixture-/mock-archiefendpoint bevestigt de `Accept: application/ld+json`-

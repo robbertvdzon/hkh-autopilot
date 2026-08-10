@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../auth/admin_session.dart';
 import 'admin_record_intake.dart';
+import 'external_archive_preview_panel.dart';
 
 /// Formulier voor de intake van precies één lokaal collectierecord.
 ///
@@ -42,6 +45,12 @@ const List<String> _privacyClassifications = [
 
 const List<String> _linkUncertainties = ['laag', 'middel', 'hoog'];
 
+const List<String> _deceasedStatuses = ['onbekend', 'overleden', 'levend'];
+
+/// Cooldown tussen opeenvolgende wijzigingen van de duurzame URL voordat de gedebouncte
+/// previewaanroep daadwerkelijk verstuurd wordt.
+const _archivePreviewDebounce = Duration(milliseconds: 400);
+
 class _RecordIntakeFormState extends State<RecordIntakeForm> {
   final _localIdentifierController = TextEditingController();
   final _titleController = TextEditingController();
@@ -52,9 +61,19 @@ class _RecordIntakeFormState extends State<RecordIntakeForm> {
   final _accessUrlController = TextEditingController();
   final _durableUrlController = TextEditingController();
   final _linkRationaleController = TextEditingController();
+  final _durableUrlFocusNode = FocusNode();
 
   String? _privacyClassification;
   String? _linkUncertainty;
+  String _deceasedStatus = 'onbekend';
+  bool _nextOfKinConfirmed = false;
+
+  Timer? _archivePreviewDebounceTimer;
+  int _archivePreviewRequestId = 0;
+  String? _lastPreviewedDurableUrl;
+  bool _archivePreviewLoading = false;
+  RecordIntakeExternalArchivePreviewResult? _archivePreviewResult;
+  bool? _confirmExternalArchiveData;
 
   final Map<String, FocusNode> _focusNodes = {
     for (final key in _fieldLabels.keys) key: FocusNode(),
@@ -68,7 +87,17 @@ class _RecordIntakeFormState extends State<RecordIntakeForm> {
   bool _saving = false;
 
   @override
+  void initState() {
+    super.initState();
+    _durableUrlController.addListener(_onDurableUrlChanged);
+    _durableUrlFocusNode.addListener(_onDurableUrlFocusChanged);
+  }
+
+  @override
   void dispose() {
+    _archivePreviewDebounceTimer?.cancel();
+    _durableUrlController.removeListener(_onDurableUrlChanged);
+    _durableUrlFocusNode.removeListener(_onDurableUrlFocusChanged);
     _localIdentifierController.dispose();
     _titleController.dispose();
     _descriptionController.dispose();
@@ -78,11 +107,54 @@ class _RecordIntakeFormState extends State<RecordIntakeForm> {
     _accessUrlController.dispose();
     _durableUrlController.dispose();
     _linkRationaleController.dispose();
+    _durableUrlFocusNode.dispose();
     for (final node in _focusNodes.values) {
       node.dispose();
     }
     _summaryFocus.dispose();
     super.dispose();
+  }
+
+  void _onDurableUrlChanged() {
+    _archivePreviewDebounceTimer?.cancel();
+    _archivePreviewDebounceTimer = Timer(
+      _archivePreviewDebounce,
+      _fetchArchivePreview,
+    );
+  }
+
+  void _onDurableUrlFocusChanged() {
+    if (_durableUrlFocusNode.hasFocus) return;
+    _archivePreviewDebounceTimer?.cancel();
+    _fetchArchivePreview();
+  }
+
+  Future<void> _fetchArchivePreview({bool force = false}) async {
+    final durableUrl = _durableUrlController.text.trim();
+    if (!force && durableUrl == _lastPreviewedDurableUrl) return;
+    _lastPreviewedDurableUrl = durableUrl;
+
+    final requestId = ++_archivePreviewRequestId;
+    setState(() {
+      _archivePreviewLoading = true;
+      _confirmExternalArchiveData = null;
+    });
+
+    RecordIntakeExternalArchivePreviewResult result;
+    try {
+      result = await widget.recordIntakeSource.previewExternalArchiveData(
+        durableUrl: durableUrl,
+      );
+    } catch (_) {
+      result = const RecordIntakeExternalArchivePreviewResult(
+        status: RecordIntakeExternalArchivePreviewStatus.unreachable,
+      );
+    }
+    if (!mounted || requestId != _archivePreviewRequestId) return;
+    setState(() {
+      _archivePreviewLoading = false;
+      _archivePreviewResult = result;
+    });
   }
 
   Map<String, String> _validateClientSide() {
@@ -150,12 +222,20 @@ class _RecordIntakeFormState extends State<RecordIntakeForm> {
         input: _buildInput(),
       );
       if (!mounted) return;
+      final confirmedExternalArchiveData = _confirmExternalArchiveData == true;
       _clearForm();
       setState(() {
         _statusIsError = false;
-        _statusText = result.externalLinkCreated
-            ? 'Het record is opgeslagen als intern concept en de externe conceptkoppeling is aangemaakt.'
-            : 'Het record is opgeslagen als intern concept.';
+        final parts = [
+          result.externalLinkCreated
+              ? 'Het record is opgeslagen als intern concept en de externe conceptkoppeling is aangemaakt.'
+              : 'Het record is opgeslagen als intern concept.',
+        ];
+        if (confirmedExternalArchiveData &&
+            result.externalArchiveDataReason != null) {
+          parts.add(result.externalArchiveDataReason!);
+        }
+        _statusText = parts.join(' ');
       });
     } on RecordIntakeFieldErrors catch (error) {
       if (!mounted) return;
@@ -224,6 +304,9 @@ class _RecordIntakeFormState extends State<RecordIntakeForm> {
               uncertainty: _linkUncertainty!,
             )
           : null,
+      deceasedStatus: _deceasedStatus,
+      nextOfKinConfirmed: _nextOfKinConfirmed,
+      confirmExternalArchiveData: _confirmExternalArchiveData,
     );
   }
 
@@ -239,6 +322,14 @@ class _RecordIntakeFormState extends State<RecordIntakeForm> {
     _linkRationaleController.clear();
     _privacyClassification = null;
     _linkUncertainty = null;
+    _deceasedStatus = 'onbekend';
+    _nextOfKinConfirmed = false;
+    _archivePreviewDebounceTimer?.cancel();
+    _archivePreviewResult = null;
+    _archivePreviewLoading = false;
+    _confirmExternalArchiveData = null;
+    _lastPreviewedDurableUrl = null;
+    _archivePreviewRequestId++;
   }
 
   @override
@@ -257,10 +348,7 @@ class _RecordIntakeFormState extends State<RecordIntakeForm> {
         ),
         const SizedBox(height: 20),
         _buildErrorSummary(errorColor),
-        _field(
-          key: 'localIdentifier',
-          controller: _localIdentifierController,
-        ),
+        _field(key: 'localIdentifier', controller: _localIdentifierController),
         const SizedBox(height: 12),
         _field(key: 'title', controller: _titleController),
         const SizedBox(height: 12),
@@ -290,13 +378,41 @@ class _RecordIntakeFormState extends State<RecordIntakeForm> {
           'Alleen aangemaakt als duurzame URL, koppelmotivering en onzekerheid alle drie zijn ingevuld.',
         ),
         const SizedBox(height: 8),
-        TextFormField(
-          controller: _durableUrlController,
-          decoration: const InputDecoration(
-            labelText: 'Duurzame URL',
-            border: OutlineInputBorder(),
-          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: TextFormField(
+                controller: _durableUrlController,
+                focusNode: _durableUrlFocusNode,
+                decoration: const InputDecoration(
+                  labelText: 'Duurzame URL',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton(
+              key: const Key('archivePreviewFetchButton'),
+              onPressed: () {
+                _archivePreviewDebounceTimer?.cancel();
+                _fetchArchivePreview(force: true);
+              },
+              child: const Text('Ophalen'),
+            ),
+          ],
         ),
+        if (_archivePreviewLoading || _archivePreviewResult != null) ...[
+          const SizedBox(height: 12),
+          ExternalArchivePreviewPanel(
+            loading: _archivePreviewLoading,
+            result: _archivePreviewResult,
+            confirmed: _confirmExternalArchiveData,
+            onConfirm: () => setState(() => _confirmExternalArchiveData = true),
+            onDecline: () =>
+                setState(() => _confirmExternalArchiveData = false),
+          ),
+        ],
         const SizedBox(height: 12),
         TextFormField(
           controller: _linkRationaleController,
@@ -313,9 +429,41 @@ class _RecordIntakeFormState extends State<RecordIntakeForm> {
             border: OutlineInputBorder(),
           ),
           items: _linkUncertainties
-              .map((value) => DropdownMenuItem(value: value, child: Text(value)))
+              .map(
+                (value) => DropdownMenuItem(value: value, child: Text(value)),
+              )
               .toList(),
           onChanged: (value) => setState(() => _linkUncertainty = value),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          'Overlijdensstatus hoofdpersoon',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          key: const Key('deceasedStatus'),
+          initialValue: _deceasedStatus,
+          decoration: const InputDecoration(
+            labelText: 'Overlijdensstatus',
+            border: OutlineInputBorder(),
+          ),
+          items: _deceasedStatuses
+              .map(
+                (value) => DropdownMenuItem(value: value, child: Text(value)),
+              )
+              .toList(),
+          onChanged: (value) =>
+              setState(() => _deceasedStatus = value ?? 'onbekend'),
+        ),
+        CheckboxListTile(
+          key: const Key('nextOfKinConfirmed'),
+          value: _nextOfKinConfirmed,
+          controlAffinity: ListTileControlAffinity.leading,
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Bevat gegevens van een nog levende nabestaande'),
+          onChanged: (value) =>
+              setState(() => _nextOfKinConfirmed = value ?? false),
         ),
         const SizedBox(height: 20),
         if (_statusText != null) ...[
@@ -370,11 +518,17 @@ class _RecordIntakeFormState extends State<RecordIntakeForm> {
               children: [
                 Text(
                   'Controleer de volgende gegevens',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: errorColor),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: errorColor,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 if (_privacyBlockedMessage != null)
-                  Text(_privacyBlockedMessage!, style: TextStyle(color: errorColor)),
+                  Text(
+                    _privacyBlockedMessage!,
+                    style: TextStyle(color: errorColor),
+                  ),
                 for (final entry in _fieldErrors.entries)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
