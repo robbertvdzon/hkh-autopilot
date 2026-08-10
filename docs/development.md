@@ -57,8 +57,18 @@ record per request under a short-lived RS256 JWT bearer token (own fail-closed v
 dependency on the `auth` module). A valid record is stored with status `intern_concept`
 (`V4__record_intake.sql`); an optional external link is only created when a durable URL, a
 justification and an uncertainty value are all valid. Token values, headers and claims are never
-persisted, logged or returned. Configuration and behavior are documented in
-[factory/technical-spec.md](factory/technical-spec.md) and
+persisted, logged or returned. The module now declares explicit, non-wildcard
+`allowedDependencies` on `externalverification` and `privacyclassification`: `POST
+/api/record-intake/external-archive-preview` recognizes whether a durable URL follows the
+`http://opendata.archieven.nl/id/<adtid>/<guid>` pattern and, if so, previews the matching
+`ArchivesNlClient` fields without persisting anything; on confirmed save (`V8__record_intake_
+deceased_status_and_archive_data.sql` adds `deceased_status`, `next_of_kin_confirmed` and the
+non-personal `archive_*` columns), the service re-fetches the external source itself (never
+trusting the earlier preview) and stores name/birth date/death date only when both a local and an
+externally-derived temporary `GenealogicalRecord` classify as `Processable` via the existing
+`PrivacyClassifier`; license, source URI and fetched-at are always stored on a successful fetch
+regardless of that outcome, and the raw external response is never persisted. Configuration and
+behavior are documented in [factory/technical-spec.md](factory/technical-spec.md) and
 [factory/secrets-local.md](factory/secrets-local.md).
 
 `nl.vdzon.hkh.externalverification` exposes `POST /api/external-verification`, which checks whether
