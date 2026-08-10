@@ -188,3 +188,22 @@ Gedaan:
   beschrijving gebruikt die naam beschrijvend, geen letterlijke rename-opdracht. Gedocumenteerde,
   redelijke keuze, geen blocker.
 - Geen blockers gevonden. Akkoord.
+
+## hkh-69 (tester) - story-brede verificatie
+
+- Geen preview-URL/namespace geconfigureerd in `deployment.md` (velden leeg); getest via het
+  voorgeschreven vangnet en codereview, niet via live browser/preview.
+- `backend`: `mvn -B --no-transfer-progress clean verify` → BUILD SUCCESS, 243 tests, 0
+  failures/errors (incl. `RecordIntakeArchiveUrlPatternTest`, `RecordIntakeServiceTest` met alle
+  fail-closed AC-combinaties, `RecordIntakeExternalArchivePreviewIntegrationTest`,
+  `RecordIntakeApiIntegrationTest`, `ModulithArchitectureTest`).
+- `frontend-admin`: `flutter analyze` → geen issues. `flutter test` → 35/35 groen (incl. debounce
+  single-call-test, immediate-fetch-on-blur, a11y Tab/Enter/Spatie-test, live-region semantics,
+  beide "geen match"/"niet bereikbaar"-paden, opslaan-zonder-externe-data-pad).
+- Codereview bevestigt: url-patroonherkenning zonder netwerkaanroep bij mismatch,
+  client-side debounce (Timer, geen nieuwe library), servergezijdige herhaalde fetch bij bevestigen
+  (preview-data van client nooit vertrouwd), persistentie alleen bij lokaal+extern Processable,
+  licentie/bron-URI/ophaaldatum altijd opgeslagen bij geslaagde fetch, geen ruwe JSON-LD opgeslagen,
+  expliciete niet-wildcard `allowedDependencies` + `ModulithArchitectureTest`-dekking,
+  `Semantics(liveRegion: true)` op het paneel.
+- Geen bugs gevonden. Akkoord.
