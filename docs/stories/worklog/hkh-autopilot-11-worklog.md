@@ -62,3 +62,25 @@ Done / rationale:
   controle)" in `RecordIntakeForm`, de gedebouncte frontend-aanroep naar het preview-endpoint, de
   knoppen "Bevestig brongegevens en gebruik bij record"/"Sla op zonder externe brongegevens" en de
   bijbehorende `Semantics(liveRegion: true)`/toetsenbord-/contrasttests.
+
+## hkh-67 (reviewer) - review
+
+- Volledige diff main...HEAD bekeken: uitsluitend `backend/` (RecordIntake-model, repository,
+  service, twee controllers, package-info, V8-migratie) en tests + deze worklog. Geen wijzigingen
+  in `externalverification`/`privacyclassification` (diff bevestigt 0 regels) en geen aanraking van
+  de bestaande route `/api/external-verification` of matcher-/publish-guardlogica - scope conform
+  hkh-67.
+- Dubbele fail-closed classificatie (`RecordIntakeService.resolveExternalArchiveData`) nagelopen
+  tegen alle AC-combinaties (3-6): lokaal+extern Processable geeft opslag; extern zonder
+  sterftedatum ondanks lokaal bevestigd overlijden blokkeert met reden (AC5); lokaal
+  Blocked/ONBEKEND blokkeert opslag; ongeldige/onbereikbare URL geeft geen opslag en geen
+  netwerkaanroep bij niet-matchend patroon. Licentie/bron-URI/ophaaldatum worden altijd bij een
+  geslaagde fetch bewaard, ook bij geblokkeerde opslag. Ruwe externe respons stroomt nergens door
+  (`ArchiveRecordFields` is al gestructureerd) en een expliciete kolomtest bevestigt dat
+  `record_intake` geen ruwe-responskolom heeft (AC7). `package-info.java`/`ModulithArchitectureTest`
+  bevestigen de expliciete, niet-wildcard `allowedDependencies`.
+- Eigen gerichte testrun (niet het volledige vangnet): `mvn test
+  -Dtest='nl.vdzon.hkh.recordintake.**,nl.vdzon.hkh.ModulithArchitectureTest,nl.vdzon.hkh.DatabaseIntegrationTest'`
+  op HEAD (b6d01df) -> BUILD SUCCESS, 68 tests, 0 failures/errors. Surefire-reports in `target/`
+  bevestigen dezelfde groene uitkomst voor alle nieuwe/gewijzigde testklassen.
+- Geen blockers gevonden. Akkoord.
