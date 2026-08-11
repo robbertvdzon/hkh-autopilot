@@ -190,5 +190,25 @@ class RecordIntakeControllerTest {
                 createdAt = Instant.now(),
             )
         }
+
+        override fun findByLocalIdentifier(localIdentifier: String): RecordIntakeRecord? =
+            createdRecords.lastOrNull { it.localIdentifier?.trim() == localIdentifier }?.let {
+                RecordIntakeRecord(
+                    id = 1L,
+                    localIdentifier = localIdentifier,
+                    status = RECORD_INTAKE_STATUS_INTERN_CONCEPT,
+                    createdAt = Instant.now(),
+                    deceasedStatus = DeceasedStatus.parse(it.deceasedStatus).wireValue,
+                    nextOfKinConfirmed = it.nextOfKinConfirmed,
+                    archiveName = null,
+                    archiveBirthDate = null,
+                    archiveDeathDate = null,
+                    archiveLicense = null,
+                    archiveSourceUri = null,
+                    archiveFetchedAt = null,
+                )
+            }
+
+        override fun confirm(localIdentifier: String, confirmedBy: String, confirmedAt: Instant): RecordIntakeRecord? = null
     }
 }

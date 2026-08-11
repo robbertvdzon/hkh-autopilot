@@ -1,4 +1,4 @@
 @org.springframework.modulith.ApplicationModule(
-    allowedDependencies = {"externalverification", "privacyclassification"}
+    allowedDependencies = {"auth", "externalverification", "privacyclassification"}
 )
 package nl.vdzon.hkh.recordintake;

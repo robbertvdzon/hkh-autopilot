@@ -5,7 +5,10 @@ import java.time.Instant
 /**
  * Opgeslagen intern conceptrecord. Bevat uitsluitend metadata: geen publicatie- of
  * objectmediavelden. `archiveXxx`-velden zijn uitsluitend de gestructureerde kernvelden van een
- * bevestigde externe archiefbron; de ruwe externe respons wordt nooit opgeslagen.
+ * bevestigde externe archiefbron; de ruwe externe respons wordt nooit opgeslagen. `confirmedBy`/
+ * `confirmedAt` zijn `null` totdat een beheerder de externe brongegevens expliciet heeft
+ * bevestigd via de aparte bevestigingsactie; het vullen van de `archive*`-velden alleen is daar
+ * niet voldoende voor.
  */
 data class RecordIntakeRecord(
     val id: Long,
@@ -20,6 +23,8 @@ data class RecordIntakeRecord(
     val archiveLicense: String?,
     val archiveSourceUri: String?,
     val archiveFetchedAt: Instant?,
+    val confirmedBy: String? = null,
+    val confirmedAt: Instant? = null,
 )
 
 /** Opgeslagen optionele externe conceptkoppeling. */
