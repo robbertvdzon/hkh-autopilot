@@ -67,7 +67,18 @@ non-personal `archive_*` columns), the service re-fetches the external source it
 trusting the earlier preview) and stores name/birth date/death date only when both a local and an
 externally-derived temporary `GenealogicalRecord` classify as `Processable` via the existing
 `PrivacyClassifier`; license, source URI and fetched-at are always stored on a successful fetch
-regardless of that outcome, and the raw external response is never persisted. Configuration and
+regardless of that outcome, and the raw external response is never persisted. The module now also
+declares an explicit, non-wildcard dependency on `auth`: a new admin-only action, `POST
+/api/admin/record-intake/{localIdentifier}/confirm`, reuses `AdminAuthenticator` to set the new
+nullable `confirmedBy`/`confirmedAt` fields (`V9__record_intake_confirmation.sql`) — filling the
+`archive_*` fields alone is not enough, this confirmation is a separate, deliberate step. A new
+public, unauthenticated route, `GET /api/records/{localIdentifier}`, derives a `RecordPublicStatus`
+(`NO_INTAKE`/`SAVED_WITHOUT_SOURCE`/`CONFIRMED`) on every request via `RecordPublicStatusResolver`:
+`CONFIRMED` requires filled archive fields, an explicit confirmation and a freshly re-run
+`PrivacyClassifier.classify()` that yields `Processable`; a later reclassification to `Blocked`
+degrades the response to `SAVED_WITHOUT_SOURCE` without clearing the stored confirmation, so a
+subsequent `Processable` reclassification shows `CONFIRMED` again automatically. The route always
+returns HTTP 200 and only the derived fields, never the raw `RecordIntakeRecord`. Configuration and
 behavior are documented in [factory/technical-spec.md](factory/technical-spec.md) and
 [factory/secrets-local.md](factory/secrets-local.md).
 
@@ -119,6 +130,18 @@ suggestion chips from the same aggregated entity list; each result opens a detai
 publication date, source) with a back action. It is the homepage's only primary discovery action,
 fully keyboard-operable, and exposes its result count through a `Semantics(liveRegion: true)` node
 that changes after every search or chip selection.
+
+`lib/records/` holds the new public record detail page (`RecordDetailPage`) and its collapsible
+"Externe bronverificatie" section, which loads `GET /api/records/{localIdentifier}` via the new
+`RecordPublicSource` implemented on `BackendClient`. At `CONFIRMED` it shows a status label (text +
+icon), name, birth/death year (year-only, never day-precision), license, an externally-opening
+source link (new tab, no `window.opener`, an announced external-link label) and the confirmation
+date; every other status shows the identical neutral message, with no fields and no link, so that
+no metadata about a possibly earlier publication leaks. The toggle button exposes an explicit
+`expanded` state linked to the section content, the Flutter equivalent of
+`aria-expanded`/`aria-controls`. It is unrelated to the existing discover block and does not feed
+or consume its results. See [factory/technical-spec.md](factory/technical-spec.md) for
+implementation details.
 
 Run the frontend checks with:
 

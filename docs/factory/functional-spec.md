@@ -300,6 +300,63 @@ het archieven.nl/Noord-Hollands Archief-patroon, het daadwerkelijk bouwen van ee
 voor een endpoint dat vandaag geen autorisatie vereist (alleen het invoerveld en de versleutelde
 opslag ervoor zijn voorbereid), en wijzigingen aan de bestaande naam-/datumverificatielogica.
 
+## Publieke recorddetailpagina en externe bronverificatie
+
+Naast de bestaande beheerfrontend heeft de gebruikersfrontend nu een publieke recorddetailpagina
+(`RecordDetailPage`, module `records`) met een in-/uitklapbare sectie "Externe bronverificatie".
+De pagina bevraagt hiervoor een nieuwe, publieke en ongeauthenticeerde backendroute,
+`GET /api/records/{localIdentifier}`, die per record uitsluitend afgeleide, niet-privacygevoelige,
+publicatiewaardige velden teruggeeft — nooit de ruwe `RecordIntakeRecord`-data (status,
+`deceasedStatus`, `nextOfKinConfirmed`).
+
+De backend berekent bij elk verzoek opnieuw, server-side, een van drie statussen (nooit los
+opgeslagen):
+
+- `NO_INTAKE`: er bestaat geen record-intake voor deze `localIdentifier`;
+- `SAVED_WITHOUT_SOURCE`: er bestaat een record-intake, maar de externe brongegevens
+  (`archive*`-velden) ontbreken, of een beheerder heeft het record nog niet expliciet bevestigd;
+- `CONFIRMED`: de externe brongegevens zijn aanwezig, een beheerder heeft het record expliciet
+  bevestigd, én een bij dit verzoek opnieuw uitgevoerde privacyclassificatie levert `Processable`
+  op.
+
+De beheerdersbevestiging is een nieuwe, aparte actie (`POST
+/api/admin/record-intake/{localIdentifier}/confirm`) in het bestaande admin-only pad, met dezelfde
+tokenverificatie als de rest van de beheerfrontend. Alleen het vullen van de externe brongegevens
+is onvoldoende voor `CONFIRMED`: de bevestiging is een bewuste, losse stap die `confirmedBy` en
+`confirmedAt` vastlegt.
+
+Levert een latere, live herclassificatie voor een eerder bevestigd record `Blocked` op (bijvoorbeeld
+na een wijziging van de overlijdensstatus), dan toont de publieke pagina voor dat verzoek dezelfde
+neutrale melding als `SAVED_WITHOUT_SOURCE`, zonder dat de bewaarde bevestiging (`confirmedBy`/
+`confirmedAt`) gewist wordt. Wordt het record later weer `Processable`, dan verschijnt de
+`CONFIRMED`-weergave automatisch weer, zonder verdere actie — dit zelfherstellende gedrag is
+functioneel gedekt door zowel een backend- als een Flutter-integratietest.
+
+Bij `CONFIRMED` toont de sectie: statuslabel "Extern geverifieerd" (tekst én icoon, nooit
+uitsluitend kleur), naam, geboortejaar en — indien aanwezig — sterftejaar (beide afgeleid uit de
+bestaande dag-precieze `archiveBirthDate`/`archiveDeathDate`-velden, maar uitsluitend als jaartal
+getoond), licentie, een klikbare link met zichtbare tekst ("Bekijk bron") naar de externe bron die
+in een nieuw tabblad opent zonder `window.opener` bloot te stellen en met een programmatisch
+gekoppeld label dat aankondigt dat het een externe bron is (naar het bestaande patroon in
+`frontend-admin`), en de tekst "Bevestigd door beheerder op [datum]".
+
+Bij `SAVED_WITHOUT_SOURCE`, `NO_INTAKE` en een gedegradeerd `CONFIRMED`-record toont de sectie
+bewust exact dezelfde neutrale, niet-technische melding, zonder velden en zonder link — er is geen
+apart "ingetrokken"-bericht, om geen metadata over een eventuele eerdere publicatie te lekken.
+
+De sectie is in-/uitklapbaar via een toegankelijke knop met een expliciete `expanded`-status en een
+programmatische koppeling naar de sectie-inhoud (het Flutter-equivalent van
+`aria-expanded`/`aria-controls`), en volledig met het toetsenbord (Tab + Enter) bereikbaar en
+bedienbaar.
+
+Bestaande lokale recordvelden, paginanavigatie en de bestaande "Ontdek"-zoekfunctie
+(`GET /api/news`) blijven functioneel ongewijzigd; deze nieuwe sectie is er niet aan gekoppeld en
+levert er geen resultaten aan.
+
+Buiten scope: wijzigingen aan de bestaande route `POST /api/external-verification` en de
+bijbehorende matcher-/publish-guardlogica, wijziging aan de bestaande admin-bevestigingsflow van de
+recordintake zelf, en elke koppeling met de "Ontdek"-nieuwszoekfunctie.
+
 ## Verificatie
 
 Widgettests dekken alle statusvarianten, aantallen en labels van statusnodes, afwezigheid van
@@ -399,6 +456,24 @@ resultatentelling via `Semantics(liveRegion: true)` loopt en na elke zoekactie/c
 wijzigt; en een test die aantoont dat uitsluitend `LatestNewsItem`/`NewsEntity`/
 `AggregatedNewsEntity`-velden gerenderd worden, nooit record-intake-, privacyclassificatie- of
 externe-verificatiedata.
+
+De publieke recorddetailpagina en externe bronverificatie zijn gedekt met backend unit-,
+integratie- en Flutter widget-/semantiektests: `RecordPublicStatusResolverTest` dekt alle
+statusovergangen (inclusief het zelfherstellende gedrag), `RecordPublicApiIntegrationTest`
+(Testcontainers) bevestigt end-to-end via de publieke route en de admin-bevestigingsactie dat een
+tweede opvraging na een live herclassificatie naar `Blocked` de neutrale status oplevert zonder
+`confirmedBy`/`confirmedAt` te wissen, en dat de publieke route nooit ruwe `RecordIntakeRecord`-
+velden lekt en altijd HTTP 200 teruggeeft (ook zonder bestaand record). `record_detail_page_test.dart`
+bevestigt via de Flutter-semantiekboom: de h2 "Externe bronverificatie" met status, naam,
+geboortejaar, sterftejaar, licentie en linktekst bij `CONFIRMED` (met een expliciete assertie dat er
+geen dag-/maandgetal in de datumtekst voorkomt), dezelfde neutrale melding zonder velden/link voor
+zowel `SAVED_WITHOUT_SOURCE` als `NO_INTAKE`, het zelfherstellende gedrag over twee opeenvolgende
+paginaladingen, volledige toetsenbordbereikbaarheid/-activering van de bronlink
+(`tester.sendKeyEvent`, geen tap), een gerichte WCAG 2.1-contrasttest (≥4.5:1) op de statuskleuren,
+tekstlabel-plus-icoon voor de statusbadge, een `expanded`/`aria-controls`-semantiekboomvergelijking
+vóór en na de toggle, en een regressietest dat bestaande recordvelden, navigatie en de
+"Ontdek"-zoekfunctie ongewijzigd blijven. Een Flutter-test op `backend_client_test.dart` dekt dat
+`loadRecord` het `RecordPublicView`-responscontract correct parset.
 
 Testergoedkeuring vereist daarnaast volledig groen, revisiongebonden bewijs voor iedere opdracht in
 `.factory/verification.yaml`. Ontbrekend bewijs, een onbekende configversie, toolfout, timeout,

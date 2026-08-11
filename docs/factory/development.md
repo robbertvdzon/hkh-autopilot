@@ -18,7 +18,14 @@
   `GenealogicalRecord.gedcomSource`-veld (ruwe GEDCOM 7.0-brontekst) recursief doorzoekt naar een
   blokkerende RESN-markering en die onafhankelijk en bindend meeweegt), de module `recordintake` met het
   `POST /api/record-intake`-endpoint (tokenverificatie, veld- en privacyvalidatie, opslag als
-  intern concept plus optionele externe conceptkoppeling, Flyway-migratie `V4__record_intake.sql`)
+  intern concept plus optionele externe conceptkoppeling, Flyway-migratie `V4__record_intake.sql`),
+  een nieuwe admin-only bevestigingsactie (`POST
+  /api/admin/record-intake/{localIdentifier}/confirm`, hergebruikt `AdminAuthenticator`, zet
+  `confirmed_by`/`confirmed_at` via `V9__record_intake_confirmation.sql`, expliciete afhankelijkheid
+  op `auth`) en een nieuwe publieke, ongeauthenticeerde route (`GET
+  /api/records/{localIdentifier}`, `RecordPublicStatusResolver` berekent per verzoek
+  `NO_INTAKE`/`SAVED_WITHOUT_SOURCE`/`CONFIRMED` inclusief zelfherstellend gedrag bij een
+  herclassificatie naar `Blocked`, altijd HTTP 200, nooit de ruwe `RecordIntakeRecord`)
   en de module `externalverification` met het `POST /api/external-verification`-endpoint
   (bevraagt archieven.nl zonder autorisatietoken, matcht naam en datumvelden tot status
   `Verified`/`Unverified`, beoordeelt per record en los daarvan de hergebruikslicentie tot
@@ -27,7 +34,11 @@
   archieftoegangstoken via `ExternalVerificationTokenCipher`, Flyway-migraties
   `V5__external_verification.sql` en `V6__external_verification_license.sql`);
 - `frontend/`: Flutter-gebruikersapp; homepage en statusflows staan in `lib/main.dart`,
-  broninterfaces onder `lib/backend/` en `lib/news/`, widgettests onder `test/`;
+  broninterfaces onder `lib/backend/` en `lib/news/`, widgettests onder `test/`; `lib/records/`
+  bevat de nieuwe publieke recorddetailpagina (`RecordDetailPage`) met de in-/uitklapbare sectie
+  "Externe bronverificatie" (leest `GET /api/records/{localIdentifier}` via de nieuwe
+  `RecordPublicSource` op `BackendClient`), inclusief een conditionele externe-linkopener
+  (`external_link_launcher.dart`, nieuwe dependency `web: ^1.1.0`);
 - `frontend-admin/`: afzonderlijke Flutter-webbeheerapp en widgettests;
 - `deploy/`: OpenShift-, Kustomize- en ArgoCD-manifests;
 - `.factory/verification.yaml`: machine-leesbaar, revisiongebonden verificatievangnet.
