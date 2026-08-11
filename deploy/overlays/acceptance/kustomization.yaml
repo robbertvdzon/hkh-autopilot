@@ -65,7 +65,7 @@ images:
   newTag: sha-6be398f-acceptance
 - name: backend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-backend
-  newTag: sha-6be398f
+  newTag: sha-1aae699
 - name: frontend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-frontend
-  newTag: sha-1a96beb-acceptance
+  newTag: sha-1aae699-acceptance
