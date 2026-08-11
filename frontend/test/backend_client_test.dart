@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hkh_app/backend/backend_client.dart';
+import 'package:hkh_app/records/record_public_view.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
@@ -74,5 +75,44 @@ void main() {
     );
 
     await expectLater(client.loadLatestNews(), throwsStateError);
+  });
+
+  test('loads and parses the public record status', () async {
+    final client = BackendClient(
+      'https://example.test',
+      client: MockClient((request) async {
+        expect(
+          request.url.toString(),
+          'https://example.test/api/records/rec-1',
+        );
+        return http.Response(
+          '{"localIdentifier":"rec-1","status":"CONFIRMED","name":"Jan Klaassen",'
+          '"birthYear":"1900","deathYear":"1980","license":"CC-BY-4.0",'
+          '"sourceUri":"http://opendata.archieven.nl/id/1234/abcd-ef01",'
+          '"confirmedAt":"2026-03-05T10:00:00Z"}',
+          200,
+        );
+      }),
+    );
+
+    final result = await client.loadRecord('rec-1');
+
+    expect(result.localIdentifier, 'rec-1');
+    expect(result.status, RecordPublicStatus.confirmed);
+    expect(result.name, 'Jan Klaassen');
+    expect(result.birthYear, '1900');
+    expect(result.deathYear, '1980');
+    expect(result.license, 'CC-BY-4.0');
+    expect(result.sourceUri, 'http://opendata.archieven.nl/id/1234/abcd-ef01');
+    expect(result.confirmedAt, DateTime.utc(2026, 3, 5, 10));
+  });
+
+  test('reports a backend error while loading a record', () async {
+    final client = BackendClient(
+      'https://example.test',
+      client: MockClient((_) async => http.Response('error', 500)),
+    );
+
+    await expectLater(client.loadRecord('rec-1'), throwsStateError);
   });
 }
