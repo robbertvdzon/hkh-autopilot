@@ -345,6 +345,8 @@ class RecordIntakeApiIntegrationTest(
                 "archive_license",
                 "archive_source_uri",
                 "archive_fetched_at",
+                "confirmed_by",
+                "confirmed_at",
             ),
             columns,
         )

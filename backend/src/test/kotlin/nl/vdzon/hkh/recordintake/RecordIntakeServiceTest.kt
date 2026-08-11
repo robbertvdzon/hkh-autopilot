@@ -205,5 +205,15 @@ class RecordIntakeServiceTest {
                 status = RECORD_INTAKE_EXTERNAL_LINK_STATUS_CONCEPT,
                 createdAt = Instant.now(),
             )
+
+        override fun findByLocalIdentifier(localIdentifier: String): RecordIntakeRecord? =
+            lastRecord?.takeIf { it.localIdentifier == localIdentifier }
+
+        override fun confirm(localIdentifier: String, confirmedBy: String, confirmedAt: Instant): RecordIntakeRecord? {
+            val record = lastRecord?.takeIf { it.localIdentifier == localIdentifier } ?: return null
+            val confirmed = record.copy(confirmedBy = confirmedBy, confirmedAt = confirmedAt)
+            lastRecord = confirmed
+            return confirmed
+        }
     }
 }

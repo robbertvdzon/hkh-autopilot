@@ -135,10 +135,11 @@ repository of migratie: de module is puur intern domein.
 
 De intake van precies één lokaal collectierecord zit in de zelfstandige Spring Modulith-module
 `nl.vdzon.hkh.recordintake` (inclusief de subpackage `recordintake.api`), met `package-info.java`
-en `@ApplicationModule(allowedDependencies = {"externalverification", "privacyclassification"})` —
-expliciete, niet-wildcard afhankelijkheden op die twee modules (nog steeds geen afhankelijkheid op
-`auth`). De module staat in de moduleset van `ModulithArchitectureTest`, met beide afhankelijkheden
-opgenomen in de moduleset-verificatie.
+en `@ApplicationModule(allowedDependencies = {"auth", "externalverification",
+"privacyclassification"})` — expliciete, niet-wildcard afhankelijkheden op die drie modules (`auth`
+kwam erbij voor de admin-bevestigingsroute hieronder). De module staat in de moduleset van
+`ModulithArchitectureTest`, met alle drie de afhankelijkheden opgenomen in de
+moduleset-verificatie.
 
 - `POST /api/record-intake` (`RecordIntakeController`, patroon van `LatestNewsController`) leest de
   `Authorization: Bearer`-header, verifieert eerst het token en valideert daarna pas het record.
@@ -205,6 +206,36 @@ opgenomen in de moduleset-verificatie.
   `RecordIntakeExternalArchiveReasons`. `RecordIntakeResponse.externalArchiveData` geeft de
   beheerder terug of de externe kernvelden opgeslagen zijn en waarom (niet) — nooit de opgehaalde
   naam-/datumwaarden zelf.
+- `RecordIntakeRecord` heeft twee nieuwe nullable velden gekregen: `confirmedBy` (`String?`) en
+  `confirmedAt` (`Instant?`), gevuld via Flyway-migratie `V9__record_intake_confirmation.sql`
+  (kolommen `confirmed_by` VARCHAR(320), `confirmed_at` TIMESTAMPTZ op `record_intake`).
+  `RecordIntakeStore`/`RecordIntakeRepository` kregen `findByLocalIdentifier` (meest recente record
+  per `localIdentifier`) en `confirm` (UPDATE ... RETURNING dat `confirmed_by`/`confirmed_at` zet,
+  `null` bij een onbekende identifier).
+- `RecordPublicStatus.kt` bevat de enum `RecordPublicStatus` (`NO_INTAKE`/`SAVED_WITHOUT_SOURCE`/
+  `CONFIRMED`), het view-type `RecordPublicView` en `RecordPublicStatusResolver`
+  (Spring-`@Component`), die per verzoek herberekent: geen record → `NO_INTAKE`; geen gevulde
+  `archiveName`/`archiveSourceUri` of geen `confirmedBy`/`confirmedAt` → `SAVED_WITHOUT_SOURCE`; een
+  bij dit verzoek opnieuw uitgevoerde `PrivacyClassifier.classify()` (met een tijdelijk, uit
+  `deceasedStatus`/`nextOfKinConfirmed` samengesteld `GenealogicalRecord`) die niet `PROCESSABLE`
+  oplevert → `SAVED_WITHOUT_SOURCE` zonder `confirmedBy`/`confirmedAt` te wissen (zelfherstellend
+  gedrag); anders `CONFIRMED` met naam, jaartal-only geboorte-/sterftedatum (regex op de eerste
+  4-cijferige reeks in `archiveBirthDate`/`archiveDeathDate`, nooit dag-/maandprecisie), licentie,
+  bron-URI en `confirmedAt`.
+- Nieuwe publieke, ongeauthenticeerde route `GET /api/records/{localIdentifier}`
+  (`RecordPublicController`) levert altijd HTTP 200 op (ook zonder bestaand record), zodat "bestaat
+  niet" niet via de HTTP-status te onderscheiden is van "bestaat wel, nog niet bevestigd";
+  retourneert uitsluitend de velden uit `RecordPublicView` (nooit de ruwe `RecordIntakeRecord`).
+- Nieuwe admin-only route `POST /api/admin/record-intake/{localIdentifier}/confirm`
+  (`RecordIntakeConfirmationController`) hergebruikt `AdminAuthenticator` (zelfde
+  tokenverificatie-conventie als de rest van de beheerfrontend); zet `confirmedBy`/`confirmedAt` via
+  `RecordIntakeStore.confirm` en geeft HTTP 404 bij een onbekende `localIdentifier`. Hiervoor kreeg
+  `recordintake`'s `package-info.java` de expliciete, niet-wildcard afhankelijkheid `auth` (zie
+  boven).
+- Getest met `RecordPublicStatusResolverTest` (unit, alle statusovergangen inclusief het
+  zelfherstellende gedrag) en `RecordPublicApiIntegrationTest` (Testcontainers, end-to-end via de
+  publieke route en de admin-bevestigingsactie, inclusief het zelfherstellende gedrag op basis van
+  een live `deceased_status`-wijziging in de database).
 - Frontend: `RecordIntakeForm` debounct wijzigingen aan het duurzame-URL-veld met een
   `Timer`-gebaseerde cooldown van 400 ms (standaard Flutter-mechanisme, geen nieuwe library): elke
   wijziging annuleert de vorige timer, en zowel het verlaten van het veld (focusverlies) als de
@@ -378,6 +409,57 @@ persisteert.
   (`unknownForeground`), ruim boven de WCAG 2.1 AA-minimumwaarde van 4.5:1. Het icoon krijgt een
   eigen `semanticLabel` (`Icoon <label>`), zodat tekstlabel en icoon elk een eigen node in de
   semantiekboom hebben.
+
+## Publieke recorddetailpagina (gebruikersfrontend)
+
+`frontend/lib/records/` bevat de publieke recorddetailpagina en de sectie "Externe
+bronverificatie", als nieuwe module naast `frontend/lib/news/`.
+
+- `record_public_view.dart` bevat `RecordPublicStatus` (`noIntake`/`savedWithoutSource`/
+  `confirmed`, geparset uit de backend-`status`-string, met `noIntake` als fail-closed default bij
+  een onbekende waarde), `RecordPublicView.fromJson` (`localIdentifier`, `status`, optioneel `name`/
+  `birthYear`/`deathYear`/`license`/`sourceUri`/`confirmedAt`) en het abstracte
+  `RecordPublicSource`-contract (`loadRecord`, levert altijd een resultaat, nooit een 404 op
+  clientniveau).
+- `BackendClient` (`frontend/lib/backend/backend_client.dart`) implementeert `RecordPublicSource`
+  naast de bestaande `BackendStatusSource`/`LatestNewsSource`: `loadRecord` roept
+  `GET /api/records/{localIdentifier}` aan met dezelfde 10-secondentimeout-conventie als
+  `loadLatestNews` en parset de respons via `RecordPublicView.fromJson`.
+- `record_detail_page.dart` bevat `RecordDetailPage` (laadt via `RecordPublicSource.loadRecord` in
+  `initState`, met een expliciete "Opnieuw proberen"-knop bij een fout) en
+  `ExternalSourceVerificationSection`: een in-/uitklapbare sectie (standaard uitgeklapt) met een h2
+  "Externe bronverificatie" (`Semantics(header: true, headingLevel: 2)`) en een toggle-knop met
+  `Semantics(button: true, expanded: ..., controlsNodes: {...})` — het Flutter-equivalent van
+  `aria-expanded`/`aria-controls` — gekoppeld aan de sectie-inhoud via een gedeelde
+  `Semantics(identifier: ...)`-id.
+  - Bij `RecordPublicStatus.confirmed`: statuslabel "Extern geverifieerd" met tekst én
+    `Icons.verified` (nooit uitsluitend kleur), naam, "Geboortejaar: …"/"Sterftejaar: …" (alleen
+    getoond wanneer aanwezig), licentie, een `_ExternalSourceLink` ("Bekijk bron", met
+    `Semantics(link: true)` en een label dat programmatisch aankondigt dat de link een externe bron
+    in een nieuw tabblad opent) en "Bevestigd door beheerder op dd-mm-jjjj" (`confirmedAt.toLocal()`).
+  - In alle andere gevallen: exact dezelfde neutrale tekst
+    (`neutralExternalVerificationMessage`), bewust identiek voor `savedWithoutSource`, `noIntake` en
+    een gedegradeerd `confirmed`-record, om geen metadata over een eventuele eerdere publicatie te
+    lekken.
+  - `ExternalSourceVerificationColors`: vaste voorgrondkleuren tegen een witte achtergrond,
+    `confirmedForeground` 7.87:1 en `neutralForeground` 10.05:1, beide ruim boven de WCAG 2.1
+    AA-minimumwaarde van 4.5:1 (naar het patroon van `PrivacyClassificationStatusColors`).
+- `_ExternalSourceLink.openLink` roept `openExternalLink` aan uit `external_link_launcher.dart`, een
+  conditionele export (`external_link_launcher_web.dart` op `dart.library.html`, anders
+  `external_link_launcher_stub.dart` — nodig omdat `flutter test` standaard op de Dart VM draait,
+  zonder `dart:html`). De webvariant gebruikt `package:web`s `window.open(uri, '_blank',
+  'noopener')`, het equivalent van `rel="noopener"`, zodat de nieuwe pagina geen `window.opener`
+  krijgt. `frontend/pubspec.yaml` kreeg hiervoor de nieuwe dependency `web: ^1.1.0`.
+- Getest met Flutter widget-/semantiektests (`frontend/test/record_detail_page_test.dart`): de
+  volledige semantiekboom bij `confirmed` (h2, statuslabel, naam, jaartallen, licentie, linktekst —
+  met een expliciete assertie dat de datumtekst geen dag-/maandgetal bevat), de neutrale melding
+  zonder velden/link voor zowel `savedWithoutSource` als `noIntake` apart, het zelfherstellende
+  gedrag over twee opeenvolgende `loadRecord`-aanroepen met een statuswijziging ertussenin, volledige
+  toetsenbordbereikbaarheid/-activering van de bronlink (`tester.sendKeyEvent`, geen tap/muis), een
+  gerichte WCAG 2.1-contrasttest op `ExternalSourceVerificationColors`, een semantiekboomsnapshot van
+  `expanded`/`controlsNodes` vóór en na de toggle, en een regressietest dat de bestaande
+  recordvelden, paginanavigatie en het homepage-ontdekblok ongewijzigd blijven. Een aanvullende test
+  in `backend_client_test.dart` dekt `loadRecord`/`RecordPublicView.fromJson`.
 
 ## Flutter-webstatussemantiek
 

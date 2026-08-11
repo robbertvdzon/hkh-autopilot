@@ -2,6 +2,7 @@ package nl.vdzon.hkh.recordintake
 
 import java.sql.ResultSet
 import java.sql.Timestamp
+import java.time.Instant
 import nl.vdzon.hkh.privacyclassification.DeceasedStatus
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.core.RowMapper
@@ -10,6 +11,15 @@ import org.springframework.stereotype.Repository
 interface RecordIntakeStore {
     fun create(intake: RecordIntake, archiveData: RecordIntakeExternalArchiveDataToStore?): RecordIntakeRecord
     fun createExternalLink(recordIntakeId: Long, link: RecordIntakeExternalLinkInput): RecordIntakeExternalLink
+
+    /** Levert het meest recente record voor deze `localIdentifier` op, of `null` als dat er geen is. */
+    fun findByLocalIdentifier(localIdentifier: String): RecordIntakeRecord?
+
+    /**
+     * Zet `confirmedBy`/`confirmedAt` op het meest recente record voor deze `localIdentifier`.
+     * Levert `null` op wanneer er geen record met deze `localIdentifier` bestaat.
+     */
+    fun confirm(localIdentifier: String, confirmedBy: String, confirmedAt: Instant): RecordIntakeRecord?
 }
 
 @Repository
@@ -28,7 +38,7 @@ class RecordIntakeRepository(private val jdbcTemplate: JdbcTemplate) : RecordInt
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING id, local_identifier, status, created_at, deceased_status, next_of_kin_confirmed,
             archive_name, archive_birth_date, archive_death_date, archive_license,
-            archive_source_uri, archive_fetched_at
+            archive_source_uri, archive_fetched_at, confirmed_by, confirmed_at
         """.trimIndent(),
         recordRowMapper,
         intake.localIdentifier?.trim(),
@@ -65,6 +75,37 @@ class RecordIntakeRepository(private val jdbcTemplate: JdbcTemplate) : RecordInt
         link.uncertainty?.trim()?.lowercase(),
     ).single()
 
+    override fun findByLocalIdentifier(localIdentifier: String): RecordIntakeRecord? = jdbcTemplate.query(
+        """
+        SELECT id, local_identifier, status, created_at, deceased_status, next_of_kin_confirmed,
+            archive_name, archive_birth_date, archive_death_date, archive_license,
+            archive_source_uri, archive_fetched_at, confirmed_by, confirmed_at
+        FROM record_intake
+        WHERE local_identifier = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+        """.trimIndent(),
+        recordRowMapper,
+        localIdentifier.trim(),
+    ).singleOrNull()
+
+    override fun confirm(localIdentifier: String, confirmedBy: String, confirmedAt: Instant): RecordIntakeRecord? = jdbcTemplate.query(
+        """
+        UPDATE record_intake
+        SET confirmed_by = ?, confirmed_at = ?
+        WHERE id = (
+            SELECT id FROM record_intake WHERE local_identifier = ? ORDER BY created_at DESC, id DESC LIMIT 1
+        )
+        RETURNING id, local_identifier, status, created_at, deceased_status, next_of_kin_confirmed,
+            archive_name, archive_birth_date, archive_death_date, archive_license,
+            archive_source_uri, archive_fetched_at, confirmed_by, confirmed_at
+        """.trimIndent(),
+        recordRowMapper,
+        confirmedBy.trim(),
+        Timestamp.from(confirmedAt),
+        localIdentifier.trim(),
+    ).singleOrNull()
+
     private companion object {
         val recordRowMapper = RowMapper { result: ResultSet, _: Int ->
             RecordIntakeRecord(
@@ -80,6 +121,8 @@ class RecordIntakeRepository(private val jdbcTemplate: JdbcTemplate) : RecordInt
                 archiveLicense = result.getString("archive_license"),
                 archiveSourceUri = result.getString("archive_source_uri"),
                 archiveFetchedAt = result.getTimestamp("archive_fetched_at")?.toInstant(),
+                confirmedBy = result.getString("confirmed_by"),
+                confirmedAt = result.getTimestamp("confirmed_at")?.toInstant(),
             )
         }
         val externalLinkRowMapper = RowMapper { result: ResultSet, _: Int ->
