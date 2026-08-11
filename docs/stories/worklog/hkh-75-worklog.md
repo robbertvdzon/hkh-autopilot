@@ -97,3 +97,34 @@ Niet gedaan / aangepast:
   buiten scope van deze story (geen koppeling aan de "Ontdek"-nieuwszoekfunctie).
 - `docs/factory/technical-spec.md`/`development.md` niet bijgewerkt: dat is expliciet toegewezen
   aan de documentatie-subtaak `hkh-78`.
+
+## Review (hkh-75)
+
+Gecontroleerd: `record_public_view.dart`, `record_detail_page.dart`,
+`external_link_launcher*.dart`, `backend_client.dart` (+tests), `record_detail_page_test.dart`,
+`backend_client_test.dart`, `pubspec.yaml`/`pubspec.lock`, en ter controle van de contracten ook
+de reeds `review-approved` backend-stukken uit hkh-74 (`RecordPublicController`,
+`RecordPublicStatusResolver`) — velden/enum-waarden komen 1-op-1 overeen met het frontendmodel.
+
+Bevindingen:
+- [info] `RecordDetailPage`/`ExternalSourceVerificationSection` zijn nog nergens in `main.dart`
+  gerouteerd (geen `onGenerateRoute`/URL-pad met `localIdentifier`); de pagina is alleen via
+  widgettests bereikbaar. Geen blocker: de app heeft nog geen routinglaag (uitsluitend `HomePage`),
+  geen enkele AC eist live navigeerbaarheid via URL, en de storytekst sluit expliciet alleen
+  koppeling aan `DiscoverSection`/`GET /api/news` uit — dit lijkt bewust "fundament", te ontsluiten
+  in een latere story/subtaak.
+- [info] `BackendClient.loadRecord` interpoleert `localIdentifier` direct in het pad
+  (`'$apiBaseUrl/api/records/$localIdentifier'`) zonder `Uri.encodeComponent`. Voor de huidige
+  identifiers (alfanumeriek, uit de bestaande recordintake-flow) geen praktisch probleem; puur ter
+  info voor eventuele toekomstige identifiers met reserved characters.
+- Contrastwaarden geverifieerd (onafhankelijk herberekend): `confirmedForeground` 7.87:1,
+  `neutralForeground` 10.05:1 tegen wit — beide ruim boven de 4,5:1-AA-eis.
+- Statusmodel-mapping (`noIntake`/`savedWithoutSource`/`confirmed`), jaartal-only weergave,
+  neutrale melding (identiek voor alle drie de gedegradeerde gevallen), toggle-semantiek
+  (`expanded`/`controlsNodes`), toetsenbord-bereikbaarheid en de zelfherstellend-gedragtest komen
+  overeen met de AC's en zijn met gerichte inspectie van de testassertions (niet opnieuw
+  uitgevoerd) plausibel gedekt.
+- Geen scope-overschrijding gevonden: geen wijziging aan `main.dart`/`discover_section.dart`, geen
+  wijziging aan de buiten-scope backendroutes/-flows.
+
+Oordeel: akkoord, geen blockers.
