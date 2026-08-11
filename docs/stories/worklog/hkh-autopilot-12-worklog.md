@@ -54,3 +54,24 @@ Done / rationale:
 - Niet gedaan (buiten scope van deze subtaak `hkh-74`, volgt in latere subtaken): de publieke
   recorddetailpagina/sectie "Externe bronverificatie" in de Flutter-gebruikersfrontend (`hkh-75`),
   en updates aan `docs/factory/technical-spec.md`/`development.md` (`hkh-78`).
+
+## Review (hkh-74)
+
+- Volledige diff t.o.v. `main` bekeken (backend-only, conform scope van deze subtaak).
+- `RecordPublicStatusResolver` correct: NO_INTAKE/SAVED_WITHOUT_SOURCE/CONFIRMED-logica matcht de
+  storybeschrijving; live herclassificatie hergebruikt hetzelfde `GenealogicalRecord`-patroon als
+  de bestaande lokale classificatie in `RecordIntakeService`; zelfherstellend gedrag (geen
+  `confirmedBy`/`confirmedAt`-reset bij degradatie) is expliciet getest, zowel unit als
+  Testcontainers-integratie (`RecordPublicApiIntegrationTest`).
+- Publieke route lekt geen ruwe `RecordIntakeRecord`-velden (status/deceasedStatus/
+  nextOfKinConfirmed) en geeft bewust altijd HTTP 200, zodat "bestaat niet" niet te onderscheiden
+  is van "bestaat wel, nog niet bevestigd" — getest.
+- Admin-bevestigingsroute hergebruikt `AdminAuthenticator` naar het bestaande patroon
+  (`LatestNewsController`/`PreviewDataController`); 401 zonder auth en 404 bij onbekende
+  `localIdentifier` zijn beide getest.
+- `recordintake`'s `package-info.java` kreeg een expliciete, niet-wildcard `auth`-afhankelijkheid;
+  `ModulithArchitectureTest` dekt dit al generiek (module stond al in de moduleset).
+- Bestaande, terecht rode tests (migratietelling, kolommenset) zijn conform de boyscout-regel
+  hersteld.
+- Geen blockers gevonden. Scope is correct beperkt tot het backend-fundament; frontend-UI volgt
+  in `hkh-75` zoals gedocumenteerd.
