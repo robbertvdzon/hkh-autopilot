@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hkh_app/backend/backend_client.dart';
 import 'package:hkh_app/backend/backend_status.dart';
@@ -234,6 +236,34 @@ void main() {
     expect(find.text('Geen historische resultaten gevonden.'), findsOneWidget);
   });
 
+  testWidgets('shows validation errors without offering a retry', (
+    tester,
+  ) async {
+    final completer = Completer<HistoricalSearchResponse>();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HistoricalSearchPage(source: _HistoricalSource(completer.future)),
+      ),
+    );
+    await tester.ensureVisible(
+      find.byKey(const Key('historical-search-submit')),
+    );
+    await tester.tap(find.byKey(const Key('historical-search-submit')));
+    await tester.pump();
+    completer.completeError(
+      const HistoricalSearchValidationException(
+        'vanafjaar en eindjaar moeten samen worden opgegeven',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('vanafjaar en eindjaar moeten samen worden opgegeven'),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('historical-search-retry')), findsNothing);
+  });
+
   testWidgets(
     'shows retryable error when backend reports a source failure with HTTP 200',
     (tester) async {
@@ -262,6 +292,87 @@ void main() {
 
       expect(find.byKey(const Key('historical-search-retry')), findsOneWidget);
       expect(find.text('Geen historische resultaten gevonden.'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'exposes status semantics and activates search and external link by keyboard',
+    (tester) async {
+      final response = HistoricalSearchResponse(
+        results: [
+          HistoricalSearchResult(
+            source: 'OPEN_ARCHIEVEN',
+            sourceRecordId: 'keyboard-1',
+            stableUrl: 'https://example.test/keyboard-1',
+            title: 'Toegankelijk resultaat',
+            retrievedAt: DateTime.utc(2026, 8, 12),
+            metadataRights: 'ALLOWED',
+            privacyStatus: 'CLEAR',
+          ),
+        ],
+        total: 1,
+        start: 0,
+        limit: 100,
+        sources: [
+          HistoricalSourceStatus(source: 'OPEN_ARCHIEVEN', status: 'AVAILABLE'),
+        ],
+      );
+      final source = _HistoricalSource(Future.value(response));
+      await tester.pumpWidget(
+        MaterialApp(home: HistoricalSearchPage(source: source)),
+      );
+
+      for (var index = 0; index < 8; index++) {
+        if (_hasPrimaryFocusWithin(
+          find.byKey(const Key('historical-search-submit')),
+        )) {
+          break;
+        }
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+      }
+      expect(
+        _hasPrimaryFocusWithin(
+          find.byKey(const Key('historical-search-submit')),
+        ),
+        isTrue,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+
+      final statusNodes = find.semantics
+          .byPredicate(
+            (node) => node.label == '1 historische resultaten geladen.',
+          )
+          .evaluate()
+          .toList();
+      expect(statusNodes, hasLength(1));
+      expect(statusNodes.single.getSemanticsData().role, SemanticsRole.status);
+      final externalLink = find.byKey(const Key('historical-external-link'));
+      for (
+        var index = 0;
+        index < 3 && externalLink.evaluate().isEmpty;
+        index++
+      ) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+      }
+      expect(externalLink, findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Externe bron openen in nieuw tabblad'),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .getSemantics(externalLink)
+            .getSemanticsData()
+            .hasAction(SemanticsAction.tap),
+        isTrue,
+      );
+      expect(_hasPrimaryFocusWithin(externalLink), isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(source.calls, 1);
     },
   );
 
@@ -306,4 +417,13 @@ class _NewsSource implements LatestNewsSource {
   @override
   Future<NewsSearchResult> loadLatestNews({String? q, String? entity}) async =>
       const NewsSearchResult(items: [], total: 0, entities: []);
+}
+
+bool _hasPrimaryFocusWithin(Finder finder) {
+  final focusContext = FocusManager.instance.primaryFocus?.context;
+  if (focusContext == null) return false;
+  return find
+      .descendant(of: finder, matching: find.byWidget(focusContext.widget))
+      .evaluate()
+      .isNotEmpty;
 }

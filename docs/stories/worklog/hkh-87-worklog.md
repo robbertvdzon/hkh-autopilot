@@ -142,3 +142,23 @@ Gerichte reviewchecks:
 - `mvn -B --no-transfer-progress -Dtest=HistoricalSearchTest test`: 13 tests groen.
 - `flutter test test/historical_search_test.dart`: 6 tests groen.
 - Het volledige vangnet is in deze reviewrun niet opnieuw uitgevoerd, conform de reviewerregel.
+
+Nieuwe developer-run na review:
+- [x] HTTP-contract- en rate-limit-tests toevoegen en implementatie controleren;
+- [x] toegankelijke keyboard-/semantiek-/externe-linktests toevoegen;
+- [x] validatiefouten en fouten tijdens vervolgcursor-rondes zichtbaar en retrybaar maken;
+- [x] gerichte tests en het volledige vangnet uitvoeren.
+
+De reviewbevindingen hierboven zijn leidend voor deze herstelrun. Wijzigingen blijven beperkt tot
+de zelfstandige historische zoekroute, haar contracten en de bijbehorende tests.
+
+Resultaat herstelrun (2026-08-12):
+- `HistoricalSearchService` neemt technische fouten uit vervolgcursorpagina’s over in de
+  bronstatus, zodat gedeeltelijke resultaten niet stil als volledig worden gepresenteerd.
+- HTTP 400-validatiefouten behouden hun servermelding in de frontend en tonen geen zinloze retry;
+  tijdelijke fouten en providerfouten blijven retrybaar.
+- Contract- en limiter-tests, plus semantiek-, status-, externe-link- en keyboardtests, zijn
+  toegevoegd.
+- Volledig vangnet groen uitgevoerd: backend 294 tests; frontend analyse, 44 tests en webbuild;
+  frontend-admin analyse en 36 tests. Alle zes commando’s eindigden met exitcode 0, zonder
+  failures of errors.

@@ -36,7 +36,7 @@ class HistoricalSearchService(
             total = initialPages.sumOf { it.total },
             start = query.start,
             limit = query.limit,
-            sources = initialPages.map { HistoricalSourceStatus(it.source, it.status, it.message) },
+            sources = cursors.map { it.status() },
         )
     }
 
@@ -76,11 +76,21 @@ private class HistoricalSearchCursor(
     private val bufferedResults = ArrayDeque<HistoricalSearchResult>(initialPage.results)
     private var nextSourceStart = initialPage.consumed.coerceAtLeast(0)
     private var exhausted = initialPage.status != HistoricalTechnicalStatus.AVAILABLE || initialPage.consumed < 100
+    private var currentStatus = initialPage.status
+    private var currentMessage = initialPage.message
+
+    fun status(): HistoricalSourceStatus = HistoricalSourceStatus(
+        source = initialPage.source,
+        status = currentStatus,
+        message = currentMessage,
+    )
 
     fun next(): HistoricalSearchResult? {
         while (bufferedResults.isEmpty() && !exhausted) {
             val nextPage = adapter?.search(query.copy(start = nextSourceStart, limit = 100))
             if (nextPage == null || nextPage.status != HistoricalTechnicalStatus.AVAILABLE) {
+                currentStatus = nextPage?.status ?: HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE
+                currentMessage = nextPage?.message ?: "Bronadapter is niet beschikbaar."
                 exhausted = true
                 break
             }

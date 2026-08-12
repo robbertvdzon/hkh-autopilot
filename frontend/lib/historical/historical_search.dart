@@ -135,6 +135,15 @@ abstract interface class HistoricalSearchSource {
   });
 }
 
+class HistoricalSearchValidationException implements Exception {
+  const HistoricalSearchValidationException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 class HistoricalSearchPage extends StatefulWidget {
   const HistoricalSearchPage({required this.source, super.key});
 
@@ -306,6 +315,10 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
                     );
                   }
                   if (snapshot.hasError) {
+                    final error = snapshot.error;
+                    if (error is HistoricalSearchValidationException) {
+                      return _HistoricalValidationError(message: error.message);
+                    }
                     return _HistoricalError(onRetry: _runSearch);
                   }
                   final response = snapshot.requireData;
@@ -314,7 +327,7 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
                         source.status == 'TEMPORARILY_UNAVAILABLE' ||
                         source.status == 'INVALID_RESPONSE',
                   );
-                  if (response.results.isEmpty && hasSourceFailure) {
+                  if (hasSourceFailure) {
                     return _HistoricalError(onRetry: _runSearch);
                   }
                   return _HistoricalResults(
@@ -448,6 +461,7 @@ class _HistoricalResultCard extends StatelessWidget {
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
+                key: const Key('historical-external-link'),
                 onPressed: () => openExternalLink(result.stableUrl),
                 icon: const Icon(Icons.open_in_new),
                 label: const Text('Externe bron openen in nieuw tabblad'),
@@ -488,6 +502,18 @@ class _HistoricalError extends StatelessWidget {
         label: const Text('Opnieuw proberen'),
       ),
     ],
+  );
+}
+
+class _HistoricalValidationError extends StatelessWidget {
+  const _HistoricalValidationError({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => _HistoricalStatus(
+    label: 'De historische zoekfilters zijn ongeldig.',
+    child: Text(message),
   );
 }
 

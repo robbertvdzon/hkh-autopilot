@@ -100,6 +100,17 @@ class BackendClient
         .get(uri)
         .timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) {
+      if (response.statusCode == 400) {
+        var message = 'De zoekfilters zijn ongeldig.';
+        try {
+          final body = jsonDecode(response.body) as Map<String, dynamic>;
+          final error = body['error'];
+          if (error is String && error.trim().isNotEmpty) message = error;
+        } on FormatException {
+          // Keep the safe generic validation message for malformed error bodies.
+        }
+        throw HistoricalSearchValidationException(message);
+      }
       throw StateError('Historisch zoeken kon niet worden uitgevoerd.');
     }
     final json = jsonDecode(response.body) as Map<String, dynamic>;

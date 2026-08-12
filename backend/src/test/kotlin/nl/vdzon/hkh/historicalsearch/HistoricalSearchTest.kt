@@ -10,8 +10,15 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import org.hamcrest.Matchers.containsString
+import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import org.springframework.web.client.RestClient
 import org.springframework.web.util.UriComponentsBuilder
+import nl.vdzon.hkh.historicalsearch.api.HistoricalSearchController
 
 class HistoricalSearchTest {
     @Test
@@ -225,6 +232,113 @@ class HistoricalSearchTest {
     }
 
     @Test
+    fun `controller exposes the historical HTTP contract and rejects invalid periods`() {
+        val adapter = object : HistoricalSearchAdapter {
+            override val source = HistoricalSearchSource.OPEN_ARCHIEVEN
+
+            override fun search(query: HistoricalSearchQuery) = HistoricalSearchPage(
+                source = source,
+                results = listOf(
+                    HistoricalSearchResult(
+                        source = source,
+                        sourceRecordId = "record-1",
+                        stableUrl = "https://example.test/record-1",
+                        title = null,
+                        description = null,
+                        person = null,
+                        event = null,
+                        dateStart = null,
+                        dateEnd = null,
+                        institution = null,
+                        rights = null,
+                        privacy = null,
+                        retrievedAt = fixedClock().instant(),
+                    ),
+                ),
+                total = 1,
+                status = HistoricalTechnicalStatus.AVAILABLE,
+            )
+        }
+        val mockMvc: MockMvc = MockMvcBuilders
+            .standaloneSetup(HistoricalSearchController(HistoricalSearchService(listOf(adapter))))
+            .build()
+
+        mockMvc.perform(
+            get("/api/historical-search")
+                .param("q", "kerk")
+                .param("source", "OPEN_ARCHIEVEN")
+                .param("start", "0")
+                .param("limit", "1"),
+        ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.results[0].sourceRecordId").value("record-1"))
+            .andExpect(jsonPath("$.results[0].stableUrl").value("https://example.test/record-1"))
+            .andExpect(jsonPath("$.sources[0].status").value("AVAILABLE"))
+            .andExpect(jsonPath("$.limit").value(1))
+
+        mockMvc.perform(
+            get("/api/historical-search")
+                .param("q", "kerk")
+                .param("fromYear", "1900"),
+        ).andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.error").value(containsString("samen")))
+    }
+
+    @Test
+    fun `rate limiter enforces at least 251 milliseconds between permits`() {
+        var now = 0L
+        val sleeps = mutableListOf<Long>()
+        val limiter = FourPerSecondHistoricalRateLimiter(
+            intervalNanos = 251_000_000L,
+            nowNanos = { now },
+            sleepNanos = { nanos -> sleeps += nanos; now += nanos },
+        )
+
+        limiter.awaitPermit()
+        limiter.awaitPermit()
+        limiter.awaitPermit()
+
+        assertEquals(listOf(251_000_000L, 251_000_000L), sleeps)
+    }
+
+    @Test
+    fun `source failure during a continuation page is exposed in the outcome`() {
+        val adapter = object : HistoricalSearchAdapter {
+            override val source = HistoricalSearchSource.OPEN_ARCHIEVEN
+            val queries = mutableListOf<Int>()
+
+            override fun search(query: HistoricalSearchQuery): HistoricalSearchPage {
+                queries += query.start
+                return if (query.start == 0) {
+                    HistoricalSearchPage(
+                        source = source,
+                        results = (0 until 100).map { index -> historicalResult(source, index) },
+                        total = 200,
+                        status = HistoricalTechnicalStatus.AVAILABLE,
+                    )
+                } else {
+                    HistoricalSearchPage(
+                        source = source,
+                        results = emptyList(),
+                        total = 200,
+                        status = HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE,
+                        message = "Vervolgpagina niet beschikbaar.",
+                        consumed = 0,
+                    )
+                }
+            }
+        }
+
+        val outcome = HistoricalSearchService(listOf(adapter)).search(
+            HistoricalSearchQuery(text = "kerk", source = HistoricalSearchSource.OPEN_ARCHIEVEN, start = 100),
+        )
+
+        assertTrue(outcome.results.isEmpty())
+        assertEquals(listOf(0, 100), adapter.queries)
+        assertEquals(HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE, outcome.sources.single().status)
+        assertEquals("Vervolgpagina niet beschikbaar.", outcome.sources.single().message)
+    }
+
+    @Test
     fun `service merges source cursors without duplicating results across pages`() {
         val europeana = recordingAdapter(HistoricalSearchSource.EUROPEANA)
         val open = recordingAdapter(HistoricalSearchSource.OPEN_ARCHIEVEN)
@@ -366,6 +480,22 @@ class HistoricalSearchTest {
     }
 
     private fun fixedClock() = Clock.fixed(Instant.parse("2026-08-12T00:00:00Z"), ZoneOffset.UTC)
+
+    private fun historicalResult(source: HistoricalSearchSource, index: Int) = HistoricalSearchResult(
+        source = source,
+        sourceRecordId = "$source-$index",
+        stableUrl = "https://example.test/$source/$index",
+        title = null,
+        description = null,
+        person = null,
+        event = null,
+        dateStart = null,
+        dateEnd = null,
+        institution = null,
+        rights = null,
+        privacy = null,
+        retrievedAt = fixedClock().instant(),
+    )
 
     private fun startFixture(body: String): Fixture {
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
