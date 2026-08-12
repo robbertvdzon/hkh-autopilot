@@ -66,3 +66,8 @@ Resultaat developer-run (2026-08-12):
 - Adapters normaliseren alternatieve velden alleen bij één consistente, geldige waarde en geven
   ongeldige of tegenstrijdige datering fail-closed door. De gerichte suite telt 10 tests; het volledige
   vangnet is daarna opnieuw zonder onderbreking groen uitgevoerd.
+
+Reviewronde (2026-08-12):
+- [blocker] `.factory/verification.yaml` bevat nog steeds alleen commandedefinities. Er is geen agentworker-gemeten, revisiongebonden bewijs voor HEAD `444a560` en de huidige worktree-tree; issue-comment en handgeschreven worklogtekst tellen niet als groen vangnetbewijs.
+- [bug] `HistoricalSearchAdapters.kt:217-220` behandelt iedere parsebare JSON-respons zonder `response.docs` als `AVAILABLE` met nul resultaten. Open Archieven retourneert ook JSON-foutobjecten; zo wordt een bronfout ten onrechte als een lege successtatus aan de UI doorgegeven in plaats van als fout/ongeldige respons. Reproduceer met een fixture-respons `{"error_code":21,"error_description":"Missing required name"}` en controleer de bronstatus van `OpenArchievenSearchAdapter.search(...)`.
+- Gerichte reviewchecks waren groen: `HistoricalSearchTest` 10/10 en `frontend/test/historical_search_test.dart` 5/5. Dit heft het ontbrekende volledige factorybewijs niet op.
