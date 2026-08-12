@@ -445,7 +445,9 @@ class HistoricalSearchTest {
             HistoricalSearchQuery(text = "kerk", start = 200, limit = 100),
         )
 
-        assertTrue(outcome.results.isEmpty())
+        assertEquals(100, outcome.start)
+        assertEquals(100, outcome.results.size)
+        assertEquals((100 until 200).map { "OPEN_ARCHIEVEN-$it" }, outcome.results.map { it.sourceRecordId })
         assertEquals(200, outcome.total)
         assertEquals(HistoricalSearchState.PARTIAL_AVAILABILITY, outcome.state)
         assertEquals(HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE, outcome.sources.first().status)

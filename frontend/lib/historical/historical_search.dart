@@ -188,7 +188,6 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
   final _toYear = TextEditingController();
   HistoricalSourceChoice? _source;
   Future<HistoricalSearchResponse>? _search;
-  int _start = 0;
   static const _limit = 100;
 
   @override
@@ -205,7 +204,6 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
   void _runSearch({int? start}) {
     final nextStart = start ?? 0;
     setState(() {
-      _start = nextStart;
       _search = widget.source.loadHistoricalSearch(
         text: _text.text,
         place: _place.text,
@@ -358,18 +356,18 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
                   return _HistoricalResults(
                     response: response,
                     state: state,
-                    onPrevious: _start == 0
+                    onPrevious: response.start == 0
                         ? null
                         : () => _runSearch(
-                            start: (_start - response.results.length).clamp(
-                              0,
-                              _start,
-                            ),
+                            start: (response.start - response.results.length)
+                                .clamp(0, response.start),
                           ),
-                    onNext: _start + response.results.length >= response.total
+                    onNext:
+                        response.start + response.results.length >=
+                            response.total
                         ? null
                         : () => _runSearch(
-                            start: _start + response.results.length,
+                            start: response.start + response.results.length,
                           ),
                   );
                 },

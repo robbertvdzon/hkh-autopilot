@@ -35,17 +35,14 @@ class HistoricalSearchService(
             HistoricalSearchCursor(adapter, query, firstPage)
         }
         val initialPages = cursors.map { it.initialPage }
-        val mergedResults = merge(cursors, query.start, query.limit)
+        val merged = merge(cursors, query.start, query.limit)
         val sources = cursors.map { it.status() }
         val availableSources = sources.filter { it.status == HistoricalTechnicalStatus.AVAILABLE }
         val total = cursors.sumOf { it.totalContribution() }
-        // A continuation failure can remove a source's contribution after the merge has
-        // already advanced through the old round-robin stream. Do not expose records at
-        // offsets that are outside the final total of the still-available sources.
         val results = if (availableSources.isEmpty()) {
             emptyList()
         } else {
-            mergedResults.take((total - query.start).coerceAtLeast(0))
+            merged.results.take((total - merged.start).coerceAtLeast(0))
         }
         val state = when {
             availableSources.isEmpty() -> HistoricalSearchState.SOURCE_FAILURE
@@ -58,38 +55,59 @@ class HistoricalSearchService(
         return HistoricalSearchOutcome(
             results = results,
             total = total,
-            start = query.start,
+            start = merged.start,
             limit = query.limit,
             sources = sources,
             state = state,
         )
     }
 
+    private data class MergeResult(
+        val results: List<HistoricalSearchResult>,
+        val start: Int,
+    )
+
     private fun merge(
         cursors: List<HistoricalSearchCursor>,
         start: Int,
         limit: Int,
-    ): List<HistoricalSearchResult> {
-        val active = cursors.filter { it.initialPage.status == HistoricalTechnicalStatus.AVAILABLE }.toMutableList()
-        val results = mutableListOf<HistoricalSearchResult>()
-        var sourceIndex = 0
-        var globalPosition = 0
-        val endExclusive = start + limit
+    ): MergeResult {
+        var effectiveStart = start
 
-        while (globalPosition < endExclusive && active.isNotEmpty()) {
-            if (sourceIndex >= active.size) sourceIndex = 0
-            val cursor = active[sourceIndex]
-            val result = cursor.next()
-            if (result == null) {
-                active.removeAt(sourceIndex)
-                continue
+        while (true) {
+            cursors.filter { it.isAvailable() }.forEach(HistoricalSearchCursor::resetReadPosition)
+            val active = cursors.filter { it.isAvailable() }.toMutableList()
+            val results = mutableListOf<HistoricalSearchResult>()
+            var sourceIndex = 0
+            var globalPosition = 0
+            var sourceFailed = false
+
+            val endExclusive = effectiveStart + limit
+            while (globalPosition < endExclusive && active.isNotEmpty()) {
+                if (sourceIndex >= active.size) sourceIndex = 0
+                val cursor = active[sourceIndex]
+                val result = cursor.next()
+                if (result == null) {
+                    if (!cursor.isAvailable()) {
+                        // The failed source no longer contributes to the merged stream. Rebase
+                        // the requested offset over the normalized records already read from it,
+                        // so the next available source page remains reachable.
+                        effectiveStart =
+                            (effectiveStart - cursor.fetchedResultCount()).coerceAtLeast(0)
+                        sourceFailed = true
+                        break
+                    }
+                    active.removeAt(sourceIndex)
+                    continue
+                }
+                if (globalPosition >= effectiveStart) results += result
+                globalPosition++
+                sourceIndex++
             }
-            if (globalPosition >= start) results += result
-            globalPosition++
-            sourceIndex++
-        }
 
-        return results
+            if (!sourceFailed) return MergeResult(results, effectiveStart)
+            if (cursors.none { it.isAvailable() }) return MergeResult(emptyList(), effectiveStart)
+        }
     }
 }
 
@@ -104,6 +122,16 @@ private class HistoricalSearchCursor(
     private var currentStatus = initialPage.status
     private var currentMessage = initialPage.message
 
+    fun isAvailable(): Boolean = currentStatus == HistoricalTechnicalStatus.AVAILABLE
+
+    fun resetReadPosition() {
+        readPosition = 0
+    }
+
+    fun fetchedResultCount(): Int = bufferedResults.size
+
+    private var readPosition = 0
+
     fun status(): HistoricalSourceStatus = HistoricalSourceStatus(
         source = initialPage.source,
         status = currentStatus,
@@ -117,7 +145,11 @@ private class HistoricalSearchCursor(
     }
 
     fun next(): HistoricalSearchResult? {
-        while (bufferedResults.isEmpty() && !exhausted) {
+        while (readPosition >= bufferedResults.size && !exhausted) {
+            if (nextSourceStart >= initialPage.total.coerceAtLeast(0)) {
+                exhausted = true
+                break
+            }
             val nextPage = runCatching {
                 adapter?.search(query.copy(start = nextSourceStart, limit = 100))
             }.getOrNull()
@@ -132,6 +164,6 @@ private class HistoricalSearchCursor(
             bufferedResults.addAll(nextPage.results)
             exhausted = consumed == 0 || consumed < 100
         }
-        return bufferedResults.removeFirstOrNull()
+        return bufferedResults.getOrNull(readPosition++)
     }
 }

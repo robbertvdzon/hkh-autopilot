@@ -28,6 +28,7 @@ class _HistoricalSource implements HistoricalSearchSource {
 
   final Future<HistoricalSearchResponse> result;
   int calls = 0;
+  final starts = <int>[];
 
   @override
   Future<HistoricalSearchResponse> loadHistoricalSearch({
@@ -42,6 +43,7 @@ class _HistoricalSource implements HistoricalSearchSource {
     int limit = 100,
   }) {
     calls++;
+    starts.add(start);
     return result;
   }
 }
@@ -236,6 +238,67 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Geen historische resultaten gevonden.'), findsOneWidget);
   });
+
+  testWidgets(
+    'paginates from the effective server start after source failure',
+    (tester) async {
+      final source = _HistoricalSource(
+        Future.value(
+          HistoricalSearchResponse(
+            results: [
+              HistoricalSearchResult(
+                source: 'OPEN_ARCHIEVEN',
+                sourceRecordId: 'second-page',
+                stableUrl: 'https://example.test/second-page',
+                retrievedAt: DateTime.utc(2026, 8, 12),
+                metadataRights: 'ALLOWED',
+                privacyStatus: 'CLEAR',
+                title: 'Tweede beschikbare pagina',
+              ),
+            ],
+            total: 200,
+            start: 100,
+            limit: 100,
+            state: 'PARTIAL_AVAILABILITY',
+            sources: [
+              HistoricalSourceStatus(
+                source: 'EUROPEANA',
+                status: 'TEMPORARILY_UNAVAILABLE',
+              ),
+              HistoricalSourceStatus(
+                source: 'OPEN_ARCHIEVEN',
+                status: 'AVAILABLE',
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(home: HistoricalSearchPage(source: source)),
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('historical-search-submit')),
+      );
+      await tester.tap(find.byKey(const Key('historical-search-submit')));
+      await tester.pumpAndSettle();
+
+      expect(source.starts, [0]);
+      await tester.ensureVisible(find.text('Tweede beschikbare pagina'));
+      expect(find.text('Tweede beschikbare pagina'), findsOneWidget);
+      final previousButton = tester.widget<OutlinedButton>(
+        find
+            .ancestor(
+              of: find.text('Vorige resultaten'),
+              matching: find.byType(OutlinedButton),
+            )
+            .first,
+      );
+      previousButton.onPressed!();
+      await tester.pumpAndSettle();
+
+      expect(source.starts, [0, 99]);
+    },
+  );
 
   testWidgets('shows validation errors without offering a retry', (
     tester,

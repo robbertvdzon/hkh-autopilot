@@ -11,6 +11,19 @@ Stappenplan:
 [x]: volledig vangnet draaien en resultaten vastleggen
 
 Voortgang:
+- Nieuwe developer-run gestart voor het resterende reviewblocker: paginering wordt bij
+  vervolguitval opnieuw gemerged over alleen de nog beschikbare bronstromen; de regressietest
+  controleert dat de tweede beschikbare bronpagina bereikbaar blijft. Het volledige vangnet wordt
+  na deze wijziging opnieuw uitgevoerd.
+- De merge geeft bij vervolguitval de effectieve beschikbare `start` terug en rebased over de
+  genormaliseerde resultaten van de uitgevallen bron. Daardoor blijven beschikbare vervolgpagina's
+  bereikbaar en blijven `start`, `total` en de geretourneerde resultaten consistent.
+- De backendregressietest controleert dat de tweede Open Archieven-pagina na Europeana-uitval
+  zichtbaar blijft met `start=100`, `total=200` en de juiste bronstatussen. De frontendtest
+  controleert dat terugpagineren de effectieve server-start gebruikt.
+- Het volledige vangnet is voor deze run groen uitgevoerd: backend `clean verify` (298 tests),
+  frontend analyze, 46 tests en webbuild, frontend-admin analyze en 35 tests; alle commando's
+  eindigden met exitcode 0 zonder failures of errors.
 - Worklog aangemaakt aan het begin van de developer-run; wijzigingen blijven uncommitted voor de factory.
 - Reviewherstel afgerond: de merge-uitkomst wordt na vervolguitval begrensd door het definitieve beschikbare `total`, zodat `start >= total` geen resultaten buiten het contract kan tonen.
 - De reviewregressies zijn toegevoegd: een tweebronnen-test voor tijdelijke uitval met partiële resultaten en een paginerings-test voor `start >= total`.
