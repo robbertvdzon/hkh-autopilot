@@ -154,3 +154,37 @@ Uitgevoerd:
 De branch blijft afgewezen: herstel beide adapter/rate-limitbevindingen en
 lever agentworker-bewijs voor exact dezelfde HEAD/worktree-tree aan voordat de
 review opnieuw wordt aangeboden.
+
+## Development retry 3
+
+Stappenplan:
+[x]: identifierrepresentaties normaliseren vóór conflictcontrole
+[x]: rate limiting koppelen aan genormaliseerde uitgaande IP-identiteit
+[x]: regressietests en contractdocumentatie bijwerken
+[x]: volledig factory-vangnet uitvoeren en revisiongebonden resultaten controleren
+
+Doel van deze run: herstel de twee concrete reviewbevindingen zonder de
+bestaande individuele verificatieroute te wijzigen. De factory blijft eigenaar
+van commit/push/PR en van het uiteindelijke agentworker-bewijs; deze run legt
+alleen lokaal controleerbare resultaten vast.
+
+Uitgevoerd:
+- Identifierwaarden worden eerst naar hun recordpad genormaliseerd, zodat een
+  equivalente URI (`@id`) en korte identifier niet als conflict gelden. Iedere
+  aanwezige identifier wordt nog steeds tegen de aangevraagde `adtid/guid`
+  gecontroleerd; afwijkende records blijven fail-closed.
+- De configuratie gebruikt nu een DNS/IP-afgeleide limiterkey. Hostaliassen
+  met dezelfde opgeloste doel-IP-adressen delen één `FourPerSecondRateLimiter`
+  bucket. De test simuleert twee aliassen en controleert één gedeelde timing-
+  interval.
+- Gerichte backendrun: 19 tests, 0 failures, 0 errors.
+- Volledig vangnet uitgevoerd volgens `docs/factory/development.md`:
+  backend `mvn -B --no-transfer-progress clean verify` (275 tests, 0 failures,
+  0 errors), frontend analyze/test/build web (35 tests, 0 failures), en
+  frontend-admin analyze/test (35 tests, 0 failures). Alle zes commando's
+  eindigden met exitcode 0.
+- Afsluitende controle: `git diff --check` geslaagd, geen conflictmarkers in
+  gewijzigde bestanden, en alle wijzigingen blijven uncommitted.
+- Handover-identificatie van deze checkout: `HEAD=68d8055c3a3bc6256c55064f60094f4518e493bb`.
+  Het agentworker-gemeten bewijs wordt na deze run door de factory-harness aan
+  de werkelijke checkout-tree gebonden.

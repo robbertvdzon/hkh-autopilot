@@ -411,10 +411,12 @@ persisteert.
   verwijderd door de uitkomst te blokkeren; bronpayload, gevoelige velden en payloadteksten komen
   niet in opslag, response of logging terecht.
 - Uitgaande metadata-aanroepen sturen `HKH-Autopilot-HistoricalMetadata/1.0` als beschrijvende
-  user-agent en gebruiken `FourPerSecondRateLimiter` per serverdoel met minimaal 251 ms tussenruimte.
-  Er is geen cache: een nieuwe bronversie of ETag/Last-Modified wordt bij iedere bevraging opnieuw
-  zichtbaar vastgelegd. Er is bewust geen publieke zoekroute, opslagmodel of frontendweergave in
-  deze story; toekomstige zoekfunctionaliteit consumeert dit contract.
+  user-agent en gebruiken `FourPerSecondRateLimiter` per genormaliseerde uitgaande doel-IP-sleutel
+  met minimaal 251 ms tussenruimte. DNS-hostaliassen die naar dezelfde doel-IP-adressen resolven,
+  delen daardoor één limiterbucket; er is geen eindgebruikers-IP bij betrokken. Er is geen cache:
+  een nieuwe bronversie of ETag/Last-Modified wordt bij iedere bevraging opnieuw zichtbaar
+  vastgelegd. Er is bewust geen publieke zoekroute, opslagmodel of frontendweergave in deze story;
+  toekomstige zoekfunctionaliteit consumeert dit contract.
 - Frontend: `frontend-admin/lib/externalverification/external_verification_link_view.dart` bevat
   `ExternalVerificationLinkView`, die de link naar het externe archiefrecord toont met een
   `Semantics`-node (`link: true`) waarvan het `label` programmatisch aankondigt dat de link een

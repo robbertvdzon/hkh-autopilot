@@ -3,6 +3,7 @@ package nl.vdzon.hkh.externalverification
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
+import java.net.InetAddress
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -196,6 +197,25 @@ class OpenArchievenMetadataAdapterTest {
     }
 
     @Test
+    fun `equivalent uri and short identifier representations do not conflict`() {
+        val client = startServer { exchange ->
+            respond(
+                exchange,
+                200,
+                validFixture("v1").replace(
+                    "\"@id\": \"https://opendata.archieven.nl/id/1000/item-1\",",
+                    "\"@id\": \"https://opendata.archieven.nl/id/1000/item-1\",\n          \"identifier\": \"1000/item-1\",",
+                ),
+            )
+        }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertTrue(result.fullyVerified)
+        assertEquals("1000/item-1", result.metadata?.sourceIdentifier)
+    }
+
+    @Test
     fun `conflicting privacy values fail closed`() {
         val client = startServer { exchange -> respond(exchange, 200, graphFixture("\"privacyStatus\": \"BLOCKED\"")) }
 
@@ -217,6 +237,26 @@ class OpenArchievenMetadataAdapterTest {
 
         assertEquals(4, waits.size)
         assertTrue(waits.all { it >= 251_000_000L })
+    }
+
+    @Test
+    fun `host aliases resolving to one address share the outbound limiter bucket`() {
+        val resolvedAddress = InetAddress.getByName("127.0.0.1")
+        val firstKey = resolveServerRateLimitKey("https://archive-a.example") { arrayOf(resolvedAddress) }
+        val secondKey = resolveServerRateLimitKey("https://archive-b.example") { arrayOf(resolvedAddress) }
+        var now = 0L
+        val waits = mutableListOf<Long>()
+        val limiter = FourPerSecondRateLimiter(
+            nowNanos = { now },
+            sleepNanos = { nanos -> waits += nanos; now += nanos },
+        )
+
+        limiter.awaitPermit(firstKey)
+        limiter.awaitPermit(secondKey)
+
+        assertEquals(firstKey, secondKey)
+        assertEquals(1, waits.size)
+        assertTrue(waits.single() >= 251_000_000L)
     }
 
     private fun startServer(handler: (HttpExchange) -> Unit): HistoricalMetadataAdapter {

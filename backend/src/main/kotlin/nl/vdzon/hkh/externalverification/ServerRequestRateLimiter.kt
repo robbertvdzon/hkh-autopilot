@@ -1,5 +1,7 @@
 package nl.vdzon.hkh.externalverification
 
+import java.net.InetAddress
+import java.net.URI
 import kotlin.math.max
 
 fun interface HistoricalMetadataRateLimiter {
@@ -30,4 +32,26 @@ class FourPerSecondRateLimiter(
             nextPermitByServer[serverKey] = max(afterWait, nextPermit) + intervalNanos
         }
     }
+}
+
+/**
+ * Resolves a source base URL to the network identity used by the outbound limiter. DNS aliases
+ * that resolve to the same address therefore share one bucket instead of getting one bucket per
+ * hostname. All resolved addresses are part of the key, which stays fail-safe when a host has
+ * multiple address records.
+ */
+internal fun resolveServerRateLimitKey(
+    baseUrl: String,
+    resolveHost: (String) -> Array<InetAddress> = InetAddress::getAllByName,
+): String {
+    val uri = runCatching { URI(baseUrl) }.getOrNull()
+    val host = uri?.host?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+        ?: return "host:${baseUrl.trim()}"
+    val addresses = runCatching {
+        resolveHost(host)
+            .mapNotNull { it.hostAddress?.trim()?.lowercase()?.takeIf(String::isNotEmpty) }
+            .distinct()
+            .sorted()
+    }.getOrDefault(emptyList())
+    return addresses.takeIf { it.isNotEmpty() }?.let { "ip:${it.joinToString(",")}" } ?: "host:$host"
 }

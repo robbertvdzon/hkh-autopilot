@@ -136,7 +136,8 @@ class OpenArchievenMetadataAdapter(
         }
         require(nodes.isNotEmpty()) { "source response has no metadata nodes" }
 
-        val identifier = nodes.pick("sourceIdentifier", "identifier", "dcterms:identifier", "id", "@id")
+        val identifierValues = nodes.values("sourceIdentifier", "identifier", "dcterms:identifier", "id", "@id")
+        val identifier = identifierValues.firstOrNull()
         val holder = nodes.pick("holder", "rightsHolder", "publisher", "dcterms:publisher", "provider")
         val title = nodes.pick("title", "dcterms:title")
         val description = nodes.pick("description", "dcterms:description", "summary")
@@ -151,11 +152,8 @@ class OpenArchievenMetadataAdapter(
         val httpAvailability = HistoricalMetadataAvailabilityStatus.AVAILABLE
         val availability = explicitAvailability ?: httpAvailability
 
-        val identifierNames = arrayOf("sourceIdentifier", "identifier", "dcterms:identifier", "id", "@id")
-        val identifierConflict = nodes.hasConflictingValues(*identifierNames)
-        val identifierBindingConflict = identifier
-            ?.let { !it.matchesRequestedRecord(adtid, guid) }
-            ?: false
+        val identifierConflict = identifierValues.map { it.normalizeIdentifier() }.distinct().size > 1
+        val identifierBindingConflict = identifierValues.any { !it.matchesRequestedRecord(adtid, guid) }
         val holderConflict = nodes.hasConflictingValues("holder", "rightsHolder", "publisher", "dcterms:publisher", "provider")
         val titleConflict = nodes.hasConflictingValues("title", "dcterms:title")
         val descriptionConflict = nodes.hasConflictingValues("description", "dcterms:description", "summary")
@@ -265,16 +263,20 @@ class OpenArchievenMetadataAdapter(
 
     private fun String.normalized(): String = trim().uppercase().replace('-', '_').replace(' ', '_')
 
+    /** Vergelijkt URI- en korte bronidentifierrepresentaties als hetzelfde record. */
+    private fun String.normalizeIdentifier(): String {
+        val value = trim()
+        val uri = runCatching { java.net.URI(value) }.getOrNull()
+        return if (uri?.isAbsolute == true && !uri.host.isNullOrBlank()) {
+            uri.path?.removePrefix("/")?.removePrefix("id/") ?: value
+        } else {
+            value
+        }
+    }
+
     private fun String.matchesRequestedRecord(adtid: String, guid: String): Boolean {
         val requestedPath = fallbackIdentifier(adtid, guid)
-        val value = trim()
-        if (value == requestedPath) return true
-
-        return runCatching { java.net.URI(value) }.getOrNull()?.let { uri ->
-            uri.isAbsolute && uri.host != null && uri.path
-                ?.removePrefix("/")
-                ?.removePrefix("id/") == requestedPath
-        } == true
+        return normalizeIdentifier() == requestedPath
     }
 
     private fun String?.cleanHeaderValue(): String? = this?.trim()?.removeSurrounding("\"")?.takeIf { it.isNotEmpty() }
