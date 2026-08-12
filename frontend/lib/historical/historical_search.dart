@@ -359,8 +359,10 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
                     onPrevious: response.start == 0
                         ? null
                         : () => _runSearch(
-                            start: (response.start - response.results.length)
-                                .clamp(0, response.start),
+                            start: (response.start - response.limit).clamp(
+                              0,
+                              response.start,
+                            ),
                           ),
                     onNext:
                         response.start + response.results.length >=

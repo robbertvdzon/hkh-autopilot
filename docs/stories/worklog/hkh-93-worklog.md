@@ -11,6 +11,21 @@ Stappenplan:
 [x]: volledig vangnet draaien en resultaten vastleggen
 
 Nieuwe developer-run (2026-08-12):
+- De reviewbevinding over terugpaginering bij korte pagina's is bevestigd in de bestaande
+  widgettest: een antwoord op `start=100` met één resultaat vroeg offset `99` op.
+- Deze run corrigeert de terugpaginering naar de servergeleverde `limit` en breidt de testnaam/
+  verwachting aan zodat de regressie expliciet wordt vastgelegd.
+
+Resultaat huidige run:
+- Gerichte frontendregressie: `flutter test --concurrency=1 --reporter expanded
+  test/historical_search_test.dart` — 10 tests, 0 failures, 0 errors.
+- Volledig vangnet: backend `mvn -B --no-transfer-progress clean verify` — 298 tests; frontend
+  analyze, 46 tests en webbuild; frontend-admin analyze en 35 tests. Alle zes commando's
+  eindigden met exitcode 0, zonder failures of errors.
+- `.factory/verification.yaml` is niet gewijzigd: de bestaande stabiele commandoset dekt deze
+  wijziging en revision-/tree-gebonden bewijs wordt door de factory-harness gegenereerd.
+
+Nieuwe developer-run (2026-08-12):
 - De actuele branch en de leidende review-/factory-instructies opnieuw gecontroleerd.
 - De bestaande implementatie van backend, frontend en tests blijft de scope van deze run;
   ik valideer de actuele paginerings- en bronstatussemantiek opnieuw en voeg alleen een

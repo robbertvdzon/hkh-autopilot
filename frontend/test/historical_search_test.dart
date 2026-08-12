@@ -240,7 +240,7 @@ void main() {
   });
 
   testWidgets(
-    'paginates from the effective server start after source failure',
+    'uses the server page limit when a short page is paginated backwards',
     (tester) async {
       final source = _HistoricalSource(
         Future.value(
@@ -296,7 +296,7 @@ void main() {
       previousButton.onPressed!();
       await tester.pumpAndSettle();
 
-      expect(source.starts, [0, 99]);
+      expect(source.starts, [0, 0]);
     },
   );
 
