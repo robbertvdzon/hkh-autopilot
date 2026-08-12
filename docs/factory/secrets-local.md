@@ -19,6 +19,14 @@ overschrijven waarden uit het bestand; `HKH_SECRETS_FILE` kan naar een andere lo
 - `HKH_EXTERNAL_VERIFICATION_ARCHIVES_BASE_URL`: optionele basis-URI voor archieven.nl, standaard
   het publieke opendata-endpoint; uitsluitend bedoeld om lokaal of in tests tegen een
   fixture-/mock-endpoint te draaien.
+- `HKH_HISTORICAL_EUROPEANA_BASE_URL`: optionele basis-URI voor de Europeana-zoekadapter, standaard
+  `https://api.europeana.eu`; lokaal/testmatig te overschrijven met een fixture-/mock-endpoint.
+- `HKH_EUROPEANA_WSKEY`: server-side Europeana-wskey. Zonder deze waarde wordt alleen Europeana
+  uitgeschakeld; Open Archieven blijft beschikbaar. De waarde komt nooit in frontendcode, responses
+  of logs.
+- `HKH_HISTORICAL_OPEN_ARCHIEVEN_BASE_URL`: optionele basis-URI voor de Open Archieven-zoekadapter,
+  standaard `https://api.openarchieven.nl/1.1`; lokaal/testmatig te overschrijven met een
+  fixture-/mock-endpoint.
 
 De gebruikersfrontend gebruikt geen secret voor zijn backendadres. Geef een openbaar adres tijdens
 build/run door met `--dart-define=API_BASE_URL=https://...`; standaard is

@@ -10,6 +10,13 @@ list (title, summary, entity badges, source line) or, for zero results, a non-em
 with suggestion chips; each result opens a detail view (full text, publication date, source) with
 a back action.
 
+The homepage also provides the separate `Historisch zoeken` entry next to the latest-news flow. The
+`HistoricalSearchPage` searches public Europeana and Open Archieven records through
+`GET /api/historical-search` with optional free text, place, person, event, year range and source
+filters. Results show the source identifier, retrieval time, technical availability, metadata rights,
+object/media rights, privacy status and a clearly labeled external source link; source metadata is
+shown only when the backend has explicit safe rights and privacy statuses.
+
 ## Run and verify
 
 Use Flutter stable 3.44.7 with Dart 3.12.2. The backend defaults to `http://localhost:8080`; set a

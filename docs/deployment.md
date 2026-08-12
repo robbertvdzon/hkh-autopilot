@@ -16,6 +16,9 @@ voldoet daar niet aan.
 
 Runtimewaarden komen uit de SealedSecret `hkh-runtime`. Alleen de gitignored bronfile
 `deploy/secrets-cluster.env` bevat plaintext; zie `deploy/README.md` voor generatie en installatie.
+Voor de publieke historische zoekroute moet `HKH_EUROPEANA_WSKEY` server-side in die runtimeconfiguratie
+worden gezet om Europeana te activeren. Zonder die waarde blijft de route beschikbaar met Open
+Archieven als bron; de wskey wordt niet naar de frontend of API-responses doorgegeven.
 
 Image-tags beginnen op `main`. Na iedere componentbuild vervangt GitHub Actions uitsluitend de
 bijbehorende tag door `sha-<commit>`, commit die manifestwijziging en laat ArgoCD de rollout doen.

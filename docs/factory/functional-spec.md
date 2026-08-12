@@ -302,7 +302,7 @@ opslag ervoor zijn voorbereid), en wijzigingen aan de bestaande naam-/datumverif
 
 ## Brononafhankelijk historisch metadata-contract (backend)
 
-Voor toekomstige historische zoekfunctionaliteit levert de backend één brononafhankelijk contract
+Het herbruikbare backendcontract voor individuele historische metadata levert één brononafhankelijk
 voor een extern zoekresultaat. Het resultaat bevat, wanneer het volledig geverifieerd is, uitsluitend
 een stabiele bronidentifier, een resolvebare bronlink, bronhouder, titel en/of beschrijving, datering,
 bronversie of momentopname-identificatie, de server-side opgehaalde UTC-tijd, afzonderlijke statussen
@@ -327,10 +327,49 @@ user-agent `HKH-Autopilot-HistoricalMetadata/1.0` en gebruikt één procesbrede 
 toegelaten, zonder een afzonderlijke bucket per doelhost. Volledige bronpayloads, media, gevoelige
 persoonsgegevens en niet-noodzakelijke broninhoud worden niet opgeslagen, geretourneerd of gelogd.
 
-Er is voor dit contract nog geen publieke zoekroute, opslagmodel of frontendweergave; de bestaande
-individuele verificatieroute blijft ongewijzigd. De contract- en adaptertests dekken onder meer geldige
-metadata, onbekende rechten, privacyblokkade, bronuitval, lege/ongeldige respons, tegenstrijdige
-bronwaarden, gewijzigde bronversies en de user-agent/rate-limitregels.
+Dit herbruikbare contract blijft afzonderlijk van de publieke zoekroute hieronder; de bestaande
+individuele verificatieroute blijft ongewijzigd. De contract- en adaptertests dekken onder meer
+geldige metadata, onbekende rechten, privacyblokkade, bronuitval, lege/ongeldige respons,
+tegenstrijdige bronwaarden, gewijzigde bronversies en de user-agent/rate-limitregels.
+
+## Publieke historische zoekroute
+
+De homepage bevat naast `Laatste nieuws` een zelfstandige ingang `Historisch zoeken`. Deze route
+raadpleegt alleen openbare externe bronnen en gebruikt geen nieuwsresultaten, record-intakegegevens,
+adminfunctionaliteit of lokale privacyclassificaties. Zoekopdrachten, bronpayloads, scans, foto's en
+ruwe externe persoonsgegevens worden niet opgeslagen.
+
+De backendroute `GET /api/historical-search` gebruikt een eigen zoekcontract met de optionele
+parameters `q`, `place`, `person`, `event`, `fromYear`, `toYear` en `source`, plus `start` (standaard
+0) en `limit` (standaard 100, maximaal 100). Lege waarden worden genegeerd. `fromYear` en `toYear`
+moeten samen twee viercijferige jaren vormen en het vanafjaar mag niet na het eindjaar liggen. De
+bronkeuze is `EUROPEANA` of `OPEN_ARCHIEVEN`; zonder keuze worden beide bronnen bevraagd en worden de
+resultaten cursorgewijs samengevoegd tot maximaal de gevraagde paginagrootte.
+
+De adapters leveren één genormaliseerd resultaatmodel met `source`, `sourceRecordId`, `stableUrl`,
+`title`, `description`, `person`, `event`, `dateStart`, `dateEnd`, `institution`, `rights`,
+`privacy`, `retrievedAt`, `technicalStatus`, `metadataRights`, `objectMediaRights` en
+`privacyStatus`. Alleen een geldige, door de bron geleverde HTTP(S)-recordlink en bronidentifier
+worden gebruikt; links worden niet lokaal geconstrueerd. Ontbrekende, ongeldige of tegenstrijdige
+metadata wordt niet inhoudelijk ingevuld. Titel, beschrijving, persoon, gebeurtenis, datering,
+bronhouder en bronrechten worden alleen getoond wanneer metadatarechten expliciet `ALLOWED` en
+privacy expliciet `CLEAR` zijn. Object-/mediarechten blijven een afzonderlijke status en verlenen
+nooit automatisch medierechten.
+
+Europeana gebruikt `query`, herhaalde `qf`, `rows` en `start`; persoon wordt `who:<persoon>`, plek
+`where:<plek>` en een volledig ingevulde periode een inclusieve `YEAR:[<van> TO <tot>]`. Zonder
+`HKH_EUROPEANA_WSKEY` is alleen Europeana uitgeschakeld. Open Archieven gebruikt `name`, optioneel
+`eventplace`, `number_show` en `start`; een gebeurtenis wordt als laagzekere naamterm gemarkeerd en
+de periode volgt de ondersteunde jaarzoeksyntaxis. Open Archieven is beperkt tot maximaal vier
+serververzoeken per seconde met minimaal 251 ms tussenruimte en een beschrijvende User-Agent.
+
+De route geeft per bron een technische status (`AVAILABLE`, `DISABLED`,
+`TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`) met een veilige melding. Een foutieve zoekopdracht
+geeft HTTP 400 met een leesbare validatiefout; tijdelijke bronfouten en ongeldige bronresponses
+geven een retrybare foutstatus. De gebruikerspagina toont afzonderlijke laad-, succes-, lege-,
+validatie- en retrystatussen. Resultaatkaarten tonen de bronidentifier, ophaaldatum, afzonderlijke
+technische/rechten/privacystatussen en een tekstueel herkenbare externe link die uitsluitend naar
+de door de bron geleverde URL verwijst.
 
 ## Publieke recorddetailpagina en externe bronverificatie
 

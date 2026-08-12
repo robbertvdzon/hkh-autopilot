@@ -8,7 +8,7 @@ uiteen gaan lopen. Product Factory en Software Factory ontwikkelen deze variant 
 
 - `backend` — Kotlin, Spring Boot en Spring Modulith;
 - `frontend` — Flutter-gebruikersapp voor web en Android; de homepage controleert de backend en
-  toont daarna het laatste nieuws;
+  toont daarna het laatste nieuws en de ingang `Historisch zoeken`;
 - `frontend-admin` — afzonderlijke Flutter-webapp voor beheerders;
 - `deploy` — OpenShift/Kustomize/ArgoCD-configuratie;
 - `.factory` — revisiongebonden verificatie voor Software Factory.
@@ -17,6 +17,11 @@ De backendbasis volgt de architectuurconventies van Personal News Feed. De exact
 bewuste afwijkingen staan in [docs/architecture/reference-baseline.md](docs/architecture/reference-baseline.md).
 Repositoryspecifieke build-, test- en toegankelijkheidsafspraken staan in
 [docs/factory/](docs/factory/README.md).
+
+De publieke zoekroute `GET /api/historical-search` zoekt, zonder lokale opslag van zoekopdrachten
+of bronpayloads, in Europeana en Open Archieven. De Europeana-wskey is uitsluitend server-side
+configuratie; zie [docs/factory/secrets-local.md](docs/factory/secrets-local.md) voor de
+configuratienamen.
 
 ## Backend lokaal starten
 

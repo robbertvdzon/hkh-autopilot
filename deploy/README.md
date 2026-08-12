@@ -29,6 +29,11 @@ Het script schrijft alleen de versleutelde `deploy/base/sealed-secret-runtime.ya
 het publieke certificaat uit de sibling-repository `robberts-infrastructure`, of haalt het
 certificaat van de huidige cluster als die repository niet beschikbaar is.
 
+Voor de publieke route `GET /api/historical-search` kan de Europeana-bron worden geactiveerd door
+`HKH_EUROPEANA_WSKEY` in de gitignored cluster-env-file op te nemen voordat de sealed secret wordt
+gegenereerd. Zonder deze server-side waarde blijft Open Archieven beschikbaar; zet de wskey nooit
+in frontendconfiguratie, manifests, logs of API-responses.
+
 Google-login blijft bewust uitgeschakeld zolang zowel `HKH_GOOGLE_CLIENT_ID` als
 `HKH_ADMIN_ALLOWED_EMAILS` leeg zijn. Voor echte login moeten dezelfde Google web-client-ID in
 het clustersecret en in de GitHub Actions-variable `GOOGLE_CLIENT_ID` staan.
