@@ -10,6 +10,21 @@ Stappenplan:
 [x]: backend- en frontendtests schrijven/bijwerken
 [x]: volledig vangnet draaien en resultaten vastleggen
 
+Nieuwe developer-run (2026-08-12):
+- De actuele branch en de leidende review-/factory-instructies opnieuw gecontroleerd.
+- De bestaande implementatie van backend, frontend en tests blijft de scope van deze run;
+  ik valideer de actuele paginerings- en bronstatussemantiek opnieuw en voeg alleen een
+  regressie toe wanneer de code/testdekking daar aanleiding toe geeft.
+
+Resultaat huidige run:
+- Gerichte regressies: backend `HistoricalSearchTest` 20/20 en frontend
+  `historical_search_test.dart` 10/10.
+- Volledig vangnet: backend `mvn -B --no-transfer-progress clean verify` met 298 tests,
+  frontend analyze, test (46 tests) en webbuild, frontend-admin analyze en test (36 tests);
+  alle commando's eindigden met exitcode 0, zonder failures of errors.
+- De factory-configuratie is ongewijzigd en bevat de stabiele zes vangnetcommando's; het
+  revisiongebonden agentworker-bewijs wordt door de factory-harness na deze run gegenereerd.
+
 Voortgang:
 - Nieuwe developer-run gestart voor het resterende reviewblocker: paginering wordt bij
   vervolguitval opnieuw gemerged over alleen de nog beschikbare bronstromen; de regressietest
