@@ -12,6 +12,7 @@ class ModulithArchitectureTest {
         "auth",
         "configuration",
         "externalverification",
+        "historicalsearch",
         "linkdossier",
         "news",
         "previewdata",

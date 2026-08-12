@@ -4,10 +4,15 @@ import 'package:http/http.dart' as http;
 
 import 'backend_status.dart';
 import '../news/latest_news.dart';
+import '../historical/historical_search.dart';
 import '../records/record_public_view.dart';
 
 class BackendClient
-    implements BackendStatusSource, LatestNewsSource, RecordPublicSource {
+    implements
+        BackendStatusSource,
+        LatestNewsSource,
+        HistoricalSearchSource,
+        RecordPublicSource {
   BackendClient(this.apiBaseUrl, {http.Client? client})
     : _client = client ?? http.Client();
 
@@ -62,5 +67,42 @@ class BackendClient
     }
     final json = jsonDecode(response.body) as Map<String, dynamic>;
     return RecordPublicView.fromJson(json);
+  }
+
+  @override
+  Future<HistoricalSearchResponse> loadHistoricalSearch({
+    String? text,
+    String? place,
+    String? person,
+    String? event,
+    String? fromYear,
+    String? toYear,
+    HistoricalSourceChoice? source,
+    int start = 0,
+    int limit = 100,
+  }) async {
+    final queryParameters = <String, String>{
+      if (text != null && text.trim().isNotEmpty) 'q': text.trim(),
+      if (place != null && place.trim().isNotEmpty) 'place': place.trim(),
+      if (person != null && person.trim().isNotEmpty) 'person': person.trim(),
+      if (event != null && event.trim().isNotEmpty) 'event': event.trim(),
+      if (fromYear != null && fromYear.trim().isNotEmpty)
+        'fromYear': fromYear.trim(),
+      if (toYear != null && toYear.trim().isNotEmpty) 'toYear': toYear.trim(),
+      if (source != null) 'source': historicalSourceQueryValue(source),
+      'start': '$start',
+      'limit': '$limit',
+    };
+    final uri = Uri.parse('$apiBaseUrl/api/historical-search').replace(
+      queryParameters: queryParameters.isEmpty ? null : queryParameters,
+    );
+    final response = await _client
+        .get(uri)
+        .timeout(const Duration(seconds: 10));
+    if (response.statusCode != 200) {
+      throw StateError('Historisch zoeken kon niet worden uitgevoerd.');
+    }
+    final json = jsonDecode(response.body) as Map<String, dynamic>;
+    return HistoricalSearchResponse.fromJson(json);
   }
 }
