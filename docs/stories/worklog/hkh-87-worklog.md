@@ -67,6 +67,18 @@ Resultaat developer-run (2026-08-12):
   ongeldige of tegenstrijdige datering fail-closed door. De gerichte suite telt 10 tests; het volledige
   vangnet is daarna opnieuw zonder onderbreking groen uitgevoerd.
 
+Herstelactie na review (2026-08-12):
+- Open Archieven-foutobjecten (`error_code`/`error_description`) worden niet langer als een beschikbare
+  lege pagina verwerkt; de adapter geeft `INVALID_RESPONSE` met een generieke foutmelding terug.
+- Een regressietest dekt de foutrespons met ontbrekende `response.docs` af zonder externe foutpayload door
+  te geven.
+
+Resultaat herstelrun (2026-08-12):
+- Gerichte `HistoricalSearchTest`: 11 tests groen.
+- Volledig vangnet opnieuw uitgevoerd zonder onderbreking: backend 289 tests, frontend 41 tests plus
+  analyze/webbuild, en frontend-admin 36 tests plus analyze; alle commando's eindigden met exitcode 0,
+  zonder failures of errors.
+
 Reviewronde (2026-08-12):
 - [blocker] `.factory/verification.yaml` bevat nog steeds alleen commandedefinities. Er is geen agentworker-gemeten, revisiongebonden bewijs voor HEAD `444a560` en de huidige worktree-tree; issue-comment en handgeschreven worklogtekst tellen niet als groen vangnetbewijs.
 - [bug] `HistoricalSearchAdapters.kt:217-220` behandelt iedere parsebare JSON-respons zonder `response.docs` als `AVAILABLE` met nul resultaten. Open Archieven retourneert ook JSON-foutobjecten; zo wordt een bronfout ten onrechte als een lege successtatus aan de UI doorgegeven in plaats van als fout/ongeldige respons. Reproduceer met een fixture-respons `{"error_code":21,"error_description":"Missing required name"}` en controleer de bronstatus van `OpenArchievenSearchAdapter.search(...)`.

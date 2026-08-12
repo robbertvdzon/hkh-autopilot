@@ -216,6 +216,15 @@ class OpenArchievenSearchAdapter(
 
     private fun parse(body: String, retrievedAt: Instant): HistoricalSearchPage {
         val root = objectMapper.readTree(body)
+        if (root.get("error_code") != null || root.get("error_description") != null) {
+            return HistoricalSearchPage(
+                source = source,
+                results = emptyList(),
+                total = 0,
+                status = HistoricalTechnicalStatus.INVALID_RESPONSE,
+                message = "Open Archieven retourneerde een foutrespons.",
+            )
+        }
         val response = root.get("response") ?: root
         val rawDocs = response.get("docs")?.takeIf(JsonNode::isArray)?.asIterable()?.toList().orEmpty()
         val docs = rawDocs.filter(JsonNode::isObject)

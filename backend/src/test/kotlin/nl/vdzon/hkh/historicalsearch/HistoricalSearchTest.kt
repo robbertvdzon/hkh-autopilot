@@ -118,6 +118,27 @@ class HistoricalSearchTest {
     }
 
     @Test
+    fun `open archieven error response is not reported as an empty available result`() {
+        val fixture = startFixture(
+            """
+            {"error_code":21,"error_description":"Missing required name"}
+            """.trimIndent(),
+        )
+        try {
+            val result = OpenArchievenSearchAdapter(
+                RestClient.builder().baseUrl(fixture.baseUrl).build(),
+                rateLimiter = HistoricalSearchRateLimiter { },
+            ).search(HistoricalSearchQuery(text = "geschiedenis"))
+
+            assertEquals(HistoricalTechnicalStatus.INVALID_RESPONSE, result.status)
+            assertEquals(emptyList(), result.results)
+            assertEquals("Open Archieven retourneerde een foutrespons.", result.message)
+        } finally {
+            fixture.stop()
+        }
+    }
+
+    @Test
     fun `adapters fail closed for missing or restricted metadata and privacy`() {
         val fixture = startFixture(
             """
