@@ -1,5 +1,6 @@
 package nl.vdzon.hkh.externalverification
 
+import java.net.URI
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -18,4 +19,11 @@ class ExternalVerificationClientConfiguration(
     @Bean
     fun archivesNlClient(): ArchivesNlClient =
         RestClientArchivesNlClient(RestClient.builder().baseUrl(archivesBaseUrl).build())
+
+    @Bean
+    fun historicalMetadataAdapter(): HistoricalMetadataAdapter =
+        OpenArchievenMetadataAdapter(
+            restClient = RestClient.builder().baseUrl(archivesBaseUrl).build(),
+            serverKey = runCatching { URI(archivesBaseUrl).host }.getOrNull() ?: archivesBaseUrl,
+        )
 }
