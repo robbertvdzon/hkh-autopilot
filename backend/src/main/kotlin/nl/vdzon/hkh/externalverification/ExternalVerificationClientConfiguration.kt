@@ -18,4 +18,15 @@ class ExternalVerificationClientConfiguration(
     @Bean
     fun archivesNlClient(): ArchivesNlClient =
         RestClientArchivesNlClient(RestClient.builder().baseUrl(archivesBaseUrl).build())
+
+    @Bean
+    fun historicalMetadataRateLimiter(): HistoricalMetadataRateLimiter =
+        FourPerSecondRateLimiter()
+
+    @Bean
+    fun historicalMetadataAdapter(rateLimiter: HistoricalMetadataRateLimiter): HistoricalMetadataAdapter =
+        OpenArchievenMetadataAdapter(
+            restClient = RestClient.builder().baseUrl(archivesBaseUrl).build(),
+            rateLimiter = rateLimiter,
+        )
 }

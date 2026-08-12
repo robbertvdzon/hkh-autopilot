@@ -396,6 +396,28 @@ persisteert.
   vorm getoond, gelogd of in een API-respons opgenomen — dit is nieuw, want er bestond nog geen
   precedent in de repo voor het versleuteld bewaren van uitgaande tokens (de bestaande
   Nimbus/JWKS-code verifieert uitsluitend inkomende tokens).
+- `HistoricalMetadataContract`/`HistoricalMetadataResult` is het brononafhankelijke contract voor
+  één extern historisch zoekresultaat. Een volledig resultaat bevat alleen een stabiele identifier,
+  resolvebare bronlink, bronhouder, titel/beschrijving, datering en bronversie of snapshot-ID,
+  naast de server-side UTC-ophaaldatum, afzonderlijke metadata-/objectmediastatussen,
+  privacystatus, technische beschikbaarheid en een afgeleide `VERIFIED`/`UNVERIFIED`-status met
+  machineleesbare reden. `OpenArchievenMetadataAdapter` leest hiervoor uitsluitend een allowlist
+  uit JSON-LD; de bestaande individuele verificatieroute blijft ongewijzigd.
+- De contractvalidator is fail-closed: ontbrekende, ongeldige of tegenstrijdige velden, onbekende
+  metadatarechten, geblokkeerde/onbekende privacy, lege/ongeldige bronrespons of tijdelijke
+  bronuitval levert alleen de bekende veilige bronverwijzing en technische status op. Onbekende
+  object-/mediarechten blokkeren metadata-verificatie niet, maar geven nooit `mediaAllowed`.
+  Mogelijke persoonsgegevens of levende-personenvelden worden vóór het contractresultaat
+  verwijderd door de uitkomst te blokkeren; bronpayload, gevoelige velden en payloadteksten komen
+  niet in opslag, response of logging terecht.
+- Uitgaande metadata-aanroepen sturen `HKH-Autopilot-HistoricalMetadata/1.0` als beschrijvende
+  user-agent en gebruiken één procesbrede `FourPerSecondRateLimiter`-singleton voor de gedeelde
+  backend-egress, met minimaal 251 ms tussenruimte. De doelhost en het doel-IP zijn bewust geen
+  onderdeel van de bucket: verschillende bronnen kunnen de limiet voor hetzelfde server-uitgaande
+  proces dus niet opsplitsen. Er is geen eindgebruikers-IP bij betrokken. Er is geen cache:
+  een nieuwe bronversie of ETag/Last-Modified wordt bij iedere bevraging opnieuw zichtbaar
+  vastgelegd. Er is bewust geen publieke zoekroute, opslagmodel of frontendweergave in deze story;
+  toekomstige zoekfunctionaliteit consumeert dit contract.
 - Frontend: `frontend-admin/lib/externalverification/external_verification_link_view.dart` bevat
   `ExternalVerificationLinkView`, die de link naar het externe archiefrecord toont met een
   `Semantics`-node (`link: true`) waarvan het `label` programmatisch aankondigt dat de link een

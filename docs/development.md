@@ -104,6 +104,18 @@ the existing verification/privacy badges. Configuration and behavior are documen
 [factory/technical-spec.md](factory/technical-spec.md) and
 [factory/secrets-local.md](factory/secrets-local.md).
 
+The same module also provides the reusable, non-persistent `HistoricalMetadataContract` and
+`OpenArchievenMetadataAdapter` for future historical search. It returns a fully verified result only
+when the stable identifier/link, holder, title-or-description, dating, source version or snapshot,
+metadata rights, privacy and technical availability all pass validation. Otherwise it returns only
+the known safe source link/identifier and technical status. Metadata rights and object/media rights
+are separate; unknown object rights never grant media permission and do not by themselves invalidate
+metadata. The adapter uses a descriptive user-agent and a process-wide limiter with at least 251 ms
+between requests, which is stricter than four requests per second for the server egress and cannot be
+split by target host. It records the current UTC fetch time and never caches an older source version.
+Raw JSON-LD, personal data and sensitive values are not persisted, returned or logged. This story adds
+no public search route, storage model or frontend view.
+
 ## User frontend
 
 The user application supports Flutter web and Android. It uses `http://localhost:8080` as its

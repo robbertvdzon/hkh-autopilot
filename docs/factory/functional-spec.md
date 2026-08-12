@@ -300,6 +300,38 @@ het archieven.nl/Noord-Hollands Archief-patroon, het daadwerkelijk bouwen van ee
 voor een endpoint dat vandaag geen autorisatie vereist (alleen het invoerveld en de versleutelde
 opslag ervoor zijn voorbereid), en wijzigingen aan de bestaande naam-/datumverificatielogica.
 
+## Brononafhankelijk historisch metadata-contract (backend)
+
+Voor toekomstige historische zoekfunctionaliteit levert de backend één brononafhankelijk contract
+voor een extern zoekresultaat. Het resultaat bevat, wanneer het volledig geverifieerd is, uitsluitend
+een stabiele bronidentifier, een resolvebare bronlink, bronhouder, titel en/of beschrijving, datering,
+bronversie of momentopname-identificatie, de server-side opgehaalde UTC-tijd, afzonderlijke statussen
+voor metadatarechten en object-/mediarechten, een privacystatus, een technische beschikbaarheidsstatus
+en een afgeleide verificatiestatus met machineleesbare reden.
+
+`VERIFIED` wordt alleen teruggegeven wanneer alle verplichte waarden aanwezig, syntactisch geldig en
+onderling consistent zijn, de bron beschikbaar is, metadatarechten `ALLOWED` zijn en de privacycontrole
+geen blokkade oplevert. Ontbrekende, ongeldige of tegenstrijdige brondata, onbekende of beperkte
+metadatarechten, onbekende of geblokkeerde privacy, een lege/ongeldige respons of tijdelijke bronuitval
+levert `UNVERIFIED` op. De minimale uitkomst mag alleen een bekende veilige bronidentifier/-link en de
+technische status behouden; niet-geverifieerde titel, beschrijving, datering en persoonsgegevens
+worden niet teruggegeven. Onbekende object-/mediarechten maken metadata niet automatisch ongeldig,
+maar geven nooit toestemming voor media.
+
+De `OpenArchievenMetadataAdapter` leest uitsluitend noodzakelijke velden uit JSON-LD van Open
+Archieven/Noord-Hollands Archief. Iedere bevraging haalt de actuele bron opnieuw op: een expliciete
+bronversie heeft voorrang op een HTTP-ETag of `Last-Modified`-momentopname-indicatie en een ouder
+resultaat wordt niet gecachet als actuele broninformatie. De adapter stuurt de beschrijvende
+user-agent `HKH-Autopilot-HistoricalMetadata/1.0` en gebruikt één procesbrede limiet met minimaal
+251 ms tussen verzoeken. Daarmee worden maximaal vier verzoeken per seconde vanuit de server-egress
+toegelaten, zonder een afzonderlijke bucket per doelhost. Volledige bronpayloads, media, gevoelige
+persoonsgegevens en niet-noodzakelijke broninhoud worden niet opgeslagen, geretourneerd of gelogd.
+
+Er is voor dit contract nog geen publieke zoekroute, opslagmodel of frontendweergave; de bestaande
+individuele verificatieroute blijft ongewijzigd. De contract- en adaptertests dekken onder meer geldige
+metadata, onbekende rechten, privacyblokkade, bronuitval, lege/ongeldige respons, tegenstrijdige
+bronwaarden, gewijzigde bronversies en de user-agent/rate-limitregels.
+
 ## Publieke recorddetailpagina en externe bronverificatie
 
 Naast de bestaande beheerfrontend heeft de gebruikersfrontend nu een publieke recorddetailpagina
@@ -418,6 +450,13 @@ logoutput en API-respons bevestigt de afwezigheid van de tokenwaarde wanneer het
 toegangstoken vereist. Een Flutter-widgettest op de semantiekboom van `frontend-admin` bevestigt dat
 de link naar archieven.nl een aria-label/semantisch label heeft dat aankondigt dat een externe bron
 in een nieuw tabblad opent.
+
+Het brononafhankelijke historische metadata-contract is gedekt met `HistoricalMetadataContractTest`
+en `OpenArchievenMetadataAdapterTest`: de tests bevestigen de volledige `VERIFIED`-uitkomst voor een
+geldige fixture, de veilige minimale `UNVERIFIED`-uitkomst bij ontbrekende of tegenstrijdige data,
+het onderscheid tussen metadata- en object-/mediarechten, privacyredactie, tijdelijke bronuitval,
+lege respons, actuele bronversie zonder cache, de beschrijvende user-agent en de gedeelde
+server-egresslimiet.
 
 De per-record licentiecontrole is gedekt met twee JSON-LD-fixtures (met en zonder zichtbare
 licentie) die respectievelijk licentiestatus "licentie bekend" (met waarde en controledatum) en

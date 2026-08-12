@@ -1,0 +1,374 @@
+package nl.vdzon.hkh.externalverification
+
+import com.sun.net.httpserver.HttpExchange
+import com.sun.net.httpserver.HttpServer
+import java.net.InetSocketAddress
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Test
+import org.springframework.web.client.RestClient
+
+class OpenArchievenMetadataAdapterTest {
+    private var server: HttpServer? = null
+
+    @AfterEach
+    fun tearDown() {
+        server?.stop(0)
+    }
+
+    @Test
+    fun `a valid fixture returns the complete metadata contract`() {
+        var receivedUserAgent: String? = null
+        val client = startServer { exchange ->
+            receivedUserAgent = exchange.requestHeaders.getFirst("User-Agent")
+            respond(exchange, 200, validFixture("v1"))
+        }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertEquals(HistoricalMetadataVerificationStatus.VERIFIED, result.verificationStatus)
+        assertEquals(HistoricalMetadataVerificationReasons.VERIFIED, result.verificationReason)
+        assertEquals("http://opendata.archieven.nl/id/1000/item-1", result.sourceLink)
+        assertEquals("https://opendata.archieven.nl/id/1000/item-1", result.metadata?.sourceIdentifier)
+        assertEquals("Historical Kring Heemskerk", result.metadata?.holder)
+        assertEquals("Kaart van Heemskerk", result.metadata?.title)
+        assertEquals("1900", result.metadata?.dating)
+        assertEquals("v1", result.metadata?.sourceVersion)
+        assertEquals(Instant.parse("2026-08-12T14:00:00Z"), result.fetchedAt)
+        assertEquals(MetadataRightsStatus.ALLOWED, result.metadataRightsStatus)
+        assertEquals(ObjectMediaRightsStatus.UNKNOWN, result.objectMediaRightsStatus)
+        assertTrue(result.fullyVerified)
+        assertFalse(result.mediaAllowed)
+        assertEquals("HKH-Autopilot-HistoricalMetadata/1.0", receivedUserAgent)
+    }
+
+    @Test
+    fun `unknown object rights do not invalidate metadata but never allow media`() {
+        val client = startServer { exchange -> respond(exchange, 200, validFixture("v1")) }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertTrue(result.fullyVerified)
+        assertEquals(ObjectMediaRightsStatus.UNKNOWN, result.objectMediaRightsStatus)
+        assertFalse(result.mediaAllowed)
+    }
+
+    @Test
+    fun `unknown metadata rights fail closed without returning title or description`() {
+        val client = startServer { exchange ->
+            respond(exchange, 200, validFixture("v1").replace("\"ALLOWED\"", "\"UNKNOWN\""))
+        }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertEquals(HistoricalMetadataVerificationStatus.UNVERIFIED, result.verificationStatus)
+        assertEquals(HistoricalMetadataVerificationReasons.METADATA_RIGHTS_UNKNOWN, result.verificationReason)
+        assertNull(result.metadata)
+        assertEquals("1000/item-1", result.sourceIdentifier)
+        assertTrue(result.sourceLink!!.startsWith("http://opendata.archieven.nl/id/"))
+    }
+
+    @Test
+    fun `personal-data marker is redacted even when the source claims clear privacy`() {
+        val client = startServer { exchange ->
+            respond(
+                exchange,
+                200,
+                validFixture("v1").replace("\"privacyStatus\": \"CLEAR\"", "\"privacyStatus\": \"CLEAR\", \"personalData\": true"),
+            )
+        }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertEquals(HistoricalMetadataVerificationReasons.PRIVACY_BLOCKED, result.verificationReason)
+        assertNull(result.metadata)
+    }
+
+    @Test
+    fun `temporary source outage and empty response are both minimal and unverified`() {
+        var mode = 503
+        val body = AtomicReference("")
+        val client = startServer { exchange ->
+            if (mode == 503) respond(exchange, 503, "{}") else respond(exchange, 200, body.get())
+        }
+
+        val outage = client.fetch("1000", "item-1")
+        assertEquals(HistoricalMetadataAvailabilityStatus.TEMPORARILY_UNAVAILABLE, outage.availabilityStatus)
+        assertEquals(HistoricalMetadataVerificationReasons.SOURCE_TEMPORARILY_UNAVAILABLE, outage.verificationReason)
+        assertNull(outage.metadata)
+
+        mode = 200
+        val empty = client.fetch("1000", "item-1")
+        assertEquals(HistoricalMetadataAvailabilityStatus.EMPTY_RESPONSE, empty.availabilityStatus)
+        assertEquals(HistoricalMetadataVerificationReasons.EMPTY_SOURCE_RESPONSE, empty.verificationReason)
+        assertNull(empty.metadata)
+    }
+
+    @Test
+    fun `a changed source version is returned on the next fetch and is not cached`() {
+        var version = "v1"
+        val client = startServer { exchange -> respond(exchange, 200, validFixture(version)) }
+
+        val first = client.fetch("1000", "item-1")
+        version = "v2"
+        val second = client.fetch("1000", "item-1")
+
+        assertEquals("v1", first.metadata?.sourceVersion)
+        assertEquals("v2", second.metadata?.sourceVersion)
+    }
+
+    @Test
+    fun `an opaque etag does not conflict with an explicit source version`() {
+        val client = startServer { exchange ->
+            respond(exchange, 200, validFixture("v1"), etag = "\"sha256-opaque-validator\"")
+        }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertTrue(result.fullyVerified)
+        assertEquals("v1", result.metadata?.sourceVersion)
+    }
+
+    @Test
+    fun `conflicting title values fail closed`() {
+        val client = startServer { exchange -> respond(exchange, 200, graphFixture("\"title\": \"Andere titel\"")) }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertContradictory(result)
+    }
+
+    @Test
+    fun `conflicting dating values fail closed`() {
+        val client = startServer { exchange -> respond(exchange, 200, graphFixture("\"date\": \"1901\"")) }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertContradictory(result)
+    }
+
+    @Test
+    fun `conflicting identifier values including at id fail closed`() {
+        val client = startServer { exchange ->
+            respond(exchange, 200, graphFixture("\"@id\": \"https://opendata.archieven.nl/id/1000/other-item\""))
+        }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertContradictory(result)
+    }
+
+    @Test
+    fun `an identifier for another requested record fails closed`() {
+        val client = startServer { exchange ->
+            respond(exchange, 200, validFixture("v1").replace("1000/item-1", "1000/other-item"))
+        }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertContradictory(result)
+        assertEquals("1000/item-1", result.sourceIdentifier)
+        assertEquals("http://opendata.archieven.nl/id/1000/item-1", result.sourceLink)
+    }
+
+    @Test
+    fun `a short identifier bound to the requested record is accepted`() {
+        val client = startServer { exchange ->
+            respond(
+                exchange,
+                200,
+                validFixture("v1")
+                    .replace("\"@id\": \"https://opendata.archieven.nl/id/1000/item-1\",", "\"identifier\": \"1000/item-1\",")
+            )
+        }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertTrue(result.fullyVerified)
+        assertEquals("1000/item-1", result.metadata?.sourceIdentifier)
+    }
+
+    @Test
+    fun `equivalent uri and short identifier representations do not conflict`() {
+        val client = startServer { exchange ->
+            respond(
+                exchange,
+                200,
+                validFixture("v1").replace(
+                    "\"@id\": \"https://opendata.archieven.nl/id/1000/item-1\",",
+                    "\"@id\": \"https://opendata.archieven.nl/id/1000/item-1\",\n          \"identifier\": \"1000/item-1\",",
+                ),
+            )
+        }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertTrue(result.fullyVerified)
+        assertEquals("1000/item-1", result.metadata?.sourceIdentifier)
+    }
+
+    @Test
+    fun `conflicting privacy values fail closed`() {
+        val client = startServer { exchange -> respond(exchange, 200, graphFixture("\"privacyStatus\": \"BLOCKED\"")) }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertContradictory(result)
+        assertEquals(HistoricalMetadataPrivacyStatus.UNKNOWN, result.privacyStatus)
+    }
+
+    @Test
+    fun `conflicting metadata rights fail closed with unknown rights status`() {
+        val client = startServer { exchange ->
+            respond(exchange, 200, graphFixture("\"metadataRightsStatus\": \"RESTRICTED\""))
+        }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertContradictory(result)
+        assertEquals(MetadataRightsStatus.UNKNOWN, result.metadataRightsStatus)
+    }
+
+    @Test
+    fun `conflicting object rights fail closed with unknown object rights status`() {
+        val client = startServer { exchange ->
+            respond(exchange, 200, graphFixture("\"objectMediaRightsStatus\": \"ALLOWED\""))
+        }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertContradictory(result)
+        assertEquals(ObjectMediaRightsStatus.UNKNOWN, result.objectMediaRightsStatus)
+    }
+
+    @Test
+    fun `conflicting availability values fail closed with invalid availability status`() {
+        val client = startServer { exchange ->
+            respond(
+                exchange,
+                200,
+                """{
+                  "@graph": [
+                    {
+                      "@id": "https://opendata.archieven.nl/id/1000/item-1",
+                      "title": "Kaart van Heemskerk",
+                      "publisher": "Historical Kring Heemskerk",
+                      "date": "1900",
+                      "version": "v1",
+                      "metadataRightsStatus": "ALLOWED",
+                      "objectMediaRightsStatus": "UNKNOWN",
+                      "privacyStatus": "CLEAR",
+                      "technicalAvailability": "AVAILABLE"
+                    },
+                    {
+                      "technicalAvailability": "TEMPORARILY_UNAVAILABLE"
+                    }
+                  ]
+                }""",
+            )
+        }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertContradictory(result)
+        assertEquals(HistoricalMetadataAvailabilityStatus.INVALID_RESPONSE, result.availabilityStatus)
+    }
+
+    @Test
+    fun `the limiter schedules server-egress requests at least 251 milliseconds apart`() {
+        var now = 0L
+        val waits = mutableListOf<Long>()
+        val limiter = FourPerSecondRateLimiter(
+            nowNanos = { now },
+            sleepNanos = { nanos -> waits += nanos; now += nanos },
+        )
+
+        repeat(5) { limiter.awaitPermit() }
+
+        assertEquals(4, waits.size)
+        assertTrue(waits.all { it >= 251_000_000L })
+    }
+
+    @Test
+    fun `different target hosts cannot split the shared server-egress limiter bucket`() {
+        var now = 0L
+        val waits = mutableListOf<Long>()
+        val limiter = FourPerSecondRateLimiter(
+            nowNanos = { now },
+            sleepNanos = { nanos -> waits += nanos; now += nanos },
+        )
+
+        // The limiter deliberately receives no target identity: archive-a and archive-b therefore
+        // share this one backend-egress budget instead of obtaining one bucket per destination.
+        limiter.awaitPermit()
+        limiter.awaitPermit()
+
+        assertEquals(1, waits.size)
+        assertTrue(waits.single() >= 251_000_000L)
+    }
+
+    private fun startServer(handler: (HttpExchange) -> Unit): HistoricalMetadataAdapter {
+        val newServer = HttpServer.create(InetSocketAddress("localhost", 0), 0)
+        newServer.createContext("/") { exchange -> handler(exchange) }
+        newServer.start()
+        server = newServer
+        val restClient = RestClient.builder().baseUrl("http://localhost:${newServer.address.port}").build()
+        return OpenArchievenMetadataAdapter(
+            restClient = restClient,
+            clock = Clock.fixed(Instant.parse("2026-08-12T14:00:00Z"), ZoneOffset.UTC),
+        )
+    }
+
+    private fun validFixture(version: String) =
+        """{
+          "@id": "https://opendata.archieven.nl/id/1000/item-1",
+          "title": "Kaart van Heemskerk",
+          "publisher": "Historical Kring Heemskerk",
+          "date": "1900",
+          "version": "$version",
+          "metadataRightsStatus": "ALLOWED",
+          "objectMediaRightsStatus": "UNKNOWN",
+          "privacyStatus": "CLEAR"
+        }"""
+
+    private fun graphFixture(secondField: String) =
+        """{
+          "@graph": [
+            {
+              "@id": "https://opendata.archieven.nl/id/1000/item-1",
+              "title": "Kaart van Heemskerk",
+              "publisher": "Historical Kring Heemskerk",
+              "date": "1900",
+              "version": "v1",
+              "metadataRightsStatus": "ALLOWED",
+              "objectMediaRightsStatus": "UNKNOWN",
+              "privacyStatus": "CLEAR"
+            },
+            {
+              "@id": "https://opendata.archieven.nl/id/1000/item-1",
+              $secondField
+            }
+          ]
+        }"""
+
+    private fun assertContradictory(result: HistoricalMetadataResult) {
+        assertEquals(HistoricalMetadataVerificationStatus.UNVERIFIED, result.verificationStatus)
+        assertEquals(HistoricalMetadataVerificationReasons.CONTRADICTORY_SOURCE_DATA, result.verificationReason)
+        assertNull(result.metadata)
+    }
+
+    private fun respond(exchange: HttpExchange, status: Int, body: String, etag: String? = null) {
+        val bytes = body.toByteArray(Charsets.UTF_8)
+        exchange.responseHeaders.set("Content-Type", "application/ld+json")
+        etag?.let { exchange.responseHeaders.set("ETag", it) }
+        exchange.sendResponseHeaders(status, bytes.size.toLong())
+        exchange.responseBody.use { it.write(bytes) }
+    }
+}
