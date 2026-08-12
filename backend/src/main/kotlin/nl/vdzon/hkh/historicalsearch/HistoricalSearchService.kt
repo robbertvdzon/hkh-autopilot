@@ -38,7 +38,15 @@ class HistoricalSearchService(
         val mergedResults = merge(cursors, query.start, query.limit)
         val sources = cursors.map { it.status() }
         val availableSources = sources.filter { it.status == HistoricalTechnicalStatus.AVAILABLE }
-        val results = if (availableSources.isEmpty()) emptyList() else mergedResults
+        val total = cursors.sumOf { it.totalContribution() }
+        // A continuation failure can remove a source's contribution after the merge has
+        // already advanced through the old round-robin stream. Do not expose records at
+        // offsets that are outside the final total of the still-available sources.
+        val results = if (availableSources.isEmpty()) {
+            emptyList()
+        } else {
+            mergedResults.take((total - query.start).coerceAtLeast(0))
+        }
         val state = when {
             availableSources.isEmpty() -> HistoricalSearchState.SOURCE_FAILURE
             sources.any { it.status != HistoricalTechnicalStatus.AVAILABLE } ->
@@ -49,7 +57,7 @@ class HistoricalSearchService(
         }
         return HistoricalSearchOutcome(
             results = results,
-            total = cursors.sumOf { it.totalContribution() },
+            total = total,
             start = query.start,
             limit = query.limit,
             sources = sources,
