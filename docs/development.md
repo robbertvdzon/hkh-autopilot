@@ -110,10 +110,11 @@ when the stable identifier/link, holder, title-or-description, dating, source ve
 metadata rights, privacy and technical availability all pass validation. Otherwise it returns only
 the known safe source link/identifier and technical status. Metadata rights and object/media rights
 are separate; unknown object rights never grant media permission and do not by themselves invalidate
-metadata. The adapter uses a descriptive user-agent, limits requests to four per second per server
-target, records the current UTC fetch time and never caches an older source version. Raw JSON-LD,
-personal data and sensitive values are not persisted, returned or logged. This story adds no public
-search route, storage model or frontend view.
+metadata. The adapter uses a descriptive user-agent and a process-wide limiter with at least 251 ms
+between requests, which is stricter than four requests per second for the server egress and cannot be
+split by target host. It records the current UTC fetch time and never caches an older source version.
+Raw JSON-LD, personal data and sensitive values are not persisted, returned or logged. This story adds
+no public search route, storage model or frontend view.
 
 ## User frontend
 
