@@ -238,3 +238,35 @@ Uitgevoerd:
 - De revision- en worktree-gebonden verificatie-uitvoer wordt door de
   factory-harness op exact deze checkout vastgelegd; de lokale testuitvoer hierboven
   is geen vervanging voor dat agentworker-bewijs.
+
+## Review retry 6
+
+- De volledige story-diff `main...HEAD` is opnieuw beoordeeld. `git diff --check`
+  is schoon en er zijn geen conflictmarkers in de gewijzigde bestanden.
+- Gerichte Maven-run uitgevoerd met
+  `HistoricalMetadataContractTest,OpenArchievenMetadataAdapterTest`: 19 tests,
+  0 failures, 0 errors. Het volledige factory-vangnet is niet opnieuw uitgevoerd,
+  conform de reviewer-instructie.
+- [blocker] De checkout bevat nog steeds geen agentworker-gemeten,
+  revision-gebonden verificatiebewijs. `.factory/verification.yaml` bevat alleen
+  commandodefinities; er is geen bewijsbestand met resultaten, revision of
+  worktree-digest voor de actuele `HEAD=7388d9d16bbe4603a889cca57a3581660f818c2c`.
+  De groene aantallen in `.task.md` en deze worklog zijn handgeschreven en kunnen
+  het verplichte volledige vangnet niet bewijzen.
+- [bug] Bij tegenstrijdige statuswaarden kiest
+  `OpenArchievenMetadataAdapter.parse` nog steeds de eerste genormaliseerde waarde
+  (`OpenArchievenMetadataAdapter.kt:167-197`, met name `firstOrNull()` op regels
+  190-193). Een `@graph` met `privacyStatus: CLEAR` gevolgd door
+  `privacyStatus: BLOCKED` krijgt daardoor `privacyStatus=CLEAR` naast
+  `CONTRADICTORY_SOURCE_DATA`; hetzelfde geldt voor conflicterende rechten- en
+  beschikbaarheidsstatussen (`ALLOWED`/`RESTRICTED`, respectievelijk
+  `AVAILABLE`/een andere status). Maak de status zelf fail-closed (bijvoorbeeld
+  `UNKNOWN`/ongeldig) wanneer de waarden conflicteren en voeg asserts op de
+  geretourneerde statusvelden toe aan de regressietests; alleen `metadata=null`
+  controleren is hiervoor onvoldoende.
+
+## Besluit
+
+De branch blijft afgewezen totdat het revision-gebonden agentworker-bewijs is
+vastgelegd en tegenstrijdige statuswaarden niet langer als de eerste geldige
+waarde worden geretourneerd.
