@@ -66,3 +66,28 @@ Uitgevoerd:
   uitgevoerd. De afsluitende statusregel was
   `backend=0 frontend_analyze=0 frontend_test=0 frontend_build=0
   admin_analyze=0 admin_test=0`.
+
+## Review retry
+
+- Gerichte backendcheck uitgevoerd met `HistoricalMetadataContractTest` en
+  `OpenArchievenMetadataAdapterTest`: 15 tests, 0 failures en 0 errors.
+- De review blijft afgewezen:
+  - [blocker] Er staat nog steeds geen agentworker-gemeten, revision-gebonden
+    bewijs in de checkout. `.factory/verification.yaml` bevat alleen de
+    commandodefinities; de groene aantallen in deze worklog en `.task.md` zijn
+    geen geldig factory-bewijs.
+  - [bug] `OpenArchievenMetadataAdapter.parse` valideert niet dat een enkele
+    bronidentifier (`@id`/`identifier`) bij de aangevraagde `adtid/guid` hoort.
+    Een 200-respons met verder geldige metadata maar bijvoorbeeld
+    `@id=https://opendata.archieven.nl/id/1000/ander-record` levert daardoor
+    `VERIFIED` op met `metadata.sourceIdentifier` voor het andere record en
+    `sourceLink` voor het aangevraagde record. Dat is een tegenstrijdige,
+    verkeerd toe te schrijven bronverwijzing en moet fail-closed worden
+    behandeld of expliciet aan dezelfde bronlink worden gebonden.
+
+## Besluit retry
+
+De branch gaat opnieuw terug naar de developer. Herstel de identifier/link-
+binding en lever daarna agentworker-bewijs voor exact dezelfde HEAD/worktree-tree
+aan; de gerichte tests zijn op zichzelf geen vervanging voor het volledige
+revision-gebonden vangnet.
