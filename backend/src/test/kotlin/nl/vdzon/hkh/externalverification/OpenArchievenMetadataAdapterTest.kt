@@ -222,6 +222,64 @@ class OpenArchievenMetadataAdapterTest {
         val result = client.fetch("1000", "item-1")
 
         assertContradictory(result)
+        assertEquals(HistoricalMetadataPrivacyStatus.UNKNOWN, result.privacyStatus)
+    }
+
+    @Test
+    fun `conflicting metadata rights fail closed with unknown rights status`() {
+        val client = startServer { exchange ->
+            respond(exchange, 200, graphFixture("\"metadataRightsStatus\": \"RESTRICTED\""))
+        }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertContradictory(result)
+        assertEquals(MetadataRightsStatus.UNKNOWN, result.metadataRightsStatus)
+    }
+
+    @Test
+    fun `conflicting object rights fail closed with unknown object rights status`() {
+        val client = startServer { exchange ->
+            respond(exchange, 200, graphFixture("\"objectMediaRightsStatus\": \"ALLOWED\""))
+        }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertContradictory(result)
+        assertEquals(ObjectMediaRightsStatus.UNKNOWN, result.objectMediaRightsStatus)
+    }
+
+    @Test
+    fun `conflicting availability values fail closed with invalid availability status`() {
+        val client = startServer { exchange ->
+            respond(
+                exchange,
+                200,
+                """{
+                  "@graph": [
+                    {
+                      "@id": "https://opendata.archieven.nl/id/1000/item-1",
+                      "title": "Kaart van Heemskerk",
+                      "publisher": "Historical Kring Heemskerk",
+                      "date": "1900",
+                      "version": "v1",
+                      "metadataRightsStatus": "ALLOWED",
+                      "objectMediaRightsStatus": "UNKNOWN",
+                      "privacyStatus": "CLEAR",
+                      "technicalAvailability": "AVAILABLE"
+                    },
+                    {
+                      "technicalAvailability": "TEMPORARILY_UNAVAILABLE"
+                    }
+                  ]
+                }""",
+            )
+        }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertContradictory(result)
+        assertEquals(HistoricalMetadataAvailabilityStatus.INVALID_RESPONSE, result.availabilityStatus)
     }
 
     @Test

@@ -1,5 +1,35 @@
 # hkh-81 — Review-worklog
 
+## Development retry 7
+
+Stappenplan:
+[x]: factory-instructies, leidende reviewopmerking en huidige checkout controleren
+[x]: conflicterende privacy-, rechten- en beschikbaarheidsstatussen fail-closed maken
+[x]: regressietests schrijven en gerichte backendtests uitvoeren
+[x]: volledig factory-vangnet uitvoeren en eindcontrole doen
+
+Doel van deze run: statusvelden mogen bij tegenstrijdige bronwaarden niet de eerste
+waarde behouden. De adapter moet in dat geval zelf een veilige status teruggeven,
+naast de bestaande minimale `UNVERIFIED`-uitkomst. Alle wijzigingen blijven
+uncommitted voor de factory.
+
+Uitgevoerd:
+- Conflicterende metadatarechten en object-/mediarechten leveren nu zelf
+  `UNKNOWN`; conflicterende privacystatussen leveren `UNKNOWN`; conflicterende
+  technische beschikbaarheidsstatussen leveren `INVALID_RESPONSE`. De adapter
+  blijft daarnaast `UNVERIFIED` en geeft geen inhoudelijke metadata terug.
+- Regressietests toegevoegd die naast de fail-closed reden ook de drie
+  statusvelden controleren.
+- Gerichte backendrun: `HistoricalMetadataContractTest` en
+  `OpenArchievenMetadataAdapterTest`, 22 tests, 0 failures en 0 errors.
+- Volledig factory-vangnet volgens `docs/factory/development.md` uitgevoerd:
+  backend 278 tests, frontend 35 tests en frontend-admin 35 tests; beide
+  analyzers en de frontend webbuild eindigden met exitcode 0, zonder failures
+  of errors.
+- Laatste controle met `git diff --check` en conflictmarkercontrole is schoon.
+  De factory-harness moet het revision-gebonden agentworker-bewijs na deze run
+  aan exact dezelfde checkout koppelen. Alle wijzigingen blijven uncommitted.
+
 ## Review
 
 - Gerichte backendcheck uitgevoerd met `HistoricalMetadataContractTest` en

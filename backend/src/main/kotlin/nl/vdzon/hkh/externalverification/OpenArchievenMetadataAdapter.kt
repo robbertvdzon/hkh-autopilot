@@ -178,6 +178,10 @@ class OpenArchievenMetadataAdapter(
             .distinct()
         val availabilityConflict = explicitAvailabilityValues.size > 1 ||
             (explicitAvailability != null && explicitAvailability != httpAvailability)
+        val availabilityStatus = when {
+            explicitAvailabilityValues.size > 1 -> HistoricalMetadataAvailabilityStatus.INVALID_RESPONSE
+            else -> availability
+        }
 
         return ParsedMetadata(
             sourceIdentifier = identifier,
@@ -187,10 +191,10 @@ class OpenArchievenMetadataAdapter(
             dating = dating,
             sourceVersion = sourceVersion,
             snapshotId = snapshot,
-            metadataRightsStatus = metadataRightsValues.firstOrNull() ?: MetadataRightsStatus.UNKNOWN,
-            objectMediaRightsStatus = objectRightsValues.firstOrNull() ?: ObjectMediaRightsStatus.UNKNOWN,
+            metadataRightsStatus = metadataRightsValues.singleOrNull() ?: MetadataRightsStatus.UNKNOWN,
+            objectMediaRightsStatus = objectRightsValues.singleOrNull() ?: ObjectMediaRightsStatus.UNKNOWN,
             privacyStatus = privacy.status,
-            availabilityStatus = availability,
+            availabilityStatus = availabilityStatus,
             containsUnclearedPersonalData = privacy.containsUnclearedPersonalData,
             containsContradictorySourceData = versionConflict || snapshotConflict || availabilityConflict ||
                 identifierConflict || identifierBindingConflict || holderConflict || titleConflict || descriptionConflict || datingConflict ||
@@ -210,7 +214,11 @@ class OpenArchievenMetadataAdapter(
         val flagged = listOf("personalData", "containsPersonalData", "livingPerson", "possibleLivingPerson")
             .any { field -> nodes.any { it.get(field)?.asBoolean(false) == true } }
         return ParsedPrivacy(
-            status = if (flagged) HistoricalMetadataPrivacyStatus.BLOCKED else explicit ?: HistoricalMetadataPrivacyStatus.UNKNOWN,
+            status = when {
+                explicitValues.size > 1 -> HistoricalMetadataPrivacyStatus.UNKNOWN
+                flagged -> HistoricalMetadataPrivacyStatus.BLOCKED
+                else -> explicit ?: HistoricalMetadataPrivacyStatus.UNKNOWN
+            },
             containsUnclearedPersonalData = sensitiveFieldPresent,
             containsContradictoryValues = explicitValues.size > 1,
         )
