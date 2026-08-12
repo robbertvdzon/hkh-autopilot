@@ -300,3 +300,33 @@ Uitgevoerd:
 De branch blijft afgewezen totdat het revision-gebonden agentworker-bewijs is
 vastgelegd en tegenstrijdige statuswaarden niet langer als de eerste geldige
 waarde worden geretourneerd.
+
+## Review retry 7
+
+- De volledige story-diff `main...HEAD` is opnieuw beoordeeld tegen de actuele
+  `HEAD=84b893c107ccd30e1b083e81fcc41aede1cf018a`; de eerdere statusbevinding is
+  opgelost. Conflicterende privacy- en rechtenwaarden leveren nu een onbekende
+  status op en conflicterende beschikbaarheid een ongeldige status.
+- Gerichte Maven-run met `HistoricalMetadataContractTest` en
+  `OpenArchievenMetadataAdapterTest`: 22 tests, 0 failures, 0 errors.
+- [blocker] De checkout bevat nog steeds geen agentworker-gemeten,
+  revision-gebonden bewijs voor het volledige vangnet. `.factory/verification.yaml`
+  bevat uitsluitend commandodefinities; er is geen resultaatbestand met
+  revision en worktree-digest. De aantallen in `.task.md` en deze worklog zijn
+  handgeschreven en zijn volgens `docs/factory/agents/reviewer.md` geen geldig
+  groen bewijs voor exact deze checkout.
+- [bug] De rate limiter wordt geconfigureerd met een DNS-afgeleide sleutel van
+  het uitgaande doel (`ExternalVerificationClientConfiguration.kt:23-27`,
+  `ServerRequestRateLimiter.kt:43-56`). Dat is niet het server-uitgaande
+  bron-IP dat de acceptance criterion voorschrijft. Twee doelhosts met
+  verschillende DNS-adressen krijgen daardoor verschillende buckets, terwijl
+  verzoeken vanaf hetzelfde server-uitgaande IP samen maximaal vier per seconde
+  moeten blijven. De bestaande aliastest bewijst alleen het omgekeerde geval
+  (twee hostnamen naar één doel-IP). Bind de gedeelde limiter aan de werkelijke
+  egress-IP/egress-identiteit en voeg een test toe met verschillende doelhosts
+  en één uitgaand server-IP.
+
+## Besluit
+
+De branch blijft afgewezen totdat het revision-gebonden agentworker-bewijs is
+vastgelegd en de rate limiter per server-uitgaand bron-IP begrenst.
