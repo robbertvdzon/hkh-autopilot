@@ -116,3 +116,15 @@ Review huidige run (2026-08-12):
 - Gerichte reviewchecks: backend `mvn -B --no-transfer-progress -Dtest=HistoricalSearchTest test`
   (20/20), frontend `flutter test test/historical_search_test.dart` (10/10) en `git diff --check`
   zijn groen. Deze checks vervangen het ontbrekende volledige factorybewijs niet.
+
+Review actuele checkout (2026-08-12):
+- [blocker] `.factory/verification.yaml` bevat uitsluitend de zes commandodefinities; er staat geen
+  agentworker-gemeten evidence met revision- en worktree-tree-binding voor `HEAD=4c935f9`. De
+  handgeschreven claims in issue-comments en dit worklog zijn volgens de reviewer-regels geen geldig
+  groen volledig vangnetbewijs. Voeg per relevant commando machinegemeten bewijs voor exact deze
+  checkout toe voordat de story kan worden goedgekeurd.
+- Gerichte reviewchecks: backend `mvn -B --no-transfer-progress -Dtest=HistoricalSearchTest test`
+  (20/20), frontend `flutter test --concurrency=1 --reporter expanded
+  test/historical_search_test.dart` (10/10) en `git diff --check` zijn groen. Het volledige
+  vangnet is niet opnieuw uitgevoerd, conform de reviewer-instructie, en deze checks vervangen het
+  ontbrekende revisiongebonden factorybewijs niet.
