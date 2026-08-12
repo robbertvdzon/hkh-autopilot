@@ -162,3 +162,14 @@ Resultaat herstelrun (2026-08-12):
 - Volledig vangnet groen uitgevoerd: backend 294 tests; frontend analyse, 44 tests en webbuild;
   frontend-admin analyse en 36 tests. Alle zes commando’s eindigden met exitcode 0, zonder
   failures of errors.
+
+Reviewronde (2026-08-12, HEAD `703dbfa`):
+- [blocker] Het verplichte agentworker-gemeten, revisiongebonden groene vangnet ontbreekt nog
+  steeds. `.factory/verification.yaml` bevat alleen de zes commandedefinities; in deze checkout
+  staat geen resultaatbestand of ander machineleesbaar bewijs met de actuele HEAD en
+  worktree-identiteit. Issue-comments, worklogtekst en lokale gerichte runs zijn volgens
+  `docs/factory/agents/reviewer.md` geen geldig volledig testbewijs.
+- Gerichte reviewchecks op deze checkout waren groen: backend
+  `mvn -B --no-transfer-progress -Dtest=HistoricalSearchTest test` (16 tests) en frontend
+  `flutter test test/historical_search_test.dart` (8 tests). Deze checks nemen de blocker voor
+  het ontbrekende volledige factorybewijs niet weg.
