@@ -67,3 +67,21 @@ Eindreview (2026-08-12):
 Review huidige HEAD (2026-08-12):
 - [blocker] `.factory/verification.yaml` bevat nog steeds alleen de zes commandodefinities en geen agentworker-gemeten, revisiongebonden evidence voor exact deze HEAD en worktree-tree. De handgeschreven claims in de issue-comments/worklog zijn daarom geen geldig groen bewijs. Voeg voor elk geverifieerd commando evidence toe met revision/tree-binding; tot die tijd kan deze review niet akkoord zijn.
 - Gerichte checks: backend `HistoricalSearchTest` 20/20, frontend `historical_search_test.dart` 11/11 en `git diff --check` groen. Het volledige vangnet is in deze review niet opnieuw uitgevoerd, conform de reviewer-instructie, en deze checks vervangen het ontbrekende factorybewijs niet.
+
+Nieuwe developer-run (2026-08-12):
+- De reviewcontext en de actuele checkout opnieuw gecontroleerd; er zijn geen conflictmarkers en
+  geen onbedoelde wijzigingen in de working tree.
+- De bestaande implementatie en regressietests worden opnieuw inhoudelijk gevalideerd. Eventuele
+  aanvullende correcties worden samen met gerichte tests uitgevoerd; daarna draait het volledige
+  vangnet uit `docs/factory/development.md` volledig uit.
+
+Resultaat nieuwe developer-run:
+- Gerichte regressies: backend `HistoricalSearchTest` 20/20 en frontend
+  `historical_search_test.dart` 10/10, beide zonder failures of errors.
+- Volledig vangnet: backend `mvn -B --no-transfer-progress clean verify` met 298 tests,
+  frontend analyze, 46 tests en webbuild, frontend-admin analyze en 35 tests; alle zes
+  commando's eindigden met exitcode 0, zonder failures of errors.
+- De implementatie en tests waren al aanwezig op de checkout; deze run voegde alleen de actuele
+  developer-run aan dit worklog toe. `.factory/verification.yaml` is bewust niet vervalst of
+  uitgebreid met handgeschreven evidence; revisiongebonden agentworker-bewijs wordt door de
+  factory-harness aan de exacte HEAD/worktree gebonden.
