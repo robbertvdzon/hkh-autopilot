@@ -3,7 +3,6 @@ package nl.vdzon.hkh.externalverification
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
-import java.net.InetAddress
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -283,7 +282,7 @@ class OpenArchievenMetadataAdapterTest {
     }
 
     @Test
-    fun `the limiter schedules requests at least 251 milliseconds apart per server`() {
+    fun `the limiter schedules server-egress requests at least 251 milliseconds apart`() {
         var now = 0L
         val waits = mutableListOf<Long>()
         val limiter = FourPerSecondRateLimiter(
@@ -291,17 +290,14 @@ class OpenArchievenMetadataAdapterTest {
             sleepNanos = { nanos -> waits += nanos; now += nanos },
         )
 
-        repeat(5) { limiter.awaitPermit("fixture-server") }
+        repeat(5) { limiter.awaitPermit() }
 
         assertEquals(4, waits.size)
         assertTrue(waits.all { it >= 251_000_000L })
     }
 
     @Test
-    fun `host aliases resolving to one address share the outbound limiter bucket`() {
-        val resolvedAddress = InetAddress.getByName("127.0.0.1")
-        val firstKey = resolveServerRateLimitKey("https://archive-a.example") { arrayOf(resolvedAddress) }
-        val secondKey = resolveServerRateLimitKey("https://archive-b.example") { arrayOf(resolvedAddress) }
+    fun `different target hosts cannot split the shared server-egress limiter bucket`() {
         var now = 0L
         val waits = mutableListOf<Long>()
         val limiter = FourPerSecondRateLimiter(
@@ -309,10 +305,11 @@ class OpenArchievenMetadataAdapterTest {
             sleepNanos = { nanos -> waits += nanos; now += nanos },
         )
 
-        limiter.awaitPermit(firstKey)
-        limiter.awaitPermit(secondKey)
+        // The limiter deliberately receives no target identity: archive-a and archive-b therefore
+        // share this one backend-egress budget instead of obtaining one bucket per destination.
+        limiter.awaitPermit()
+        limiter.awaitPermit()
 
-        assertEquals(firstKey, secondKey)
         assertEquals(1, waits.size)
         assertTrue(waits.single() >= 251_000_000L)
     }
@@ -325,7 +322,6 @@ class OpenArchievenMetadataAdapterTest {
         val restClient = RestClient.builder().baseUrl("http://localhost:${newServer.address.port}").build()
         return OpenArchievenMetadataAdapter(
             restClient = restClient,
-            serverKey = "fixture-server-${newServer.address.port}",
             clock = Clock.fixed(Instant.parse("2026-08-12T14:00:00Z"), ZoneOffset.UTC),
         )
     }

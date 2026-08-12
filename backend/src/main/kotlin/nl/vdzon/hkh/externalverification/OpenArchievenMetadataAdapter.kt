@@ -20,7 +20,6 @@ fun interface HistoricalMetadataAdapter {
  */
 class OpenArchievenMetadataAdapter(
     private val restClient: RestClient,
-    private val serverKey: String = "opendata.archieven.nl",
     private val clock: Clock = Clock.systemUTC(),
     private val rateLimiter: HistoricalMetadataRateLimiter = FourPerSecondRateLimiter(),
     private val objectMapper: ObjectMapper = JsonMapper.builder().build(),
@@ -40,7 +39,7 @@ class OpenArchievenMetadataAdapter(
             )
         }
 
-        rateLimiter.awaitPermit(serverKey)
+        rateLimiter.awaitPermit()
         val response = runCatching {
             restClient.get()
                 .uri("/id/{adtid}/{guid}", adtid, guid)

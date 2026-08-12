@@ -411,9 +411,10 @@ persisteert.
   verwijderd door de uitkomst te blokkeren; bronpayload, gevoelige velden en payloadteksten komen
   niet in opslag, response of logging terecht.
 - Uitgaande metadata-aanroepen sturen `HKH-Autopilot-HistoricalMetadata/1.0` als beschrijvende
-  user-agent en gebruiken `FourPerSecondRateLimiter` per genormaliseerde uitgaande doel-IP-sleutel
-  met minimaal 251 ms tussenruimte. DNS-hostaliassen die naar dezelfde doel-IP-adressen resolven,
-  delen daardoor één limiterbucket; er is geen eindgebruikers-IP bij betrokken. Er is geen cache:
+  user-agent en gebruiken één procesbrede `FourPerSecondRateLimiter`-singleton voor de gedeelde
+  backend-egress, met minimaal 251 ms tussenruimte. De doelhost en het doel-IP zijn bewust geen
+  onderdeel van de bucket: verschillende bronnen kunnen de limiet voor hetzelfde server-uitgaande
+  proces dus niet opsplitsen. Er is geen eindgebruikers-IP bij betrokken. Er is geen cache:
   een nieuwe bronversie of ETag/Last-Modified wordt bij iedere bevraging opnieuw zichtbaar
   vastgelegd. Er is bewust geen publieke zoekroute, opslagmodel of frontendweergave in deze story;
   toekomstige zoekfunctionaliteit consumeert dit contract.

@@ -330,3 +330,19 @@ waarde worden geretourneerd.
 
 De branch blijft afgewezen totdat het revision-gebonden agentworker-bewijs is
 vastgelegd en de rate limiter per server-uitgaand bron-IP begrenst.
+
+## Handmatige triage na loopback-cap
+
+- De productiecode gebruikte nog een limiterbucket per DNS-afgeleid doel-IP. Daardoor konden twee
+  verschillende doelhosts vanuit hetzelfde backendproces samen meer dan vier requests per seconde
+  uitvoeren.
+- De limiter is procesbreed gemaakt en wordt als één Spring-singleton in de metadata-adapter
+  geïnjecteerd. Doelhost en doel-IP kunnen de gedeelde server-egresslimiet niet meer opsplitsen.
+- De regressietest bewijst expliciet dat twee verschillende doelhosts dezelfde egressbucket delen.
+- Gerichte contract- en adaptertests: 22 tests, 0 failures, 0 errors.
+- Volledig backend-vangnet: `mvn -B --no-transfer-progress clean verify`, 278 tests, 0 failures,
+  0 errors; `git diff --check` is schoon.
+- In de factory-database is daarnaast vastgesteld dat de vorige developer-run wél gestructureerd
+  agentworker-bewijs bevatte. Dat bewijs werd niet aan de reviewercontext doorgegeven; de herhaalde
+  melding dat er helemaal geen agentworker-bewijs bestond was daarom een afzonderlijk
+  orchestratie-/contextprobleem en geen testfout in deze branch.
