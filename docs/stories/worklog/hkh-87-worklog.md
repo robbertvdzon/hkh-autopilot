@@ -109,3 +109,36 @@ Resultaat herstelrun (2026-08-12):
 - Gerichte tests: backend 13/13 en frontend 6/6 groen.
 - Volledig vangnet groen: backend 291 tests; frontend 41 tests, analyze en webbuild; frontend-admin
   36 tests en analyze. Alle zes commando's eindigden met exitcode 0, zonder failures of errors.
+
+Reviewronde (2026-08-12, HEAD `4d2daa262bceab0f7c2c00a10807609f4aa3c3ac`):
+- [blocker] In de checkout staat geen agentworker-gemeten, revisiongebonden bewijs voor de zes
+  commando's uit `.factory/verification.yaml`. Die file bevat uitsluitend commandodefinities; er
+  is geen resultaatbestand met de actuele HEAD en worktree-identiteit. De issue-comments en de
+  handgeschreven aantallen hierboven zijn geen geldig volledig vangnetbewijs.
+- [blocker] De vereiste toegankelijkheidstestdekking ontbreekt. `frontend/test/historical_search_test.dart`
+  test alleen functionele rendering/statusgevallen en gebruikt geen keyboard-only bediening,
+  semantiekboomasserties, statusrol/live-aankondiging of externe-linksemantiek. De acceptance
+  criteria eisen expliciet UI- en toegankelijkheidstests voor alle statusovergangen,
+  toetsenbordbediening en externe-linklabels.
+- [blocker] De vereiste backend-contracttestdekking ontbreekt voor de HTTP-route en rate limiting.
+  `HistoricalSearchTest` test adapters, validatie en service direct, maar geen
+  `HistoricalSearchController`/JSON-respons of `/api/historical-search`; voor
+  `FourPerSecondHistoricalRateLimiter` staat geen test. Daarmee zijn de expliciete contracttest-
+  acceptance criteria niet aantoonbaar gedekt.
+- [bug] Een client krijgt een servervalidatiefout (HTTP 400) ten onrechte als tijdelijke
+  beschikbaarheidsfout te zien. `HistoricalSearchController.kt:68-70` retourneert bij bijvoorbeeld
+  slechts één jaar of een ongeldig jaar een concrete validatiefout, maar
+  `frontend/lib/backend/backend_client.dart:99-104` gooit voor elke non-200 dezelfde fout en
+  `historical_search.dart:307-309` toont vervolgens “tijdelijk niet beschikbaar” met retry. De
+  gebruiker krijgt daardoor geen bruikbare correctie-instructie en retry herhaalt gegarandeerd
+  dezelfde ongeldige zoekopdracht.
+- [bug] Een fout tijdens het ophalen van een vervolgcursorronde wordt stil weggegooid.
+  `HistoricalSearchService.kt:39` exposeert alleen de status van de eerste pagina, terwijl
+  `HistoricalSearchService.kt:82-85` een latere non-AVAILABLE-pagina alleen als exhausted markeert.
+  Bij paginering kan een bron dus eerst `AVAILABLE` zijn en daarna uitvallen zonder dat de
+  response een retrybare bronstatus toont; bovendien wordt de pagina dan stil onvolledig.
+
+Gerichte reviewchecks:
+- `mvn -B --no-transfer-progress -Dtest=HistoricalSearchTest test`: 13 tests groen.
+- `flutter test test/historical_search_test.dart`: 6 tests groen.
+- Het volledige vangnet is in deze reviewrun niet opnieuw uitgevoerd, conform de reviewerregel.
