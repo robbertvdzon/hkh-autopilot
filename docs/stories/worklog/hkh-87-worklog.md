@@ -89,3 +89,23 @@ Reviewronde (2026-08-12, HEAD `5559cc3`):
 - [bug] `frontend/lib/historical/historical_search.dart:350-364` behandelt een response met alleen een technische bronfout (`sources[].status` `TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`) en nul resultaten als een normale lege zoekuitkomst. Omdat `/api/historical-search` zulke bronfouten als HTTP 200 teruggeeft, verschijnt "Geen historische resultaten gevonden" zonder `_HistoricalError` en zonder knop `historical-search-retry`; de gebruiker kan de bronfout dus niet opnieuw proberen. Reproduceer met `HistoricalSearchResponse(results: [], total: 0, sources: [HistoricalSourceStatus(source: 'OPEN_ARCHIEVEN', status: 'INVALID_RESPONSE')])` en controleer dat momenteel geen retrystatus wordt getoond. Dit schendt de acceptance criterion voor afzonderlijke fout- en retrystatussen.
 - [bug] `HistoricalSearchAdapters.kt:228-230` behandelt ook een parsebare maar onvolledige bronrespons zoals `{}` of `{"response":{}}` als `AVAILABLE` met nul resultaten, omdat een ontbrekende `docs`-array stil als lege lijst wordt geïnterpreteerd. Dit is geen expliciete geldige lege-resultaatrespons en moet fail-closed als ongeldige bronrespons worden gemarkeerd; controleer dit met beide adapters. De huidige test dekt alleen het expliciete Open Archieven-foutobject.
 - Gerichte checks: backend `mvn -B --no-transfer-progress -Dtest=HistoricalSearchTest test` groen met 11 tests; frontend `flutter test test/historical_search_test.dart` groen met 5 tests. Deze gerichte checks vervangen het ontbrekende volledige factorybewijs niet.
+
+Nieuwe herstelrun (2026-08-12):
+- [x] technische bronfouten met HTTP 200 laten een retrybare foutstatus zien;
+- [x] onvolledige provider-JSON-responses fail-closed als ongeldige bronrespons behandelen;
+- [x] gerichte regressietests en het volledige vangnet uitvoeren.
+
+Aanleiding:
+- De laatste review wees erop dat een Open Archieven- of Europeana-respons zonder de vereiste
+  resultaatarray ten onrechte als beschikbare lege pagina werd verwerkt.
+- De frontend gaf een HTTP 200 met uitsluitend `INVALID_RESPONSE` of
+  `TEMPORARILY_UNAVAILABLE` ten onrechte als normale lege zoekuitkomst weer, zonder retryactie.
+
+Resultaat herstelrun (2026-08-12):
+- De adapters vereisen nu een expliciete `items`-/`docs`-array; ontbrekende of onvolledige JSON
+  wordt `INVALID_RESPONSE` en nooit een succesvolle lege pagina.
+- De frontend toont bij een HTTP-200-respons met alleen een technische bronfout een retrybare
+  foutstatus in plaats van de lege status.
+- Gerichte tests: backend 13/13 en frontend 6/6 groen.
+- Volledig vangnet groen: backend 291 tests; frontend 41 tests, analyze en webbuild; frontend-admin
+  36 tests en analyze. Alle zes commando's eindigden met exitcode 0, zonder failures of errors.

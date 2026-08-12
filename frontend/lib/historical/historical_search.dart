@@ -309,6 +309,14 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
                     return _HistoricalError(onRetry: _runSearch);
                   }
                   final response = snapshot.requireData;
+                  final hasSourceFailure = response.sources.any(
+                    (source) =>
+                        source.status == 'TEMPORARILY_UNAVAILABLE' ||
+                        source.status == 'INVALID_RESPONSE',
+                  );
+                  if (response.results.isEmpty && hasSourceFailure) {
+                    return _HistoricalError(onRetry: _runSearch);
+                  }
                   return _HistoricalResults(
                     response: response,
                     onPrevious: _start == 0

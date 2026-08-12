@@ -154,7 +154,7 @@ void main() {
   testWidgets(
     'shows content metadata only when rights and privacy are explicit',
     (tester) async {
-    final response = HistoricalSearchResponse(
+      final response = HistoricalSearchResponse(
         results: [
           HistoricalSearchResult(
             source: 'EUROPEANA',
@@ -233,6 +233,37 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Geen historische resultaten gevonden.'), findsOneWidget);
   });
+
+  testWidgets(
+    'shows retryable error when backend reports a source failure with HTTP 200',
+    (tester) async {
+      const response = HistoricalSearchResponse(
+        results: [],
+        total: 0,
+        start: 0,
+        limit: 100,
+        sources: [
+          HistoricalSourceStatus(
+            source: 'OPEN_ARCHIEVEN',
+            status: 'INVALID_RESPONSE',
+            message: 'Bronrespons is ongeldig.',
+          ),
+        ],
+      );
+      final source = _HistoricalSource(Future.value(response));
+      await tester.pumpWidget(
+        MaterialApp(home: HistoricalSearchPage(source: source)),
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('historical-search-submit')),
+      );
+      await tester.tap(find.byKey(const Key('historical-search-submit')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('historical-search-retry')), findsOneWidget);
+      expect(find.text('Geen historische resultaten gevonden.'), findsNothing);
+    },
+  );
 
   testWidgets('homepage exposes the independent historical search entry', (
     tester,

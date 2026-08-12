@@ -139,6 +139,38 @@ class HistoricalSearchTest {
     }
 
     @Test
+    fun `incomplete Europeana response is reported as invalid`() {
+        val fixture = startFixture("{}")
+        try {
+            val result = EuropeanaSearchAdapter(
+                RestClient.builder().baseUrl(fixture.baseUrl).build(),
+                wskey = "test-key",
+            ).search(HistoricalSearchQuery(text = "geschiedenis"))
+
+            assertEquals(HistoricalTechnicalStatus.INVALID_RESPONSE, result.status)
+            assertTrue(result.results.isEmpty())
+        } finally {
+            fixture.stop()
+        }
+    }
+
+    @Test
+    fun `incomplete Open Archieven response is reported as invalid`() {
+        val fixture = startFixture("{\"response\":{}}")
+        try {
+            val result = OpenArchievenSearchAdapter(
+                RestClient.builder().baseUrl(fixture.baseUrl).build(),
+                rateLimiter = HistoricalSearchRateLimiter { },
+            ).search(HistoricalSearchQuery(text = "geschiedenis"))
+
+            assertEquals(HistoricalTechnicalStatus.INVALID_RESPONSE, result.status)
+            assertTrue(result.results.isEmpty())
+        } finally {
+            fixture.stop()
+        }
+    }
+
+    @Test
     fun `adapters fail closed for missing or restricted metadata and privacy`() {
         val fixture = startFixture(
             """

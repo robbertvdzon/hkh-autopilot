@@ -111,7 +111,10 @@ class EuropeanaSearchAdapter(
 
     private fun parse(body: String, retrievedAt: Instant): HistoricalSearchPage {
         val root = objectMapper.readTree(body)
-        val rawItems = root.get("items")?.takeIf(JsonNode::isArray)?.asIterable()?.toList().orEmpty()
+        require(root.isObject) { "Europeana-respons is geen JSON-object" }
+        val itemsNode = root.get("items")
+        require(itemsNode?.isArray == true) { "Europeana-respons bevat geen resultaatarray" }
+        val rawItems = itemsNode.asIterable().toList()
         val items = rawItems
             .filter(JsonNode::isObject)
             .mapNotNull { item ->
@@ -226,7 +229,10 @@ class OpenArchievenSearchAdapter(
             )
         }
         val response = root.get("response") ?: root
-        val rawDocs = response.get("docs")?.takeIf(JsonNode::isArray)?.asIterable()?.toList().orEmpty()
+        require(response.isObject) { "Open Archieven-respons bevat geen response-object" }
+        val docsNode = response.get("docs")
+        require(docsNode?.isArray == true) { "Open Archieven-respons bevat geen resultaatarray" }
+        val rawDocs = docsNode.asIterable().toList()
         val docs = rawDocs.filter(JsonNode::isObject)
         val results = docs.mapNotNull { item ->
             val url = item.consistentText(2_000, "url", "stableUrl", "uri", "link").asHttpUrl() ?: return@mapNotNull null
