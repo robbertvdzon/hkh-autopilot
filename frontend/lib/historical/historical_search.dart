@@ -313,10 +313,17 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
                     response: response,
                     onPrevious: _start == 0
                         ? null
-                        : () => _runSearch(start: _start - _limit),
+                        : () => _runSearch(
+                            start: (_start - response.results.length).clamp(
+                              0,
+                              _start,
+                            ),
+                          ),
                     onNext: _start + response.results.length >= response.total
                         ? null
-                        : () => _runSearch(start: _start + _limit),
+                        : () => _runSearch(
+                            start: _start + response.results.length,
+                          ),
                   );
                 },
               ),
@@ -393,8 +400,11 @@ class _HistoricalResultCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final heading =
-        result.title ?? result.description ?? 'Historisch bronresultaat';
+    final metadataAvailable =
+        result.metadataRights == 'ALLOWED' && result.privacyStatus == 'CLEAR';
+    final heading = metadataAvailable
+        ? result.title ?? result.description ?? 'Historisch bronresultaat'
+        : 'Historisch bronresultaat';
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -403,14 +413,18 @@ class _HistoricalResultCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(heading, style: Theme.of(context).textTheme.titleMedium),
-            if (result.description != null) Text(result.description!),
-            if (result.institution != null)
+            if (metadataAvailable && result.description != null)
+              Text(result.description!),
+            if (metadataAvailable && result.institution != null)
               Text('Bronhouder: ${result.institution}'),
-            if (result.person != null) Text('Persoon: ${result.person}'),
-            if (result.event != null) Text('Gebeurtenis: ${result.event}'),
-            Text(
-              'Datering: ${result.dateStart ?? 'Onbekend'}${result.dateEnd == null ? '' : '–${result.dateEnd}'}',
-            ),
+            if (metadataAvailable && result.person != null)
+              Text('Persoon: ${result.person}'),
+            if (metadataAvailable && result.event != null)
+              Text('Gebeurtenis: ${result.event}'),
+            if (metadataAvailable)
+              Text(
+                'Datering: ${result.dateStart ?? 'Onbekend'}${result.dateEnd == null ? '' : '–${result.dateEnd}'}',
+              ),
             Text('Bronidentifier: ${result.sourceRecordId}'),
             Text('Opgehaald: ${result.retrievedAt.toLocal()}'),
             Text(
@@ -419,8 +433,10 @@ class _HistoricalResultCard extends StatelessWidget {
             Text('Metadatarechten: ${_status(result.metadataRights)}'),
             Text('Object-/mediarechten: ${_status(result.objectMediaRights)}'),
             Text('Privacy: ${_status(result.privacyStatus)}'),
-            if (result.rights != null) Text('Rechten: ${result.rights}'),
-            if (result.privacy != null) Text('Privacybron: ${result.privacy}'),
+            if (metadataAvailable && result.rights != null)
+              Text('Rechten: ${result.rights}'),
+            if (metadataAvailable && result.privacy != null)
+              Text('Privacybron: ${result.privacy}'),
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(

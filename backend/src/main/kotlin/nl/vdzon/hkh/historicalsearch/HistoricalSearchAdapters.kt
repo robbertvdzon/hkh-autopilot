@@ -134,7 +134,7 @@ class EuropeanaSearchAdapter(
                     metadataRights = explicitRights(item.firstText("metadataRights", "metadataRightsStatus")),
                     objectMediaRights = explicitRights(item.firstText("objectRights", "mediaRights", "objectMediaRightsStatus")),
                     privacyStatus = explicitPrivacy(item.firstText("privacyStatus", "privacy")),
-                )
+                ).failClosedMetadata()
             }
         val total = root.firstInt("totalResults", "total", "count") ?: items.size
         return HistoricalSearchPage(source, items, total.coerceAtLeast(0), HistoricalTechnicalStatus.AVAILABLE)
@@ -235,7 +235,7 @@ class OpenArchievenSearchAdapter(
                 metadataRights = explicitRights(item.firstText("metadataRights", "metadataRightsStatus")),
                 objectMediaRights = explicitRights(item.firstText("objectRights", "mediaRights", "objectMediaRightsStatus")),
                 privacyStatus = explicitPrivacy(item.firstText("privacyStatus", "privacy")),
-            )
+            ).failClosedMetadata()
         }
         val total = response.firstInt("number_found", "numberFound", "total") ?: results.size
         return HistoricalSearchPage(source, results, total.coerceAtLeast(0), HistoricalTechnicalStatus.AVAILABLE)

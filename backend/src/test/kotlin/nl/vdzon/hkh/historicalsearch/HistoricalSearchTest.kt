@@ -74,7 +74,8 @@ class HistoricalSearchTest {
             """
             {"response":{"number_found":1,"docs":[
               {"identifier":"abc","personname":"Jan de Vries","eventtype":"Huwelijk","eventdate":{"year":1900},
-               "archive_org":"Historisch Archief","url":"https://www.openarchieven.nl/a:abc"}
+               "archive_org":"Historisch Archief","url":"https://www.openarchieven.nl/a:abc",
+               "metadataRights":"ALLOWED","privacyStatus":"CLEAR"}
             ]}}
             """.trimIndent(),
         )
@@ -117,6 +118,37 @@ class HistoricalSearchTest {
     }
 
     @Test
+    fun `adapters fail closed for missing or restricted metadata and privacy`() {
+        val fixture = startFixture(
+            """
+            {"totalResults":3,"items":[
+              {"id":"safe","guid":"https://data.example/safe","title":"Veilige titel",
+               "metadataRights":"ALLOWED","privacyStatus":"CLEAR","description":"Beschrijving"},
+              {"id":"unknown","guid":"https://data.example/unknown","title":"Niet tonen",
+               "description":"Ook niet tonen"},
+              {"id":"restricted","guid":"https://data.example/restricted","title":"Ook niet tonen",
+               "metadataRights":"RESTRICTED","privacyStatus":"CLEAR","person":"Persoon"}
+            ]}
+            """.trimIndent(),
+        )
+        try {
+            val result = EuropeanaSearchAdapter(
+                RestClient.builder().baseUrl(fixture.baseUrl).build(),
+                wskey = "test-key",
+                clock = fixedClock(),
+            ).search(HistoricalSearchQuery(text = "geschiedenis"))
+
+            assertEquals("Veilige titel", result.results[0].title)
+            assertEquals("Beschrijving", result.results[0].description)
+            assertEquals(null, result.results[1].title)
+            assertEquals(null, result.results[1].description)
+            assertEquals(null, result.results[2].person)
+        } finally {
+            fixture.stop()
+        }
+    }
+
+    @Test
     fun `missing Europeana key disables only Europeana`() {
         val adapter = EuropeanaSearchAdapter(
             RestClient.builder().baseUrl("http://127.0.0.1:1").build(),
@@ -139,6 +171,54 @@ class HistoricalSearchTest {
         assertEquals(listOf(HistoricalSearchSource.OPEN_ARCHIEVEN), outcome.sources.map { it.source })
     }
 
+    @Test
+    fun `service limits a combined page and maps global pagination to source shards`() {
+        val europeana = recordingAdapter(HistoricalSearchSource.EUROPEANA)
+        val open = recordingAdapter(HistoricalSearchSource.OPEN_ARCHIEVEN)
+        val service = HistoricalSearchService(listOf(europeana, open))
+
+        val outcome = service.search(HistoricalSearchQuery(text = "kerk", start = 100, limit = 100))
+
+        assertEquals(100, outcome.results.size)
+        assertEquals(50, europeana.queries.single().limit)
+        assertEquals(50, open.queries.single().limit)
+        assertEquals(50, europeana.queries.single().start)
+        assertEquals(50, open.queries.single().start)
+
+        europeana.queries.clear()
+        open.queries.clear()
+        val unevenOutcome = service.search(HistoricalSearchQuery(text = "kerk", start = 99, limit = 99))
+
+        assertEquals(99, unevenOutcome.results.size)
+        assertEquals(49, europeana.queries.single().limit)
+        assertEquals(50, open.queries.single().limit)
+        assertEquals(50, europeana.queries.single().start)
+        assertEquals(49, open.queries.single().start)
+    }
+
+    @Test
+    fun `disabled source does not reserve slots in an available source page`() {
+        val disabled = object : HistoricalSearchAdapter {
+            override val source = HistoricalSearchSource.EUROPEANA
+
+            override fun search(query: HistoricalSearchQuery) = HistoricalSearchPage(
+                source = source,
+                results = emptyList(),
+                total = 0,
+                status = HistoricalTechnicalStatus.DISABLED,
+            )
+        }
+        val open = recordingAdapter(HistoricalSearchSource.OPEN_ARCHIEVEN)
+        val outcome = HistoricalSearchService(listOf(disabled, open)).search(
+            HistoricalSearchQuery(text = "kerk", limit = 100),
+        )
+
+        assertEquals(100, outcome.results.size)
+        assertEquals(100, open.queries.last().limit)
+        assertEquals(0, open.queries.last().start)
+        assertEquals(HistoricalTechnicalStatus.DISABLED, outcome.sources.first().status)
+    }
+
     private fun fakeAdapter(source: HistoricalSearchSource) = object : HistoricalSearchAdapter {
         override val source = source
         var calls = 0
@@ -146,6 +226,33 @@ class HistoricalSearchTest {
         override fun search(query: HistoricalSearchQuery): HistoricalSearchPage {
             calls++
             return HistoricalSearchPage(source, emptyList(), 0, HistoricalTechnicalStatus.AVAILABLE)
+        }
+    }
+
+    private fun recordingAdapter(source: HistoricalSearchSource) = object : HistoricalSearchAdapter {
+        override val source = source
+        val queries = mutableListOf<HistoricalSearchQuery>()
+
+        override fun search(query: HistoricalSearchQuery): HistoricalSearchPage {
+            queries += query
+            val results = (0 until query.limit).map { index ->
+                HistoricalSearchResult(
+                    source = source,
+                    sourceRecordId = "$source-$index",
+                    stableUrl = "https://example.test/$source/$index",
+                    title = null,
+                    description = null,
+                    person = null,
+                    event = null,
+                    dateStart = null,
+                    dateEnd = null,
+                    institution = null,
+                    rights = null,
+                    privacy = null,
+                    retrievedAt = Instant.parse("2026-08-12T00:00:00Z"),
+                )
+            }
+            return HistoricalSearchPage(source, results, 200, HistoricalTechnicalStatus.AVAILABLE)
         }
     }
 

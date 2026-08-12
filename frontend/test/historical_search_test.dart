@@ -91,7 +91,9 @@ void main() {
       );
 
       await tester.enterText(find.bySemanticsLabel('Vrije tekst'), 'kasteel');
-      await tester.ensureVisible(find.byKey(const Key('historical-search-submit')));
+      await tester.ensureVisible(
+        find.byKey(const Key('historical-search-submit')),
+      );
       await tester.tap(find.byKey(const Key('historical-search-submit')));
       await tester.pump();
       await tester.pump();
@@ -137,11 +139,63 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Kasteel'), findsOneWidget);
+      expect(find.text('Kasteel'), findsNothing);
+      expect(find.text('Beschrijving'), findsNothing);
+      expect(find.text('Persoon: Jan'), findsNothing);
+      expect(find.text('Gebeurtenis: Huwelijk'), findsNothing);
+      expect(find.text('Datering: 1900'), findsNothing);
       expect(find.text('Metadatarechten: Onbekend'), findsOneWidget);
       expect(find.text('Object-/mediarechten: Onbekend'), findsOneWidget);
       expect(find.text('Privacy: Onbekend'), findsOneWidget);
       expect(find.text('Externe bron openen in nieuw tabblad'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'shows content metadata only when rights and privacy are explicit',
+    (tester) async {
+    final response = HistoricalSearchResponse(
+        results: [
+          HistoricalSearchResult(
+            source: 'EUROPEANA',
+            sourceRecordId: 'safe-1',
+            stableUrl: 'https://example.test/safe-1',
+            title: 'Veilige titel',
+            description: 'Veilige beschrijving',
+            person: 'Jan',
+            event: 'Huwelijk',
+            dateStart: '1900',
+            institution: 'Archief',
+            retrievedAt: DateTime.utc(2026, 8, 12),
+            metadataRights: 'ALLOWED',
+            privacyStatus: 'CLEAR',
+          ),
+        ],
+        total: 1,
+        start: 0,
+        limit: 100,
+        sources: [
+          HistoricalSourceStatus(source: 'EUROPEANA', status: 'AVAILABLE'),
+        ],
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HistoricalSearchPage(
+            source: _HistoricalSource(Future.value(response)),
+          ),
+        ),
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('historical-search-submit')),
+      );
+      await tester.tap(find.byKey(const Key('historical-search-submit')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Veilige titel').first);
+
+      expect(find.text('Veilige titel'), findsOneWidget);
+      expect(find.text('Veilige beschrijving'), findsOneWidget);
+      expect(find.text('Persoon: Jan'), findsOneWidget);
+      expect(find.text('Datering: 1900'), findsOneWidget);
     },
   );
 
@@ -151,7 +205,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(home: HistoricalSearchPage(source: source)),
     );
-    await tester.ensureVisible(find.byKey(const Key('historical-search-submit')));
+    await tester.ensureVisible(
+      find.byKey(const Key('historical-search-submit')),
+    );
     await tester.tap(find.byKey(const Key('historical-search-submit')));
     await tester.pump();
     error.completeError(StateError('offline'));
@@ -170,7 +226,9 @@ void main() {
         ),
       ),
     );
-    await tester.ensureVisible(find.byKey(const Key('historical-search-submit')));
+    await tester.ensureVisible(
+      find.byKey(const Key('historical-search-submit')),
+    );
     await tester.tap(find.byKey(const Key('historical-search-submit')));
     await tester.pumpAndSettle();
     expect(find.text('Geen historische resultaten gevonden.'), findsOneWidget);

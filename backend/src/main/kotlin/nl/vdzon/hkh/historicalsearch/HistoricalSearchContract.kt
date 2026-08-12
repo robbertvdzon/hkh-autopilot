@@ -59,6 +59,27 @@ data class HistoricalSearchResult(
     val privacyStatus: HistoricalPrivacyStatus = HistoricalPrivacyStatus.UNKNOWN,
 )
 
+/**
+ * Keeps the safe source reference while withholding content metadata unless both
+ * metadata rights and privacy are explicitly safe.
+ */
+fun HistoricalSearchResult.failClosedMetadata(): HistoricalSearchResult =
+    if (metadataRights == HistoricalRightsStatus.ALLOWED && privacyStatus == HistoricalPrivacyStatus.CLEAR) {
+        this
+    } else {
+        copy(
+            title = null,
+            description = null,
+            person = null,
+            event = null,
+            dateStart = null,
+            dateEnd = null,
+            institution = null,
+            rights = null,
+            privacy = null,
+        )
+    }
+
 data class HistoricalSourceStatus(
     val source: HistoricalSearchSource,
     val status: HistoricalTechnicalStatus,
