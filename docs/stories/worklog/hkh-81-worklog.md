@@ -209,3 +209,32 @@ Uitgevoerd:
 
 De branch blijft afgewezen totdat de factory-harness agentworker-bewijs voor exact
 dezelfde HEAD/worktree-tree heeft vastgelegd.
+
+## Development retry 5
+
+Stappenplan:
+[x]: actuele reviewbevindingen, factory-configuratie en checkoutstatus controleren
+[x]: regressie- en contracttests uitvoeren en eventuele concrete fout herstellen
+[x]: volledig factory-vangnet uitvoeren zonder onderbreking
+[x]: eindcontrole uitvoeren en de meetresultaten overdagen aan de factory-harness
+
+Doel van deze run: de bestaande metadata-contractimplementatie opnieuw tegen de
+actuele story en de reviewbevindingen controleren. De inhoudelijke fixes uit de
+vorige developer-runs blijven behouden; de factory-harness moet het volledige
+vangnet daarna aan dezelfde checkout-tree en revisie binden.
+
+Uitgevoerd:
+- De actuele branch bevat geen conflictmarkers; `.factory/verification.yaml` bevat
+  de zes stabiele, relatieve vangnetcommando's met begrensde timeouts.
+- Gerichte backendrun: `HistoricalMetadataContractTest` en
+  `OpenArchievenMetadataAdapterTest`, 19 tests, 0 failures en 0 errors.
+- Volledig lokaal vangnet volgens `docs/factory/development.md`: backend
+  `mvn -B --no-transfer-progress clean verify` (275 tests, 0 failures, 0 errors),
+  frontend analyze/test/build web (35 tests, 0 failures), en frontend-admin
+  analyze/test (35 tests, 0 failures). Alle zes commando's eindigden met exitcode 0.
+- De laatste code- en documentatiecontrole is schoon met `git diff --check`.
+  Alleen deze worklog is als uncommitted wijziging achtergelaten; commit, push en
+  PR-acties blijven voor de factory.
+- De revision- en worktree-gebonden verificatie-uitvoer wordt door de
+  factory-harness op exact deze checkout vastgelegd; de lokale testuitvoer hierboven
+  is geen vervanging voor dat agentworker-bewijs.
