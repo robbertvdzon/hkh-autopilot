@@ -32,3 +32,37 @@
 De branch gaat terug naar de developer. Herstel de fail-closed conflict- en
 versieafhandeling, voeg regressietests voor deze fixtures toe en lever daarna
 agentworker-bewijs voor exact dezelfde HEAD/worktree-tree aan.
+
+## Development retry
+
+Stappenplan:
+[x]: reviewbevindingen en factory-instructies lezen
+[x]: JSON-LD-conflictverwerking en versieafhandeling herstellen
+[x]: regressietests toevoegen en gerichte backendtests uitvoeren
+[x]: volledig factory-vangnet uitvoeren en revision-gebonden resultaten vastleggen
+
+Doel van deze run: de adapter mag geen eerste JSON-LD-waarde als waarheid nemen
+wanneer dezelfde contractwaarde elders in de respons anders voorkomt. Een
+inhoudelijke bronversie en een HTTP-ETag zijn verschillende soorten versie-
+informatie; de bronversie krijgt voorrang en een afwijkende ETag is geen
+tegenstrijdigheid. Alle wijzigingen blijven uncommitted voor de factory.
+
+Uitgevoerd:
+- `OpenArchievenMetadataAdapter` verzamelt nu alle waarden per contractveld
+  over de JSON-LD-nodes en aliases. Conflicten in identifier/`@id`, holder,
+  titel, beschrijving, datering, bronversie, snapshot, rechten, privacy en
+  beschikbaarheid zetten het resultaat fail-closed op
+  `CONTRADICTORY_SOURCE_DATA`; de inhoudelijke metadata blijft dan leeg.
+- Een inhoudelijke bronversie heeft voorrang op HTTP-ETag/Last-Modified. Een
+  afwijkende opaque ETag veroorzaakt geen vals conflict meer.
+- Regressietests toegevoegd voor conflicterende titel-, datum-, identifier- en
+  privacywaarden en voor de combinatie expliciete bronversie + opaque ETag.
+- Gerichte adapterrun: 12 tests, 0 failures, 0 errors.
+- Volledig vangnet: `mvn -B --no-transfer-progress clean verify` (271 tests,
+  0 failures, 0 errors), frontend `flutter analyze`, `flutter test` en
+  `flutter build web`, plus frontend-admin `flutter analyze` en `flutter test`:
+  alle zes exitcode 0 en alle Flutter-tests geslaagd.
+- De zes exacte vangnetcommando's zijn in één ononderbroken agent-run
+  uitgevoerd. De afsluitende statusregel was
+  `backend=0 frontend_analyze=0 frontend_test=0 frontend_build=0
+  admin_analyze=0 admin_test=0`.

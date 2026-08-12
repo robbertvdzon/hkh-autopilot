@@ -125,6 +125,56 @@ class OpenArchievenMetadataAdapterTest {
     }
 
     @Test
+    fun `an opaque etag does not conflict with an explicit source version`() {
+        val client = startServer { exchange ->
+            respond(exchange, 200, validFixture("v1"), etag = "\"sha256-opaque-validator\"")
+        }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertTrue(result.fullyVerified)
+        assertEquals("v1", result.metadata?.sourceVersion)
+    }
+
+    @Test
+    fun `conflicting title values fail closed`() {
+        val client = startServer { exchange -> respond(exchange, 200, graphFixture("\"title\": \"Andere titel\"")) }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertContradictory(result)
+    }
+
+    @Test
+    fun `conflicting dating values fail closed`() {
+        val client = startServer { exchange -> respond(exchange, 200, graphFixture("\"date\": \"1901\"")) }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertContradictory(result)
+    }
+
+    @Test
+    fun `conflicting identifier values including at id fail closed`() {
+        val client = startServer { exchange ->
+            respond(exchange, 200, graphFixture("\"@id\": \"https://opendata.archieven.nl/id/1000/other-item\""))
+        }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertContradictory(result)
+    }
+
+    @Test
+    fun `conflicting privacy values fail closed`() {
+        val client = startServer { exchange -> respond(exchange, 200, graphFixture("\"privacyStatus\": \"BLOCKED\"")) }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertContradictory(result)
+    }
+
+    @Test
     fun `the limiter schedules requests at least 251 milliseconds apart per server`() {
         var now = 0L
         val waits = mutableListOf<Long>()
@@ -164,9 +214,36 @@ class OpenArchievenMetadataAdapterTest {
           "privacyStatus": "CLEAR"
         }"""
 
-    private fun respond(exchange: HttpExchange, status: Int, body: String) {
+    private fun graphFixture(secondField: String) =
+        """{
+          "@graph": [
+            {
+              "@id": "https://opendata.archieven.nl/id/1000/item-1",
+              "title": "Kaart van Heemskerk",
+              "publisher": "Historical Kring Heemskerk",
+              "date": "1900",
+              "version": "v1",
+              "metadataRightsStatus": "ALLOWED",
+              "objectMediaRightsStatus": "UNKNOWN",
+              "privacyStatus": "CLEAR"
+            },
+            {
+              "@id": "https://opendata.archieven.nl/id/1000/item-1",
+              $secondField
+            }
+          ]
+        }"""
+
+    private fun assertContradictory(result: HistoricalMetadataResult) {
+        assertEquals(HistoricalMetadataVerificationStatus.UNVERIFIED, result.verificationStatus)
+        assertEquals(HistoricalMetadataVerificationReasons.CONTRADICTORY_SOURCE_DATA, result.verificationReason)
+        assertNull(result.metadata)
+    }
+
+    private fun respond(exchange: HttpExchange, status: Int, body: String, etag: String? = null) {
         val bytes = body.toByteArray(Charsets.UTF_8)
         exchange.responseHeaders.set("Content-Type", "application/ld+json")
+        etag?.let { exchange.responseHeaders.set("ETag", it) }
         exchange.sendResponseHeaders(status, bytes.size.toLong())
         exchange.responseBody.use { it.write(bytes) }
     }

@@ -145,17 +145,37 @@ class OpenArchievenMetadataAdapter(
         val etag = response.etag.cleanHeaderValue()
         val lastModified = response.lastModified?.let { Instant.ofEpochMilli(it).toString() }
         val sourceVersion = bodyVersion ?: etag ?: lastModified
-        val versionConflict = bodyVersion != null && etag != null && bodyVersion != etag
 
         val snapshot = nodes.pick("snapshotId", "snapshot", "momentopnameId")
         val explicitAvailability = nodes.pick("technicalAvailability", "availability")?.let(::parseAvailability)
         val httpAvailability = HistoricalMetadataAvailabilityStatus.AVAILABLE
         val availability = explicitAvailability ?: httpAvailability
-        val availabilityConflict = explicitAvailability != null && explicitAvailability != httpAvailability
 
-        val identifierConflict = nodes.hasConflictingValues("sourceIdentifier", "identifier", "dcterms:identifier")
+        val identifierConflict = nodes.hasConflictingValues("sourceIdentifier", "identifier", "dcterms:identifier", "id", "@id")
         val holderConflict = nodes.hasConflictingValues("holder", "rightsHolder", "publisher", "dcterms:publisher", "provider")
+        val titleConflict = nodes.hasConflictingValues("title", "dcterms:title")
+        val descriptionConflict = nodes.hasConflictingValues("description", "dcterms:description", "summary")
+        val datingConflict = nodes.hasConflictingValues(
+            "dating", "date", "dcterms:date", "temporalCoverage", "sdo:dateCreated", "dateCreated",
+        )
+        val versionConflict = nodes.hasConflictingValues(
+            "sourceVersion", "version", "dcterms:hasVersion", "dcterms:modified", "sdo:dateModified",
+        )
+        val snapshotConflict = nodes.hasConflictingValues("snapshotId", "snapshot", "momentopnameId")
+        val metadataRightsValues = nodes.values("metadataRightsStatus", "metadataRights", "metadataLicenseStatus")
+            .map(::parseMetadataRights)
+            .distinct()
+        val objectRightsValues = nodes.values("objectMediaRightsStatus", "objectRights", "mediaRightsStatus", "mediaRights")
+            .map(::parseObjectRights)
+            .distinct()
+        val metadataRightsConflict = metadataRightsValues.size > 1
+        val objectRightsConflict = objectRightsValues.size > 1
         val privacy = parsePrivacy(nodes)
+        val explicitAvailabilityValues = nodes.values("technicalAvailability", "availability")
+            .map(::parseAvailability)
+            .distinct()
+        val availabilityConflict = explicitAvailabilityValues.size > 1 ||
+            (explicitAvailability != null && explicitAvailability != httpAvailability)
 
         return ParsedMetadata(
             sourceIdentifier = identifier?.takeIf { it != fallbackIdentifier(adtid, guid) },
@@ -165,19 +185,22 @@ class OpenArchievenMetadataAdapter(
             dating = dating,
             sourceVersion = sourceVersion,
             snapshotId = snapshot,
-            metadataRightsStatus = nodes.pick("metadataRightsStatus", "metadataRights", "metadataLicenseStatus")
-                ?.let(::parseMetadataRights) ?: MetadataRightsStatus.UNKNOWN,
-            objectMediaRightsStatus = nodes.pick("objectMediaRightsStatus", "objectRights", "mediaRightsStatus", "mediaRights")
-                ?.let(::parseObjectRights) ?: ObjectMediaRightsStatus.UNKNOWN,
+            metadataRightsStatus = metadataRightsValues.firstOrNull() ?: MetadataRightsStatus.UNKNOWN,
+            objectMediaRightsStatus = objectRightsValues.firstOrNull() ?: ObjectMediaRightsStatus.UNKNOWN,
             privacyStatus = privacy.status,
             availabilityStatus = availability,
             containsUnclearedPersonalData = privacy.containsUnclearedPersonalData,
-            containsContradictorySourceData = versionConflict || availabilityConflict || identifierConflict || holderConflict,
+            containsContradictorySourceData = versionConflict || snapshotConflict || availabilityConflict ||
+                identifierConflict || holderConflict || titleConflict || descriptionConflict || datingConflict ||
+                metadataRightsConflict || objectRightsConflict || privacy.containsContradictoryValues,
         )
     }
 
     private fun parsePrivacy(nodes: List<JsonNode>): ParsedPrivacy {
-        val explicit = nodes.pick("privacyStatus", "privacy", "personalDataStatus")?.let(::parsePrivacyStatus)
+        val explicitValues = nodes.values("privacyStatus", "privacy", "personalDataStatus")
+            .map(::parsePrivacyStatus)
+            .distinct()
+        val explicit = explicitValues.firstOrNull()
         val sensitiveFieldPresent = listOf(
             "name", "givenName", "familyName", "person", "persons", "birthDate", "deathDate",
             "personalData", "containsPersonalData", "livingPerson", "possibleLivingPerson",
@@ -187,6 +210,7 @@ class OpenArchievenMetadataAdapter(
         return ParsedPrivacy(
             status = if (flagged) HistoricalMetadataPrivacyStatus.BLOCKED else explicit ?: HistoricalMetadataPrivacyStatus.UNKNOWN,
             containsUnclearedPersonalData = sensitiveFieldPresent,
+            containsContradictoryValues = explicitValues.size > 1,
         )
     }
 
@@ -215,21 +239,17 @@ class OpenArchievenMetadataAdapter(
         else -> HistoricalMetadataAvailabilityStatus.INVALID_RESPONSE
     }
 
-    private fun List<JsonNode>.pick(vararg names: String): String? = names
-        .asSequence()
-        .flatMap { name -> asSequence().flatMap { node -> scalarValues(node.get(name)).asSequence() } }
-        .map(String::trim)
-        .filter(String::isNotEmpty)
-        .distinct()
-        .firstOrNull()
+    private fun List<JsonNode>.pick(vararg names: String): String? = values(*names).firstOrNull()
 
-    private fun List<JsonNode>.hasConflictingValues(vararg names: String): Boolean = names
+    private fun List<JsonNode>.values(vararg names: String): List<String> = names
         .asSequence()
         .flatMap { name -> asSequence().flatMap { node -> scalarValues(node.get(name)).asSequence() } }
         .map(String::trim)
         .filter(String::isNotEmpty)
         .distinct()
-        .count() > 1
+        .toList()
+
+    private fun List<JsonNode>.hasConflictingValues(vararg names: String): Boolean = values(*names).size > 1
 
     private fun scalarValues(node: JsonNode?): List<String> = when {
         node == null || node.isNull -> emptyList()
@@ -292,6 +312,7 @@ class OpenArchievenMetadataAdapter(
     private data class ParsedPrivacy(
         val status: HistoricalMetadataPrivacyStatus,
         val containsUnclearedPersonalData: Boolean,
+        val containsContradictoryValues: Boolean,
     )
 
     private companion object {
