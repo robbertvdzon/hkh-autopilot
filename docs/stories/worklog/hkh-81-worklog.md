@@ -91,3 +91,35 @@ De branch gaat opnieuw terug naar de developer. Herstel de identifier/link-
 binding en lever daarna agentworker-bewijs voor exact dezelfde HEAD/worktree-tree
 aan; de gerichte tests zijn op zichzelf geen vervanging voor het volledige
 revision-gebonden vangnet.
+
+## Development retry 2
+
+Stappenplan:
+[x]: reviewbevinding over identifier/link-binding en factory-instructies lezen
+[x]: identifier-binding fail-closed herstellen
+[x]: regressietests toevoegen
+[x]: volledig factory-vangnet uitvoeren en revision-gebonden resultaten vastleggen
+
+Doel van deze run: een respons met een identifier van een ander archiefrecord mag
+nooit als `VERIFIED` terugkomen wanneer de adapter het aangevraagde record
+opvraagt. Een identifier in de korte vorm `adtid/guid` blijft geldig wanneer die
+wel aan de aangevraagde bronlink gebonden is. Alle wijzigingen blijven
+uncommitted voor de factory.
+
+Uitgevoerd:
+- `OpenArchievenMetadataAdapter` bewaart nu elke aanwezige identifierwaarde als
+  brongegeven, controleert die tegen de aangevraagde `adtid/guid` (zowel als
+  korte identifier als als URI) en markeert een afwijkende identifier als
+  tegenstrijdige brondata. De fail-closed uitkomst behoudt uitsluitend de
+  bekende aangevraagde identifier/link.
+- Regressietests toegevoegd voor een identifier van een ander record en voor
+  een geldige korte identifier van het aangevraagde record.
+- Gerichte backendrun: `HistoricalMetadataContractTest` en
+  `OpenArchievenMetadataAdapterTest`, 17 tests, 0 failures en 0 errors.
+- Volledig vangnet op de definitieve wijziging: `mvn -B --no-transfer-progress
+  clean verify` (273 tests, 0 failures/errors), `frontend` analyze/test/build
+  web (35 tests, 0 failures), en `frontend-admin` analyze/test (35 tests,
+  0 failures). Alle zes commando's eindigden met exitcode 0.
+- Revision-bound handover-identificatie vóór de laatste vangnetrun:
+  `HEAD=47ab4b8`; de definitieve worktree-digest wordt na het vastleggen van
+  deze resultaten opnieuw gecontroleerd. Alle wijzigingen blijven uncommitted.

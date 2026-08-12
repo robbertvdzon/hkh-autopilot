@@ -166,6 +166,36 @@ class OpenArchievenMetadataAdapterTest {
     }
 
     @Test
+    fun `an identifier for another requested record fails closed`() {
+        val client = startServer { exchange ->
+            respond(exchange, 200, validFixture("v1").replace("1000/item-1", "1000/other-item"))
+        }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertContradictory(result)
+        assertEquals("1000/item-1", result.sourceIdentifier)
+        assertEquals("http://opendata.archieven.nl/id/1000/item-1", result.sourceLink)
+    }
+
+    @Test
+    fun `a short identifier bound to the requested record is accepted`() {
+        val client = startServer { exchange ->
+            respond(
+                exchange,
+                200,
+                validFixture("v1")
+                    .replace("\"@id\": \"https://opendata.archieven.nl/id/1000/item-1\",", "\"identifier\": \"1000/item-1\",")
+            )
+        }
+
+        val result = client.fetch("1000", "item-1")
+
+        assertTrue(result.fullyVerified)
+        assertEquals("1000/item-1", result.metadata?.sourceIdentifier)
+    }
+
+    @Test
     fun `conflicting privacy values fail closed`() {
         val client = startServer { exchange -> respond(exchange, 200, graphFixture("\"privacyStatus\": \"BLOCKED\"")) }
 

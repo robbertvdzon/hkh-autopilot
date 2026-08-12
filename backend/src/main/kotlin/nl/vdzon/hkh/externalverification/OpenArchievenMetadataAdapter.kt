@@ -151,7 +151,11 @@ class OpenArchievenMetadataAdapter(
         val httpAvailability = HistoricalMetadataAvailabilityStatus.AVAILABLE
         val availability = explicitAvailability ?: httpAvailability
 
-        val identifierConflict = nodes.hasConflictingValues("sourceIdentifier", "identifier", "dcterms:identifier", "id", "@id")
+        val identifierNames = arrayOf("sourceIdentifier", "identifier", "dcterms:identifier", "id", "@id")
+        val identifierConflict = nodes.hasConflictingValues(*identifierNames)
+        val identifierBindingConflict = identifier
+            ?.let { !it.matchesRequestedRecord(adtid, guid) }
+            ?: false
         val holderConflict = nodes.hasConflictingValues("holder", "rightsHolder", "publisher", "dcterms:publisher", "provider")
         val titleConflict = nodes.hasConflictingValues("title", "dcterms:title")
         val descriptionConflict = nodes.hasConflictingValues("description", "dcterms:description", "summary")
@@ -178,7 +182,7 @@ class OpenArchievenMetadataAdapter(
             (explicitAvailability != null && explicitAvailability != httpAvailability)
 
         return ParsedMetadata(
-            sourceIdentifier = identifier?.takeIf { it != fallbackIdentifier(adtid, guid) },
+            sourceIdentifier = identifier,
             holder = holder,
             title = title,
             description = description,
@@ -191,7 +195,7 @@ class OpenArchievenMetadataAdapter(
             availabilityStatus = availability,
             containsUnclearedPersonalData = privacy.containsUnclearedPersonalData,
             containsContradictorySourceData = versionConflict || snapshotConflict || availabilityConflict ||
-                identifierConflict || holderConflict || titleConflict || descriptionConflict || datingConflict ||
+                identifierConflict || identifierBindingConflict || holderConflict || titleConflict || descriptionConflict || datingConflict ||
                 metadataRightsConflict || objectRightsConflict || privacy.containsContradictoryValues,
         )
     }
@@ -260,6 +264,18 @@ class OpenArchievenMetadataAdapter(
     }
 
     private fun String.normalized(): String = trim().uppercase().replace('-', '_').replace(' ', '_')
+
+    private fun String.matchesRequestedRecord(adtid: String, guid: String): Boolean {
+        val requestedPath = fallbackIdentifier(adtid, guid)
+        val value = trim()
+        if (value == requestedPath) return true
+
+        return runCatching { java.net.URI(value) }.getOrNull()?.let { uri ->
+            uri.isAbsolute && uri.host != null && uri.path
+                ?.removePrefix("/")
+                ?.removePrefix("id/") == requestedPath
+        } == true
+    }
 
     private fun String?.cleanHeaderValue(): String? = this?.trim()?.removeSurrounding("\"")?.takeIf { it.isNotEmpty() }
 
