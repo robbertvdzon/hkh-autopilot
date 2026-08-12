@@ -1,6 +1,5 @@
 package nl.vdzon.hkh.historicalsearch
 
-import java.time.Instant
 import org.springframework.stereotype.Service
 
 data class HistoricalSearchOutcome(
@@ -18,62 +17,78 @@ class HistoricalSearchService(
     fun search(query: HistoricalSearchQuery): HistoricalSearchOutcome {
         val selected = query.source?.let { listOf(it) } ?: HistoricalSearchSource.entries.toList()
         val bySource = adapters.associateBy(HistoricalSearchAdapter::source)
-        val initialPages = fetchShardedPages(selected, query, bySource)
-        val activeSources = initialPages.mapNotNull { shardedPage ->
-            shardedPage.page.takeIf {
-                it.status == HistoricalTechnicalStatus.AVAILABLE && it.total > 0
-            }?.source
+        val cursors = selected.map { source ->
+            val adapter = bySource[source]
+            val firstPage = adapter?.search(query.copy(start = 0, limit = 100))
+                ?: HistoricalSearchPage(
+                    source = source,
+                    results = emptyList(),
+                    total = 0,
+                    status = HistoricalTechnicalStatus.DISABLED,
+                    message = "Bronadapter is niet beschikbaar.",
+                )
+            HistoricalSearchCursor(adapter, query, firstPage)
         }
-        val pagesForResults = if (activeSources.isNotEmpty() && activeSources.size < selected.size) {
-            fetchShardedPages(activeSources, query, bySource)
-        } else {
-            initialPages
-        }
+        val initialPages = cursors.map { it.initialPage }
+        val results = merge(cursors, query.start, query.limit)
         return HistoricalSearchOutcome(
-            results = pagesForResults.flatMap { shardedPage ->
-                shardedPage.page.results.mapIndexedNotNull { resultIndex, result ->
-                    val globalPosition =
-                        (shardedPage.sourceStart + resultIndex) * pagesForResults.size + shardedPage.sourceIndex
-                    result.takeIf { globalPosition in query.start until query.start + query.limit }
-                        ?.let { globalPosition to it }
-                }
-            }.sortedBy { it.first }.map { it.second }.take(query.limit),
-            total = initialPages.sumOf { it.page.total },
+            results = results,
+            total = initialPages.sumOf { it.total },
             start = query.start,
             limit = query.limit,
-            sources = initialPages.map { HistoricalSourceStatus(it.page.source, it.page.status, it.page.message) },
+            sources = initialPages.map { HistoricalSourceStatus(it.source, it.status, it.message) },
         )
     }
 
-    private fun fetchShardedPages(
-        selected: List<HistoricalSearchSource>,
-        query: HistoricalSearchQuery,
-        bySource: Map<HistoricalSearchSource, HistoricalSearchAdapter>,
-    ): List<HistoricalShardedPage> {
-        val sourceCount = selected.size.coerceAtLeast(1)
-        val pageEndExclusive = query.start + query.limit
-        return selected.mapIndexed { sourceIndex, source ->
-            val offsetToSource = (sourceIndex - (query.start % sourceCount) + sourceCount) % sourceCount
-            val firstGlobalPosition = query.start + offsetToSource
-            val shardLimit = if (firstGlobalPosition >= pageEndExclusive) {
-                0
-            } else {
-                ((pageEndExclusive - 1 - firstGlobalPosition) / sourceCount) + 1
+    private fun merge(
+        cursors: List<HistoricalSearchCursor>,
+        start: Int,
+        limit: Int,
+    ): List<HistoricalSearchResult> {
+        val active = cursors.filter { it.initialPage.status == HistoricalTechnicalStatus.AVAILABLE }.toMutableList()
+        val results = mutableListOf<HistoricalSearchResult>()
+        var sourceIndex = 0
+        var globalPosition = 0
+        val endExclusive = start + limit
+
+        while (globalPosition < endExclusive && active.isNotEmpty()) {
+            if (sourceIndex >= active.size) sourceIndex = 0
+            val cursor = active[sourceIndex]
+            val result = cursor.next()
+            if (result == null) {
+                active.removeAt(sourceIndex)
+                continue
             }
-            val sourceQuery = query.copy(
-                start = firstGlobalPosition / sourceCount,
-                limit = shardLimit.coerceAtLeast(1).coerceAtMost(100),
-            )
-            val page = bySource[source]?.search(sourceQuery) ?: HistoricalSearchPage(
-                source, emptyList(), 0, HistoricalTechnicalStatus.DISABLED, "Bronadapter is niet beschikbaar.",
-            )
-            HistoricalShardedPage(page, sourceIndex, sourceQuery.start)
+            if (globalPosition >= start) results += result
+            globalPosition++
+            sourceIndex++
         }
+
+        return results
     }
 }
 
-private data class HistoricalShardedPage(
-    val page: HistoricalSearchPage,
-    val sourceIndex: Int,
-    val sourceStart: Int,
-)
+private class HistoricalSearchCursor(
+    private val adapter: HistoricalSearchAdapter?,
+    private val query: HistoricalSearchQuery,
+    val initialPage: HistoricalSearchPage,
+) {
+    private val bufferedResults = ArrayDeque<HistoricalSearchResult>(initialPage.results)
+    private var nextSourceStart = initialPage.consumed.coerceAtLeast(0)
+    private var exhausted = initialPage.status != HistoricalTechnicalStatus.AVAILABLE || initialPage.consumed < 100
+
+    fun next(): HistoricalSearchResult? {
+        while (bufferedResults.isEmpty() && !exhausted) {
+            val nextPage = adapter?.search(query.copy(start = nextSourceStart, limit = 100))
+            if (nextPage == null || nextPage.status != HistoricalTechnicalStatus.AVAILABLE) {
+                exhausted = true
+                break
+            }
+            val consumed = nextPage.consumed.coerceAtLeast(0)
+            nextSourceStart += consumed
+            bufferedResults.addAll(nextPage.results)
+            exhausted = consumed == 0 || consumed < 100
+        }
+        return bufferedResults.removeFirstOrNull()
+    }
+}

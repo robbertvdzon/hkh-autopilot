@@ -92,6 +92,8 @@ data class HistoricalSearchPage(
     val total: Int,
     val status: HistoricalTechnicalStatus,
     val message: String? = null,
+    /** Number of provider records consumed by this page, including filtered records. */
+    val consumed: Int = results.size,
 )
 
 interface HistoricalSearchAdapter {

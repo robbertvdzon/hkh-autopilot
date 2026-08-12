@@ -2,6 +2,7 @@ package nl.vdzon.hkh.historicalsearch
 
 import java.time.Clock
 import java.time.Instant
+import java.time.LocalDate
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -110,34 +111,40 @@ class EuropeanaSearchAdapter(
 
     private fun parse(body: String, retrievedAt: Instant): HistoricalSearchPage {
         val root = objectMapper.readTree(body)
-        val items = root.get("items")?.takeIf(JsonNode::isArray)?.asIterable()?.toList().orEmpty()
+        val rawItems = root.get("items")?.takeIf(JsonNode::isArray)?.asIterable()?.toList().orEmpty()
+        val items = rawItems
             .filter(JsonNode::isObject)
             .mapNotNull { item ->
-                val url = item.firstText("guid", "edm:isShownAt", "edmIsShownAt", "link", "url", "recordUrl").asHttpUrl()
+                val url = item.consistentText(2_000, "guid", "edm:isShownAt", "edmIsShownAt", "link", "url", "recordUrl").asHttpUrl()
                     ?: return@mapNotNull null
-                val id = item.firstText("id", "identifier", "sourceRecordId", "about").asSafeText()
+                val id = item.consistentText(2_000, "id", "identifier", "sourceRecordId", "about").asSafeText()
                     ?: return@mapNotNull null
+                val startDate = item.consistentText(100, "dateStart", "year", "yearBegin", "edmTimespanLabel")
+                val endDate = item.consistentText(100, "dateEnd", "yearEnd")
+                val dates = normalizeDateRange(startDate, endDate)
                 HistoricalSearchResult(
                     source = source,
                     sourceRecordId = id,
                     stableUrl = url,
-                    title = item.firstText("title", "dcTitle", "dc:title").asSafeText(),
-                    description = item.firstText("description", "dcDescription", "dc:description").asSafeText(),
-                    person = item.firstText("who", "person", "dcCreator", "dc:creator").asSafeText(500),
-                    event = item.firstText("event", "type", "dcType", "dc:type").asSafeText(500),
-                    dateStart = item.firstText("dateStart", "year", "yearBegin", "edmTimespanLabel").asSafeText(100),
-                    dateEnd = item.firstText("dateEnd", "yearEnd").asSafeText(100),
-                    institution = item.firstText("institution", "edmProvider", "provider", "dataProvider").asSafeText(),
-                    rights = item.firstText("rights", "dcRights", "dc:rights").asSafeText(500),
-                    privacy = item.firstText("privacy", "privacyStatus", "personalDataStatus").asSafeText(500),
+                    title = item.consistentText(2_000, "title", "dcTitle", "dc:title"),
+                    description = item.consistentText(2_000, "description", "dcDescription", "dc:description"),
+                    person = item.consistentText(500, "who", "person", "dcCreator", "dc:creator"),
+                    event = item.consistentText(500, "event", "type", "dcType", "dc:type"),
+                    dateStart = dates?.first,
+                    dateEnd = dates?.second,
+                    institution = item.consistentText(2_000, "institution", "edmProvider", "provider", "dataProvider"),
+                    rights = item.consistentText(500, "rights", "dcRights", "dc:rights"),
+                    privacy = item.consistentText(500, "privacy", "privacyStatus", "personalDataStatus"),
                     retrievedAt = retrievedAt,
-                    metadataRights = explicitRights(item.firstText("metadataRights", "metadataRightsStatus")),
-                    objectMediaRights = explicitRights(item.firstText("objectRights", "mediaRights", "objectMediaRightsStatus")),
-                    privacyStatus = explicitPrivacy(item.firstText("privacyStatus", "privacy")),
+                    metadataRights = explicitRights(item.consistentText(500, "metadataRights", "metadataRightsStatus")),
+                    objectMediaRights = explicitRights(item.consistentText(500, "objectRights", "mediaRights", "objectMediaRightsStatus")),
+                    privacyStatus = explicitPrivacy(item.consistentText(500, "privacyStatus", "privacy")),
                 ).failClosedMetadata()
             }
         val total = root.firstInt("totalResults", "total", "count") ?: items.size
-        return HistoricalSearchPage(source, items, total.coerceAtLeast(0), HistoricalTechnicalStatus.AVAILABLE)
+        return HistoricalSearchPage(
+            source, items, total.coerceAtLeast(0), HistoricalTechnicalStatus.AVAILABLE, consumed = rawItems.size,
+        )
     }
 
     private fun unavailable(at: Instant, status: HistoricalTechnicalStatus = HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE) =
@@ -210,35 +217,47 @@ class OpenArchievenSearchAdapter(
     private fun parse(body: String, retrievedAt: Instant): HistoricalSearchPage {
         val root = objectMapper.readTree(body)
         val response = root.get("response") ?: root
-        val docs = response.get("docs")?.takeIf(JsonNode::isArray)?.asIterable()?.toList().orEmpty()
-            .filter(JsonNode::isObject)
+        val rawDocs = response.get("docs")?.takeIf(JsonNode::isArray)?.asIterable()?.toList().orEmpty()
+        val docs = rawDocs.filter(JsonNode::isObject)
         val results = docs.mapNotNull { item ->
-            val url = item.firstText("url", "stableUrl", "uri", "link").asHttpUrl() ?: return@mapNotNull null
-            val id = item.firstText("identifier", "id", "pid", "sourceRecordId").asSafeText() ?: return@mapNotNull null
+            val url = item.consistentText(2_000, "url", "stableUrl", "uri", "link").asHttpUrl() ?: return@mapNotNull null
+            val id = item.consistentText(2_000, "identifier", "id", "pid", "sourceRecordId").asSafeText()
+                ?: return@mapNotNull null
             val eventDate = item.get("eventdate")
+            val startDate = if (eventDate != null) {
+                eventDate.consistentText(100, "year", "dateStart")
+            } else {
+                item.consistentText(100, "dateStart", "year")
+            }
+            val endDate = if (eventDate != null) {
+                eventDate.consistentText(100, "yearEnd", "dateEnd")
+            } else {
+                item.consistentText(100, "dateEnd")
+            }
+            val dates = normalizeDateRange(startDate, endDate)
             HistoricalSearchResult(
                 source = source,
                 sourceRecordId = id,
                 stableUrl = url,
-                title = item.firstText("title", "sourcetype", "eventtype", "_eventtype").asSafeText(),
-                description = item.firstText("description", "source", "archive").asSafeText(),
-                person = item.firstText("personname", "person", "name").asSafeText(500),
-                event = item.firstText("eventtype", "_eventtype", "event").asSafeText(500),
-                dateStart = eventDate?.let { it.firstText("year", "dateStart") }.asSafeText(100)
-                    ?: item.firstText("dateStart", "year").asSafeText(100),
-                dateEnd = eventDate?.let { it.firstText("yearEnd", "dateEnd") }.asSafeText(100)
-                    ?: item.firstText("dateEnd").asSafeText(100),
-                institution = item.firstText("archive_org", "archive", "institution").asSafeText(),
-                rights = item.firstText("rights", "license").asSafeText(500),
-                privacy = item.firstText("privacy", "privacyStatus").asSafeText(500),
+                title = item.consistentText(2_000, "title", "sourcetype", "eventtype", "_eventtype"),
+                description = item.consistentText(2_000, "description", "source", "archive"),
+                person = item.consistentText(500, "personname", "person", "name"),
+                event = item.consistentText(500, "eventtype", "_eventtype", "event"),
+                dateStart = dates?.first,
+                dateEnd = dates?.second,
+                institution = item.consistentText(2_000, "archive_org", "archive", "institution"),
+                rights = item.consistentText(500, "rights", "license"),
+                privacy = item.consistentText(500, "privacy", "privacyStatus"),
                 retrievedAt = retrievedAt,
-                metadataRights = explicitRights(item.firstText("metadataRights", "metadataRightsStatus")),
-                objectMediaRights = explicitRights(item.firstText("objectRights", "mediaRights", "objectMediaRightsStatus")),
-                privacyStatus = explicitPrivacy(item.firstText("privacyStatus", "privacy")),
+                metadataRights = explicitRights(item.consistentText(500, "metadataRights", "metadataRightsStatus")),
+                objectMediaRights = explicitRights(item.consistentText(500, "objectRights", "objectMediaRightsStatus")),
+                privacyStatus = explicitPrivacy(item.consistentText(500, "privacyStatus", "privacy")),
             ).failClosedMetadata()
         }
         val total = response.firstInt("number_found", "numberFound", "total") ?: results.size
-        return HistoricalSearchPage(source, results, total.coerceAtLeast(0), HistoricalTechnicalStatus.AVAILABLE)
+        return HistoricalSearchPage(
+            source, results, total.coerceAtLeast(0), HistoricalTechnicalStatus.AVAILABLE, consumed = rawDocs.size,
+        )
     }
 
     private fun unavailable(at: Instant, status: HistoricalTechnicalStatus = HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE) =
@@ -257,17 +276,39 @@ class OpenArchievenSearchAdapter(
     }
 }
 
-private fun JsonNode.firstText(vararg names: String): String? = names.asSequence()
-    .mapNotNull { name -> scalarText(get(name)) }
-    .firstOrNull()
+private fun JsonNode.consistentText(maxLength: Int, vararg names: String): String? {
+    val values = names.flatMap { name -> scalarTexts(get(name)) }
+    val nonBlank = values.map(String::trim).filter(String::isNotBlank)
+    if (nonBlank.any { it.length > maxLength || it.any(Char::isISOControl) }) return null
+    return nonBlank.distinct().singleOrNull()
+}
 
 private fun JsonNode.firstInt(vararg names: String): Int? = names.asSequence()
     .mapNotNull { name -> get(name)?.let { node -> node.asString().toIntOrNull() } }
     .firstOrNull()
 
-private fun scalarText(node: JsonNode?): String? = when {
-    node == null || node.isNull -> null
-    node.isArray -> node.asIterable().mapNotNull(::scalarText).firstOrNull()
-    node.isObject -> scalarText(node.get("@value") ?: node.get("value") ?: node.get("label"))
-    else -> node.asString().takeIf(String::isNotBlank)
+private fun scalarTexts(node: JsonNode?): List<String> = when {
+    node == null || node.isNull -> emptyList()
+    node.isArray -> node.asIterable().flatMap(::scalarTexts)
+    node.isObject -> scalarTexts(node.get("@value") ?: node.get("value") ?: node.get("label"))
+    else -> listOf(node.asString())
+}
+
+private fun normalizeDateRange(start: String?, end: String?): Pair<String?, String?>? {
+    val normalizedStart = start?.let { normalizeDate(it) ?: return null }
+    val normalizedEnd = end?.let { normalizeDate(it) ?: return null }
+    if (normalizedStart == null && normalizedEnd == null) return null
+    if (normalizedStart != null && normalizedEnd != null && normalizedStart.comparable > normalizedEnd.comparable) return null
+    return normalizedStart?.value to normalizedEnd?.value
+}
+
+private data class NormalizedDate(val value: String, val comparable: LocalDate)
+
+private fun normalizeDate(value: String): NormalizedDate? {
+    val cleaned = value.trim()
+    if (Regex("\\d{4}").matches(cleaned)) {
+        return NormalizedDate(cleaned, LocalDate.of(cleaned.toInt(), 1, 1))
+    }
+    if (!Regex("\\d{4}-\\d{2}-\\d{2}").matches(cleaned)) return null
+    return runCatching { NormalizedDate(cleaned, LocalDate.parse(cleaned)) }.getOrNull()
 }

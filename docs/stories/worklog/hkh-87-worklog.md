@@ -7,14 +7,18 @@ Stappenplan:
 [x]: issue-, factory- en technische context gelezen
 [x]: backendcontract, adapters en publieke zoekroute implementeren
 [x]: frontendroute en tests implementeren
-[x]: gericht testen en volledige vangnet draaien
+[x]: paginering corrigeren voor ongelijke bronresultaten
+[x]: conflicterende en ongeldige metadata fail-closed normaliseren
+[x]: gerichte regressietests en volledige vangnet opnieuw draaien
 [x]: resultaten vastleggen
 
 Done / rationale:
 - Worklog aangemaakt bij de start van de developer-run; de bestaande nieuws- en recordroutes blijven buiten scope van deze zelfstandige zoekroute.
 - De backend heeft de zelfstandige Modulith-module `historicalsearch` gekregen met `GET /api/historical-search`, queryvalidatie, paginering, bronisolatie, fail-closed URL/statusmapping en Europeana/Open Archieven-adapters.
 - De frontend heeft een gelabelde homepage-ingang en de zelfstandige, toegankelijke pagina `HistoricalSearchPage` gekregen met vrije tekst, plek, persoon, gebeurtenis, periode, bronkeuze, laad/succes/leeg/fout/retry-statussen, paginering en externe-linklabels.
-- Eigen contract-, adapter-, client- en widgettests zijn toegevoegd. Het volledige vangnet is groen: backend 287 tests, frontend 41 tests/analyze/webbuild en frontend-admin 36 tests/analyze.
+- Eigen contract-, adapter-, client- en widgettests zijn toegevoegd. Het volledige vangnet is groen:
+  backend `mvn -B --no-transfer-progress clean verify` met 288 tests, frontend 41 tests plus
+  analyze/webbuild, en frontend-admin 36 tests plus analyze.
 
 Reviewnotities (2026-08-12):
 - [blocker] Het worklog vermeldt een groen vangnet, maar `.factory/verification.yaml` bevat alleen de commandedefinities; er is geen agentworker-gemeten, revisiongebonden bewijs voor deze HEAD/worktree-tree. Dit kan niet als groen testbewijs worden geaccepteerd.
@@ -51,3 +55,14 @@ Nieuwe reviewronde (2026-08-12):
   rechtstreeks aan de UI doorgegeven. Ook kiest `firstText` de eerste van conflicterende alternatieve
   velden in plaats van `Onbekend`/`Niet vastgesteld`. De acceptance criterion vereist fail-closed
   weergave voor ontbrekende, ongeldige en tegenstrijdige waarden.
+
+Herstelactie developer-run (2026-08-12):
+- Paginering en metadata-normalisatie worden opnieuw geïmplementeerd met regressietests; daarna wordt
+  het volledige vangnet ononderbroken uitgevoerd.
+
+Resultaat developer-run (2026-08-12):
+- De service gebruikt per bron een cursor met werkelijk verbruikte providerrecords, waardoor lege of
+  ongelijke bronpagina's geen duplicaten of gaten in volgende pagina's veroorzaken.
+- Adapters normaliseren alternatieve velden alleen bij één consistente, geldige waarde en geven
+  ongeldige of tegenstrijdige datering fail-closed door. De gerichte suite telt 10 tests; het volledige
+  vangnet is daarna opnieuw zonder onderbreking groen uitgevoerd.

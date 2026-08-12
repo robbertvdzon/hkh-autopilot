@@ -172,7 +172,7 @@ class HistoricalSearchTest {
     }
 
     @Test
-    fun `service limits a combined page and maps global pagination to source shards`() {
+    fun `service merges source cursors without duplicating results across pages`() {
         val europeana = recordingAdapter(HistoricalSearchSource.EUROPEANA)
         val open = recordingAdapter(HistoricalSearchSource.OPEN_ARCHIEVEN)
         val service = HistoricalSearchService(listOf(europeana, open))
@@ -180,20 +180,22 @@ class HistoricalSearchTest {
         val outcome = service.search(HistoricalSearchQuery(text = "kerk", start = 100, limit = 100))
 
         assertEquals(100, outcome.results.size)
-        assertEquals(50, europeana.queries.single().limit)
-        assertEquals(50, open.queries.single().limit)
-        assertEquals(50, europeana.queries.single().start)
-        assertEquals(50, open.queries.single().start)
+        assertEquals(listOf(0), europeana.queries.map { it.start })
+        assertEquals(listOf(0), open.queries.map { it.start })
+        assertEquals(100, outcome.results.map { it.sourceRecordId }.distinct().size)
 
         europeana.queries.clear()
         open.queries.clear()
-        val unevenOutcome = service.search(HistoricalSearchQuery(text = "kerk", start = 99, limit = 99))
+        val unevenEuropeana = sequenceAdapter(HistoricalSearchSource.EUROPEANA, 1)
+        val unevenOpen = sequenceAdapter(HistoricalSearchSource.OPEN_ARCHIEVEN, 150)
+        val unevenService = HistoricalSearchService(listOf(unevenEuropeana, unevenOpen))
+        val unevenOutcome = unevenService.search(HistoricalSearchQuery(text = "kerk", start = 100, limit = 100))
 
-        assertEquals(99, unevenOutcome.results.size)
-        assertEquals(49, europeana.queries.single().limit)
-        assertEquals(50, open.queries.single().limit)
-        assertEquals(50, europeana.queries.single().start)
-        assertEquals(49, open.queries.single().start)
+        assertEquals(51, unevenOutcome.results.size)
+        assertEquals("OPEN_ARCHIEVEN-99", unevenOutcome.results.first().sourceRecordId)
+        assertEquals(51, unevenOutcome.results.map { it.sourceRecordId }.distinct().size)
+        assertEquals(listOf(0), unevenEuropeana.queries.map { it.start })
+        assertEquals(listOf(0, 100), unevenOpen.queries.map { it.start })
     }
 
     @Test
@@ -219,6 +221,30 @@ class HistoricalSearchTest {
         assertEquals(HistoricalTechnicalStatus.DISABLED, outcome.sources.first().status)
     }
 
+    @Test
+    fun `invalid dates and conflicting aliases are rendered fail closed`() {
+        val fixture = startFixture(
+            """
+            {"totalResults":1,"items":[
+              {"id":"conflict","guid":"https://data.example/conflict","title":"Titel A",
+               "dcTitle":"Titel B","year":"not-a-year","metadataRights":"ALLOWED","privacyStatus":"CLEAR"}
+            ]}
+            """.trimIndent(),
+        )
+        try {
+            val result = EuropeanaSearchAdapter(
+                RestClient.builder().baseUrl(fixture.baseUrl).build(),
+                wskey = "test-key",
+            ).search(HistoricalSearchQuery(text = "geschiedenis"))
+
+            assertEquals(1, result.results.size)
+            assertEquals(null, result.results.single().title)
+            assertEquals(null, result.results.single().dateStart)
+        } finally {
+            fixture.stop()
+        }
+    }
+
     private fun fakeAdapter(source: HistoricalSearchSource) = object : HistoricalSearchAdapter {
         override val source = source
         var calls = 0
@@ -235,7 +261,7 @@ class HistoricalSearchTest {
 
         override fun search(query: HistoricalSearchQuery): HistoricalSearchPage {
             queries += query
-            val results = (0 until query.limit).map { index ->
+            val results = (query.start until query.start + query.limit).map { index ->
                 HistoricalSearchResult(
                     source = source,
                     sourceRecordId = "$source-$index",
@@ -253,6 +279,36 @@ class HistoricalSearchTest {
                 )
             }
             return HistoricalSearchPage(source, results, 200, HistoricalTechnicalStatus.AVAILABLE)
+        }
+    }
+
+    private fun sequenceAdapter(source: HistoricalSearchSource, count: Int) = object : HistoricalSearchAdapter {
+        override val source = source
+        val queries = mutableListOf<HistoricalSearchQuery>()
+
+        override fun search(query: HistoricalSearchQuery): HistoricalSearchPage {
+            queries += query
+            val end = (query.start + query.limit).coerceAtMost(count)
+            val results = (query.start until end).map { index ->
+                HistoricalSearchResult(
+                    source = source,
+                    sourceRecordId = "$source-$index",
+                    stableUrl = "https://example.test/$source/$index",
+                    title = null,
+                    description = null,
+                    person = null,
+                    event = null,
+                    dateStart = null,
+                    dateEnd = null,
+                    institution = null,
+                    rights = null,
+                    privacy = null,
+                    retrievedAt = Instant.parse("2026-08-12T00:00:00Z"),
+                )
+            }
+            return HistoricalSearchPage(
+                source, results, count, HistoricalTechnicalStatus.AVAILABLE, consumed = results.size,
+            )
         }
     }
 
