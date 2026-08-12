@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hkh_app/backend/backend_client.dart';
+import 'package:hkh_app/historical/historical_search.dart';
 import 'package:hkh_app/records/record_public_view.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -115,4 +116,30 @@ void main() {
 
     await expectLater(client.loadRecord('rec-1'), throwsStateError);
   });
+
+  test(
+    'preserves a historical search validation message from HTTP 400',
+    () async {
+      final client = BackendClient(
+        'https://example.test',
+        client: MockClient(
+          (_) async => http.Response(
+            '{"error":"vanafjaar en eindjaar moeten samen worden opgegeven"}',
+            400,
+          ),
+        ),
+      );
+
+      await expectLater(
+        client.loadHistoricalSearch(fromYear: '1900'),
+        throwsA(
+          isA<HistoricalSearchValidationException>().having(
+            (error) => error.message,
+            'message',
+            contains('samen'),
+          ),
+        ),
+      );
+    },
+  );
 }

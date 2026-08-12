@@ -5,6 +5,7 @@ import 'package:flutter/semantics.dart';
 import 'backend/backend_client.dart';
 import 'backend/backend_status.dart';
 import 'config/app_config.dart';
+import 'historical/historical_search.dart';
 import 'news/discover_section.dart';
 import 'news/latest_news.dart';
 import 'product_vision_page.dart';
@@ -12,18 +13,26 @@ import 'self_update_prompt.dart';
 
 void main() {
   final backend = BackendClient(AppConfig.apiBaseUrl);
-  runApp(HkhApp(statusSource: backend, newsSource: backend));
+  runApp(
+    HkhApp(
+      statusSource: backend,
+      newsSource: backend,
+      historicalSource: backend,
+    ),
+  );
 }
 
 class HkhApp extends StatelessWidget {
   const HkhApp({
     required this.statusSource,
     required this.newsSource,
+    this.historicalSource,
     super.key,
   });
 
   final BackendStatusSource statusSource;
   final LatestNewsSource newsSource;
+  final HistoricalSearchSource? historicalSource;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +46,11 @@ class HkhApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: HomePage(statusSource: statusSource, newsSource: newsSource),
+      home: HomePage(
+        statusSource: statusSource,
+        newsSource: newsSource,
+        historicalSource: historicalSource,
+      ),
     );
   }
 }
@@ -46,11 +59,13 @@ class HomePage extends StatefulWidget {
   const HomePage({
     required this.statusSource,
     required this.newsSource,
+    this.historicalSource,
     super.key,
   });
 
   final BackendStatusSource statusSource;
   final LatestNewsSource newsSource;
+  final HistoricalSearchSource? historicalSource;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -98,6 +113,7 @@ class _HomePageState extends State<HomePage> {
                   return _ReadyState(
                     status: snapshot.requireData,
                     newsSource: widget.newsSource,
+                    historicalSource: widget.historicalSource,
                   );
                 },
               ),
@@ -172,10 +188,15 @@ class _ErrorState extends StatelessWidget {
 }
 
 class _ReadyState extends StatelessWidget {
-  const _ReadyState({required this.status, required this.newsSource});
+  const _ReadyState({
+    required this.status,
+    required this.newsSource,
+    this.historicalSource,
+  });
 
   final BackendStatus status;
   final LatestNewsSource newsSource;
+  final HistoricalSearchSource? historicalSource;
 
   @override
   Widget build(BuildContext context) {
@@ -223,6 +244,22 @@ class _ReadyState extends StatelessWidget {
           style: Theme.of(context).textTheme.headlineSmall,
         ),
         const SizedBox(height: 12),
+        if (historicalSource != null)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              key: const Key('historical-search-entry'),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (context) =>
+                      HistoricalSearchPage(source: historicalSource!),
+                ),
+              ),
+              icon: const Icon(Icons.manage_search),
+              label: const Text('Historisch zoeken'),
+            ),
+          ),
+        if (historicalSource != null) const SizedBox(height: 12),
         _LatestNewsSection(source: newsSource),
         const SizedBox(height: 28),
         DiscoverSection(source: newsSource),

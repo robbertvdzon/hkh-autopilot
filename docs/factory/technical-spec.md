@@ -416,8 +416,8 @@ persisteert.
   onderdeel van de bucket: verschillende bronnen kunnen de limiet voor hetzelfde server-uitgaande
   proces dus niet opsplitsen. Er is geen eindgebruikers-IP bij betrokken. Er is geen cache:
   een nieuwe bronversie of ETag/Last-Modified wordt bij iedere bevraging opnieuw zichtbaar
-  vastgelegd. Er is bewust geen publieke zoekroute, opslagmodel of frontendweergave in deze story;
-  toekomstige zoekfunctionaliteit consumeert dit contract.
+  vastgelegd. Dit herbruikbare metadata-contract heeft zelf geen opslagmodel of frontendweergave;
+  de zelfstandige publieke zoekroute gebruikt het aparte `HistoricalSearchContract` hieronder.
 - Frontend: `frontend-admin/lib/externalverification/external_verification_link_view.dart` bevat
   `ExternalVerificationLinkView`, die de link naar het externe archiefrecord toont met een
   `Semantics`-node (`link: true`) waarvan het `label` programmatisch aankondigt dat de link een
@@ -431,6 +431,72 @@ persisteert.
   (`unknownForeground`), ruim boven de WCAG 2.1 AA-minimumwaarde van 4.5:1. Het icoon krijgt een
   eigen `semanticLabel` (`Icoon <label>`), zodat tekstlabel en icoon elk een eigen node in de
   semantiekboom hebben.
+
+## Backendmodule `historicalsearch`
+
+De publieke historische zoekroute zit in de zelfstandige Spring Modulith-module
+`nl.vdzon.hkh.historicalsearch` (`package-info.java`, met de API-subpackage
+`historicalsearch.api`) en is opgenomen in `ModulithArchitectureTest`. De module heeft geen opslag,
+migratie of afhankelijkheid op nieuws, record-intake, adminfunctionaliteit of de lokale
+privacyclassificatie.
+
+- `HistoricalSearchContract.kt` bevat de brononafhankelijke `HistoricalSearchQuery`,
+  `HistoricalSearchResult`, `HistoricalSearchPage`, bron- en statusenums en
+  `HistoricalSearchValidation`. De normalisatie trimt lege waarden weg, vereist twee viercijferige
+  jaren in een geldige volgorde, valideert `start >= 0` en begrenst `limit` op 1..100. De veilige
+  tekst- en URLhelpers weigeren controletekens, te lange waarden en niet-HTTP(S)-URL's.
+- `HistoricalSearchController` registreert uitsluitend `GET /api/historical-search` met `q`,
+  `place`, `person`, `event`, `fromYear`, `toYear`, `source`, `start` en `limit`. Een ongeldige
+  query geeft HTTP 400 met `{ "error": "..." }`; een geldig verzoek geeft `{ results, total, start,
+  limit, sources }`. Elk resultaat bevat de genormaliseerde metadata, de server-side UTC
+  `retrievedAt` en afzonderlijke technische, metadatarechten-, object-/mediarechten- en
+  privacystatussen.
+- `HistoricalSearchService` kiest één bron of beide bronnen, haalt providerpagina's op met een
+  maximum van 100 records, en merge't beide bronstromen via cursors. De cursor telt ook provider-
+  records zonder geldige URL mee, zodat volgende pagina's geen duplicaten of gaten krijgen. Een
+  technische fout tijdens een vervolgaanvraag wordt als bronstatus doorgegeven en niet stil als
+  volledige pagina gepresenteerd.
+- `HistoricalSearchAdapters.kt` bevat `EuropeanaSearchAdapter` en
+  `OpenArchievenSearchAdapter`. Europeana gebruikt `GET /record/v2/search.json` met `wskey`,
+  `query`, herhaalde `qf`, `rows` en `start`; Open Archieven gebruikt
+  `GET /records/search.json` met `name`, optioneel `eventplace`, `number_show` en `start`. Een
+  gebeurtenis wordt in Open Archieven met een `~` als lage zoekzekerheid toegevoegd; jaren volgen
+  de provider-syntaxis. Beide adapters sturen `HKH-Autopilot-HistoricalSearch/1.0`.
+- De Europeana-wskey komt uit `hkh.historical.europeana-wskey` / `HKH_EUROPEANA_WSKEY`. Een lege
+  waarde markeert alleen Europeana als `DISABLED`; Open Archieven blijft onafhankelijk beschikbaar.
+  De providerbasis-URL's zijn overschrijfbaar via `HKH_HISTORICAL_EUROPEANA_BASE_URL` en
+  `HKH_HISTORICAL_OPEN_ARCHIEVEN_BASE_URL`, zodat tests fixtures/mockservers kunnen gebruiken.
+- `FourPerSecondHistoricalRateLimiter` is één Spring-bean die alle Open Archieven-aanvragen deelt en
+  minimaal 251 ms tussen permits afdwingt. De limiet is procesbreed, niet per eindgebruikers-IP of
+  per host. Er is geen cache en geen opslag van zoektermen, responses, media of persoonsgegevens.
+- De adapters vereisen een expliciete resultaatarray (`items` voor Europeana, `docs` voor Open
+  Archieven). Foutobjecten, lege/ongeldige JSON, ontbrekende identifiers/links en ongeldige of
+  tegenstrijdige datering worden `INVALID_RESPONSE` of worden uit de resultaten verwijderd. Een
+  bronlink wordt uitsluitend uit het bronantwoord overgenomen en nooit geconstrueerd.
+- `failClosedMetadata()` behoudt de veilige bronidentifier, bronlink, ophaaltijd en afzonderlijke
+  statusvelden, maar wist inhoudelijke metadata tenzij `metadataRights == ALLOWED` én
+  `privacyStatus == CLEAR`. Onbekende object-/mediarechten blokkeren de metadataweergave niet op
+  zichzelf, maar geven geen toestemming om media te tonen.
+
+## Publieke historische zoekfrontend
+
+`frontend/lib/historical/historical_search.dart` bevat `HistoricalSearchPage`,
+`HistoricalSearchSource` en de response/result/source-statusmodellen. `BackendClient` implementeert
+dit contract naast de bestaande status-, nieuws- en recordbronnen en vertaalt lege filters naar
+afwezige queryparameters. De client gebruikt dezelfde 10-seconden-timeout als de andere backendcalls;
+HTTP 400 wordt een `HistoricalSearchValidationException` met de servermelding, andere non-200's
+blijven retrybare technische fouten.
+
+`HomePage` toont na een succesvolle servicecheck de gelabelde knop `Historisch zoeken` naast de
+bestaande nieuwsflow en opent de zelfstandige pagina. Het formulier bevat vrije tekst, plek, persoon,
+gebeurtenis, vanafjaar, eindjaar en bronkeuze. De pagina ondersteunt distincte laad-, succes-,
+lege-, validatie- en retrybare foutstatussen, paginering en volledig toetsenbordbedienbare retry- en
+paginaknoppen. Statussen gebruiken één `SemanticsRole.status`-node; externe bronknoppen hebben een
+tekstueel label dat het openen van een externe bron in een nieuw tabblad aankondigt.
+
+Een resultaatkaart toont alleen toegestane inhoudelijke metadata, plus altijd de veilige bronreferentie,
+ophaaldatum en de afzonderlijke technische, metadatarechten-, object-/mediarechten- en
+privacystatussen. De externe-linkactie gebruikt uitsluitend de door de backend geleverde stabiele URL.
 
 ## Publieke recorddetailpagina (gebruikersfrontend)
 

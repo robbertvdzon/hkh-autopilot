@@ -33,17 +33,22 @@
   (weigert publicatie bij `Unverified` én bij `LICENSE_UNKNOWN`), versleutelde opslag van een optioneel
   archieftoegangstoken via `ExternalVerificationTokenCipher`, Flyway-migraties
   `V5__external_verification.sql` en `V6__external_verification_license.sql`), plus het
-  niet-persisterende `HistoricalMetadataContract` en de `OpenArchievenMetadataAdapter` voor
-  toekomstige historische zoekfunctionaliteit. De adapter leest alleen een allowlist van JSON-LD-
+  herbruikbare, niet-persisterende `HistoricalMetadataContract` en de `OpenArchievenMetadataAdapter`
+  voor individuele historische metadata-verificatie. De adapter leest alleen een allowlist van JSON-LD-
   metadata, retourneert alleen volledig gevalideerde inhoud bij complete en consistente brondata en
   geeft anders een veilige bronverwijzing met technische status. Metadatarechten en object-/media-
   rechten zijn afzonderlijk; onbekende objectrechten blokkeren metadata niet maar geven nooit
   `mediaAllowed`. De adapter gebruikt UTC-ophaaltijd, bronversie of snapshot, een beschrijvende
   user-agent en één procesbrede limiter met minimaal 251 ms tussen verzoeken. Ruwe payloads,
-  persoonsgegevens en gevoelige waarden worden niet opgeslagen, geretourneerd of gelogd; er is geen
-  publieke zoekroute, opslagmodel of frontendweergave toegevoegd);
+  persoonsgegevens en gevoelige waarden worden niet opgeslagen, geretourneerd of gelogd. De
+  zelfstandige module `historicalsearch` voegt daarnaast `GET /api/historical-search` toe met
+  genormaliseerde Europeana/Open Archieven-resultaten, bronkeuze, queryvalidatie, cursorpaginering,
+  fail-closed metadata/statusmapping en zonder opslag van zoekopdrachten of bronpayloads);
 - `frontend/`: Flutter-gebruikersapp; homepage en statusflows staan in `lib/main.dart`,
-  broninterfaces onder `lib/backend/` en `lib/news/`, widgettests onder `test/`; `lib/records/`
+  broninterfaces onder `lib/backend/`, `lib/news/` en `lib/historical/`, widgettests onder `test/`;
+  de homepage heeft naast `Laatste nieuws` de ingang `Historisch zoeken` met een zelfstandige,
+  toegankelijke `HistoricalSearchPage` voor vrije tekst, plek, persoon, gebeurtenis, periode,
+  bronkeuze, laad/succes/leeg/fout/retry-statussen, paginering en externe-linklabels. `lib/records/`
   bevat de nieuwe publieke recorddetailpagina (`RecordDetailPage`) met de in-/uitklapbare sectie
   "Externe bronverificatie" (leest `GET /api/records/{localIdentifier}` via de nieuwe
   `RecordPublicSource` op `BackendClient`), inclusief een conditionele externe-linkopener

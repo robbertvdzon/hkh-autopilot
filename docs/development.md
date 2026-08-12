@@ -104,17 +104,23 @@ the existing verification/privacy badges. Configuration and behavior are documen
 [factory/technical-spec.md](factory/technical-spec.md) and
 [factory/secrets-local.md](factory/secrets-local.md).
 
-The same module also provides the reusable, non-persistent `HistoricalMetadataContract` and
-`OpenArchievenMetadataAdapter` for future historical search. It returns a fully verified result only
-when the stable identifier/link, holder, title-or-description, dating, source version or snapshot,
-metadata rights, privacy and technical availability all pass validation. Otherwise it returns only
-the known safe source link/identifier and technical status. Metadata rights and object/media rights
-are separate; unknown object rights never grant media permission and do not by themselves invalidate
-metadata. The adapter uses a descriptive user-agent and a process-wide limiter with at least 251 ms
-between requests, which is stricter than four requests per second for the server egress and cannot be
-split by target host. It records the current UTC fetch time and never caches an older source version.
-Raw JSON-LD, personal data and sensitive values are not persisted, returned or logged. This story adds
-no public search route, storage model or frontend view.
+The module also provides the reusable, non-persistent `HistoricalMetadataContract` and
+`OpenArchievenMetadataAdapter` used for individual external metadata verification. That contract
+remains separate from the public search contract below.
+
+The standalone `nl.vdzon.hkh.historicalsearch` module exposes `GET /api/historical-search`. It
+normalizes Europeana and Open Archieven results to one response shape with source, stable source
+identifier and URL, optional title/description/person/event/dates/institution/rights/privacy, and a
+server-side UTC `retrievedAt`. The query accepts `q`, `place`, `person`, `event`, `fromYear`,
+`toYear`, `source`, `start` and `limit`; years must be four digits and be supplied as a pair, and
+`limit` is bounded to 100. With no source filter both providers are merged through source cursors
+without returning more than the requested page size.
+
+Europeana is disabled independently when `HKH_EUROPEANA_WSKEY` is absent. Open Archieven uses the
+same descriptive user-agent and a process-wide limiter with at least 251 ms between requests.
+Provider records without a valid source URL or identifier are omitted, URLs are never constructed
+locally, and explicit rights/privacy checks suppress content metadata fail-closed. The route never
+stores searches, raw provider responses, media or external personal data.
 
 ## User frontend
 
@@ -142,6 +148,14 @@ suggestion chips from the same aggregated entity list; each result opens a detai
 publication date, source) with a back action. It is the homepage's only primary discovery action,
 fully keyboard-operable, and exposes its result count through a `Semantics(liveRegion: true)` node
 that changes after every search or chip selection.
+
+After the service check, the homepage also offers the separate `Historisch zoeken` entry. It opens
+`HistoricalSearchPage` with fields for free text, place, person, event, from/to year and an optional
+Europeana/Open Archieven source. The page has distinct loading, successful, empty, validation-error
+and retryable technical-error states, keyboard-operable pagination and retry controls, one semantic
+status node per active state, and external-link labels. A result shows technical availability,
+metadata rights, object/media rights and privacy separately; content metadata is rendered only when
+the backend explicitly marks metadata rights as allowed and privacy as clear.
 
 `lib/records/` holds the new public record detail page (`RecordDetailPage`) and its collapsible
 "Externe bronverificatie" section, which loads `GET /api/records/{localIdentifier}` via the new
