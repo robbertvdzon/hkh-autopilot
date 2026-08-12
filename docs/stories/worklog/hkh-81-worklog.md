@@ -188,3 +188,24 @@ Uitgevoerd:
 - Handover-identificatie van deze checkout: `HEAD=68d8055c3a3bc6256c55064f60094f4518e493bb`.
   Het agentworker-gemeten bewijs wordt na deze run door de factory-harness aan
   de werkelijke checkout-tree gebonden.
+
+## Review retry 4
+
+- De volledige diff `main...HEAD` is opnieuw beoordeeld. De eerdere bevindingen over
+  identifier-normalisatie en de DNS/IP-gedeelde rate-limitbucket zijn in de huidige
+  code opgelost; `git diff --check` en de gerichte broncontrole zijn schoon.
+- Gerichte Maven-run op de actuele checkout: `HistoricalMetadataContractTest` en
+  `OpenArchievenMetadataAdapterTest`, 19 tests, 0 failures en 0 errors. Dit is geen
+  volledig factory-vangnet.
+- [blocker] Er staat nog steeds geen agentworker-gemeten, revision-gebonden
+  verificatiebewijs in deze checkout. `find .factory -type f` toont alleen
+  `.factory/verification.yaml`, met commandodefinities maar zonder uitvoerresultaten,
+  revision of worktree-digest. De groene aantallen in `.task.md` en dit worklog zijn
+  handgeschreven en kunnen niet bewijzen dat het volledige vangnet bij de actuele
+  `HEAD=0b460ed` en dezelfde worktree-tree groen was. Volgens het reviewercontract
+  moet dit bewijs aanwezig zijn voordat de branch kan worden goedgekeurd.
+
+## Besluit
+
+De branch blijft afgewezen totdat de factory-harness agentworker-bewijs voor exact
+dezelfde HEAD/worktree-tree heeft vastgelegd.
