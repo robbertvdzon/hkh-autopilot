@@ -123,3 +123,34 @@ Uitgevoerd:
 - Revision-bound handover-identificatie vóór de laatste vangnetrun:
   `HEAD=47ab4b8`; de definitieve worktree-digest wordt na het vastleggen van
   deze resultaten opnieuw gecontroleerd. Alle wijzigingen blijven uncommitted.
+
+## Final review
+
+- Gerichte Maven-run uitgevoerd op de actuele checkout met
+  `HistoricalMetadataContractTest` en `OpenArchievenMetadataAdapterTest`: 17
+  tests, 0 failures en 0 errors. Dit is geen volledig factory-vangnet.
+- [blocker] Er staat nog steeds geen agentworker-gemeten, revision-gebonden
+  verificatie-uitvoer in de checkout. `.factory/verification.yaml` bevat alleen
+  commandodefinities; de groene aantallen in `.task.md` en dit worklog zijn
+  handgeschreven en voldoen niet aan het reviewcontract.
+- [bug] `OpenArchievenMetadataAdapter.parse` telt verschillende representaties
+  van dezelfde identifier als conflict. Een respons met zowel
+  `@id: "https://opendata.archieven.nl/id/1000/item-1"` als
+  `identifier: "1000/item-1"` krijgt via `identifierConflict` twee distincte
+  waarden en eindigt `UNVERIFIED/CONTRADICTORY_SOURCE_DATA`, hoewel beide
+  waarden volgens `matchesRequestedRecord` aan hetzelfde aangevraagde record
+  binden. Normaliseer identifier-URI en korte identifier vóór de
+  conflictcontrole en voeg hiervoor een regressietest toe.
+- [bug] `ExternalVerificationClientConfiguration` zet `serverKey` op de
+  URI-hostnaam en `FourPerSecondRateLimiter` houdt per die sleutel de timing
+  bij. De acceptance criterion vereist een limiet per server-uitgaand
+  IP-adres; verschillende hostnamen die naar hetzelfde uitgaande IP resolven
+  krijgen nu elk een eigen limiet en kunnen samen boven vier verzoeken per
+  seconde uitkomen. Sleutel de limiter aan het uitgaande IP of aan een
+  aantoonbaar equivalente netwerkdoel-identiteit en test dat scenario.
+
+## Besluit
+
+De branch blijft afgewezen: herstel beide adapter/rate-limitbevindingen en
+lever agentworker-bewijs voor exact dezelfde HEAD/worktree-tree aan voordat de
+review opnieuw wordt aangeboden.
