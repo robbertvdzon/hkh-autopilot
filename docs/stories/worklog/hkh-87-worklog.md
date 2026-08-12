@@ -30,3 +30,24 @@ Herstel in deze developer-run:
   gevraagde limiet. De frontend navigeert op de werkelijk ontvangen paginagrootte.
 - Gerichte backend- en widgettests controleren beide regressies. Het volledige vangnet wordt na deze
   wijzigingen opnieuw uitgevoerd; revisiongebonden factorybewijs wordt door de harness gegenereerd.
+
+Nieuwe reviewronde (2026-08-12):
+- [blocker] Het verplichte agentworker-gemeten, revisiongebonden groene vangnet ontbreekt nog steeds.
+  `.factory/verification.yaml` bevat uitsluitend de commandedefinities en geen runresultaten of
+  HEAD/worktree-identiteit; de groene issue-comment en dit worklog zijn geen machinebewijs voor de
+  huidige `HEAD`.
+- [blocker] De paginering dupliceert of slaat resultaten over wanneer bronresultaten niet dezelfde
+  omvang hebben. `HistoricalSearchService.kt:33-40` berekent posities met een vaste
+  round-robin-factor (`pagesForResults.size`), terwijl adapters records zonder geldige URL
+  wegfilteren en providers minder resultaten kunnen leveren dan de gevraagde shard. Bij één
+  Europeana-resultaat en veel Open-Archieven-resultaten bevat pagina 0 bijvoorbeeld Europeana-1 plus
+  Open-Archieven 1-50; de frontend vraagt daarna op basis van 51 zichtbare resultaten `start=51`,
+  waarna dezelfde Open-Archieven-shard opnieuw vanaf 25 wordt opgehaald. Dit breekt de acceptance
+  criterion voor paginering; gebruik een merge-/cursorstrategie die de werkelijk zichtbare records
+  en posities bijhoudt.
+- [bug] Ongeldige of tegenstrijdige bronwaarden worden niet overal fail-closed gemaakt.
+  `HistoricalSearchAdapters.kt:124-136` en `:223-237` nemen datering en andere metadata als vrije
+  tekst over; bijvoorbeeld `dateStart: "onbekend-formaat"` wordt bij expliciete rechten/privacy
+  rechtstreeks aan de UI doorgegeven. Ook kiest `firstText` de eerste van conflicterende alternatieve
+  velden in plaats van `Onbekend`/`Niet vastgesteld`. De acceptance criterion vereist fail-closed
+  weergave voor ontbrekende, ongeldige en tegenstrijdige waarden.
