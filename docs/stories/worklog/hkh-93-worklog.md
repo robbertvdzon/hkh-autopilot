@@ -85,3 +85,19 @@ Resultaat nieuwe developer-run:
   developer-run aan dit worklog toe. `.factory/verification.yaml` is bewust niet vervalst of
   uitgebreid met handgeschreven evidence; revisiongebonden agentworker-bewijs wordt door de
   factory-harness aan de exacte HEAD/worktree gebonden.
+
+Review huidige run (2026-08-12):
+- [blocker] `.factory/verification.yaml` bevat nog steeds uitsluitend de zes commandodefinities en
+  geen agentworker-gemeten, revision-/tree-gebonden resultaten voor deze exacte `HEAD`. De claims
+  in dit worklog en de issue-comments zijn handgeschreven en tellen volgens de reviewer-regels niet
+  als volledig groen vangnetbewijs. Voeg per commando machinegemeten evidence toe die aan dezelfde
+  revisie en worktree-tree is gebonden.
+- [bug] De frontend berekent de vorige pagina met `response.start - response.results.length` in
+  `frontend/lib/historical/historical_search.dart:359-363`. Bij een geldige pagina met minder dan
+  100 resultaten (bijvoorbeeld `start=100`, `limit=100`, één resultaat door bronuitval of
+  eindpaginering) wordt dan `start=99` gevraagd in plaats van de vorige pagina-offset `0`. Dat
+  veroorzaakt overlap/duplicaten en kan eerder beschikbare resultaten onbereikbaar maken. Gebruik
+  de serverlimiet/paginacursor voor terugnavigatie en voeg een widgettest met een korte pagina toe.
+- Gerichte reviewchecks: backend `mvn -B --no-transfer-progress -Dtest=HistoricalSearchTest test`
+  (20/20), frontend `flutter test test/historical_search_test.dart` (10/10) en `git diff --check`
+  zijn groen. Deze checks vervangen het ontbrekende volledige factorybewijs niet.
