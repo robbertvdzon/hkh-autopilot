@@ -38,6 +38,7 @@ class HistoricalSearchConfiguration(
         OpenArchievenSearchAdapter(
             restClient = RestClient.builder().baseUrl(openArchievenBaseUrl).build(),
             rateLimiter = rateLimiter,
+            configured = openArchievenBaseUrl.isNotBlank(),
         )
 }
 
@@ -77,7 +78,7 @@ class EuropeanaSearchAdapter(
     override fun search(query: HistoricalSearchQuery): HistoricalSearchPage {
         if (wskey.isBlank()) {
             return HistoricalSearchPage(source, emptyList(), 0, HistoricalTechnicalStatus.DISABLED,
-                "Europeana is tijdelijk niet beschikbaar.")
+                "Europeana is niet geconfigureerd.")
         }
         val q = listOfNotNull(query.text, query.event).joinToString(" ").takeIf(String::isNotBlank)
             ?: query.person ?: query.place
@@ -171,10 +172,15 @@ class OpenArchievenSearchAdapter(
     private val rateLimiter: HistoricalSearchRateLimiter,
     private val clock: Clock = Clock.systemUTC(),
     private val objectMapper: ObjectMapper = JsonMapper.builder().build(),
+    private val configured: Boolean = true,
 ) : HistoricalSearchAdapter {
     override val source: HistoricalSearchSource = HistoricalSearchSource.OPEN_ARCHIEVEN
 
     override fun search(query: HistoricalSearchQuery): HistoricalSearchPage {
+        if (!configured) {
+            return HistoricalSearchPage(source, emptyList(), 0, HistoricalTechnicalStatus.DISABLED,
+                "Open Archieven is niet geconfigureerd.")
+        }
         val name = buildNameQuery(query)
             ?: return HistoricalSearchPage(source, emptyList(), 0, HistoricalTechnicalStatus.INVALID_RESPONSE,
                 "Open Archieven vereist een zoekterm, persoon of gebeurtenis.")

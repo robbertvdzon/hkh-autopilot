@@ -130,6 +130,7 @@ void main() {
           'total': 1,
           'start': 0,
           'limit': 100,
+          'state': 'RESULTS',
           'sources': [
             {
               'source': 'OPEN_ARCHIEVEN',
@@ -267,7 +268,7 @@ void main() {
   testWidgets(
     'shows retryable error when backend reports a source failure with HTTP 200',
     (tester) async {
-      const response = HistoricalSearchResponse(
+      final response = HistoricalSearchResponse(
         results: [],
         total: 0,
         start: 0,
@@ -292,6 +293,52 @@ void main() {
 
       expect(find.byKey(const Key('historical-search-retry')), findsOneWidget);
       expect(find.text('Geen historische resultaten gevonden.'), findsNothing);
+      expect(find.text('historische resultaten'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'keeps available results visible for partial source availability',
+    (tester) async {
+      final response = HistoricalSearchResponse(
+        results: [
+          HistoricalSearchResult(
+            source: 'OPEN_ARCHIEVEN',
+            sourceRecordId: 'partial-1',
+            stableUrl: 'https://example.test/partial-1',
+            retrievedAt: DateTime.utc(2026, 8, 12),
+            metadataRights: 'ALLOWED',
+            privacyStatus: 'CLEAR',
+            title: 'Beschikbaar resultaat',
+          ),
+        ],
+        total: 1,
+        start: 0,
+        limit: 100,
+        state: 'PARTIAL_AVAILABILITY',
+        sources: [
+          HistoricalSourceStatus(source: 'EUROPEANA', status: 'DISABLED'),
+          HistoricalSourceStatus(source: 'OPEN_ARCHIEVEN', status: 'AVAILABLE'),
+        ],
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HistoricalSearchPage(
+            source: _HistoricalSource(Future.value(response)),
+          ),
+        ),
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('historical-search-submit')),
+      );
+      await tester.tap(find.byKey(const Key('historical-search-submit')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Beschikbaar resultaat'));
+
+      expect(find.text('Beschikbaar resultaat'), findsOneWidget);
+      expect(find.text('Europeana: niet geconfigureerd.'), findsOneWidget);
+      expect(find.byKey(const Key('historical-search-retry')), findsNothing);
+      expect(find.text('1 historische resultaten'), findsOneWidget);
     },
   );
 

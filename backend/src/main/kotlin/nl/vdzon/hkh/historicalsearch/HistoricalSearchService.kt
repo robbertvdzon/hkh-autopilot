@@ -8,6 +8,7 @@ data class HistoricalSearchOutcome(
     val start: Int,
     val limit: Int,
     val sources: List<HistoricalSourceStatus>,
+    val state: HistoricalSearchState,
 )
 
 @Service
@@ -19,24 +20,40 @@ class HistoricalSearchService(
         val bySource = adapters.associateBy(HistoricalSearchAdapter::source)
         val cursors = selected.map { source ->
             val adapter = bySource[source]
-            val firstPage = adapter?.search(query.copy(start = 0, limit = 100))
+            val firstPage = runCatching { adapter?.search(query.copy(start = 0, limit = 100)) }.getOrNull()
                 ?: HistoricalSearchPage(
                     source = source,
                     results = emptyList(),
                     total = 0,
-                    status = HistoricalTechnicalStatus.DISABLED,
-                    message = "Bronadapter is niet beschikbaar.",
+                    status = if (adapter == null) {
+                        HistoricalTechnicalStatus.DISABLED
+                    } else {
+                        HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE
+                    },
+                    message = null,
                 )
             HistoricalSearchCursor(adapter, query, firstPage)
         }
         val initialPages = cursors.map { it.initialPage }
-        val results = merge(cursors, query.start, query.limit)
+        val mergedResults = merge(cursors, query.start, query.limit)
+        val sources = cursors.map { it.status() }
+        val availableSources = sources.filter { it.status == HistoricalTechnicalStatus.AVAILABLE }
+        val results = if (availableSources.isEmpty()) emptyList() else mergedResults
+        val state = when {
+            availableSources.isEmpty() -> HistoricalSearchState.SOURCE_FAILURE
+            sources.any { it.status != HistoricalTechnicalStatus.AVAILABLE } ->
+                HistoricalSearchState.PARTIAL_AVAILABILITY
+            initialPages.sumOf { it.total.coerceAtLeast(0) } == 0 && results.isEmpty() ->
+                HistoricalSearchState.NO_RESULTS
+            else -> HistoricalSearchState.RESULTS
+        }
         return HistoricalSearchOutcome(
             results = results,
-            total = initialPages.sumOf { it.total },
+            total = cursors.sumOf { it.totalContribution() },
             start = query.start,
             limit = query.limit,
-            sources = cursors.map { it.status() },
+            sources = sources,
+            state = state,
         )
     }
 
@@ -82,15 +99,23 @@ private class HistoricalSearchCursor(
     fun status(): HistoricalSourceStatus = HistoricalSourceStatus(
         source = initialPage.source,
         status = currentStatus,
-        message = currentMessage,
+        message = HistoricalSourceMessages.safe(currentStatus, currentMessage),
     )
+
+    fun totalContribution(): Int = if (currentStatus == HistoricalTechnicalStatus.AVAILABLE) {
+        initialPage.total.coerceAtLeast(0)
+    } else {
+        0
+    }
 
     fun next(): HistoricalSearchResult? {
         while (bufferedResults.isEmpty() && !exhausted) {
-            val nextPage = adapter?.search(query.copy(start = nextSourceStart, limit = 100))
+            val nextPage = runCatching {
+                adapter?.search(query.copy(start = nextSourceStart, limit = 100))
+            }.getOrNull()
             if (nextPage == null || nextPage.status != HistoricalTechnicalStatus.AVAILABLE) {
                 currentStatus = nextPage?.status ?: HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE
-                currentMessage = nextPage?.message ?: "Bronadapter is niet beschikbaar."
+                currentMessage = nextPage?.message
                 exhausted = true
                 break
             }

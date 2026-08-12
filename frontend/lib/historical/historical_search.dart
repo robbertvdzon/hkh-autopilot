@@ -97,28 +97,54 @@ class HistoricalSearchResponse {
     required this.start,
     required this.limit,
     required this.sources,
+    this.state = 'RESULTS',
   });
 
-  factory HistoricalSearchResponse.fromJson(Map<String, dynamic> json) =>
-      HistoricalSearchResponse(
-        results: (json['results'] as List<dynamic>)
-            .cast<Map<String, dynamic>>()
-            .map(HistoricalSearchResult.fromJson)
-            .toList(growable: false),
-        total: json['total'] as int,
-        start: json['start'] as int,
-        limit: json['limit'] as int,
-        sources: (json['sources'] as List<dynamic>)
-            .cast<Map<String, dynamic>>()
-            .map(HistoricalSourceStatus.fromJson)
-            .toList(growable: false),
-      );
+  factory HistoricalSearchResponse.fromJson(Map<String, dynamic> json) {
+    final results = (json['results'] as List<dynamic>)
+        .cast<Map<String, dynamic>>()
+        .map(HistoricalSearchResult.fromJson)
+        .toList(growable: false);
+    final sources = (json['sources'] as List<dynamic>)
+        .cast<Map<String, dynamic>>()
+        .map(HistoricalSourceStatus.fromJson)
+        .toList(growable: false);
+    final explicitState = json['state'];
+    return HistoricalSearchResponse(
+      results: results,
+      total: json['total'] as int,
+      start: json['start'] as int,
+      limit: json['limit'] as int,
+      sources: sources,
+      state: explicitState is String
+          ? explicitState
+          : _deriveHistoricalSearchState(
+              results,
+              json['total'] as int,
+              sources,
+            ),
+    );
+  }
 
   final List<HistoricalSearchResult> results;
   final int total;
   final int start;
   final int limit;
   final List<HistoricalSourceStatus> sources;
+  final String state;
+}
+
+String _deriveHistoricalSearchState(
+  List<HistoricalSearchResult> results,
+  int total,
+  List<HistoricalSourceStatus> sources,
+) {
+  final hasFailure = sources.any((source) => source.status != 'AVAILABLE');
+  final hasAvailable = sources.any((source) => source.status == 'AVAILABLE');
+  if (!hasAvailable) return 'SOURCE_FAILURE';
+  if (hasFailure) return 'PARTIAL_AVAILABILITY';
+  if (total == 0 && results.isEmpty) return 'NO_RESULTS';
+  return 'RESULTS';
 }
 
 abstract interface class HistoricalSearchSource {
@@ -322,16 +348,16 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
                     return _HistoricalError(onRetry: _runSearch);
                   }
                   final response = snapshot.requireData;
-                  final hasSourceFailure = response.sources.any(
-                    (source) =>
-                        source.status == 'TEMPORARILY_UNAVAILABLE' ||
-                        source.status == 'INVALID_RESPONSE',
-                  );
-                  if (hasSourceFailure) {
-                    return _HistoricalError(onRetry: _runSearch);
+                  final state = _effectiveHistoricalSearchState(response);
+                  if (state == 'SOURCE_FAILURE') {
+                    return _HistoricalError(
+                      sources: response.sources,
+                      onRetry: _runSearch,
+                    );
                   }
                   return _HistoricalResults(
                     response: response,
+                    state: state,
                     onPrevious: _start == 0
                         ? null
                         : () => _runSearch(
@@ -355,14 +381,25 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
   }
 }
 
+String _effectiveHistoricalSearchState(HistoricalSearchResponse response) {
+  if (response.state != 'RESULTS') return response.state;
+  return _deriveHistoricalSearchState(
+    response.results,
+    response.total,
+    response.sources,
+  );
+}
+
 class _HistoricalResults extends StatelessWidget {
   const _HistoricalResults({
     required this.response,
+    required this.state,
     required this.onPrevious,
     required this.onNext,
   });
 
   final HistoricalSearchResponse response;
+  final String state;
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
 
@@ -370,17 +407,28 @@ class _HistoricalResults extends StatelessWidget {
   Widget build(BuildContext context) {
     final sourceMessages = response.sources
         .where((source) => source.status != 'AVAILABLE')
-        .map((source) => source.message ?? '${source.source}: ${source.status}')
+        .map(_historicalSourceMessage)
         .toList(growable: false);
-    if (response.results.isEmpty) {
+    final noResults =
+        state == 'NO_RESULTS' ||
+        (response.results.isEmpty && response.total == 0);
+    final statusLabel = noResults
+        ? 'De historische zoekopdracht leverde geen resultaten op.${_sourceMessagesLabel(sourceMessages)}'
+        : '${response.total} historische resultaten geladen.${_sourceMessagesLabel(sourceMessages)}';
+    if (noResults) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const _HistoricalStatus(
-            label: 'De historische zoekopdracht leverde geen resultaten op.',
-            child: Text('Geen historische resultaten gevonden.'),
+          _HistoricalStatus(
+            label: statusLabel,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('Geen historische resultaten gevonden.'),
+                ...sourceMessages.map(Text.new),
+              ],
+            ),
           ),
-          ...sourceMessages.map((message) => Text(message)),
         ],
       );
     }
@@ -388,10 +436,15 @@ class _HistoricalResults extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _HistoricalStatus(
-          label: '${response.total} historische resultaten geladen.',
-          child: Text('${response.total} historische resultaten'),
+          label: statusLabel,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('${response.total} historische resultaten'),
+              ...sourceMessages.map(Text.new),
+            ],
+          ),
         ),
-        ...sourceMessages.map((message) => Text(message)),
         const SizedBox(height: 12),
         ...response.results.map(
           (result) => _HistoricalResultCard(result: result),
@@ -482,27 +535,42 @@ class _HistoricalResultCard extends StatelessWidget {
 }
 
 class _HistoricalError extends StatelessWidget {
-  const _HistoricalError({required this.onRetry});
+  const _HistoricalError({required this.onRetry, this.sources = const []});
 
+  final List<HistoricalSourceStatus> sources;
   final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      const _HistoricalStatus(
-        label: 'De historische zoekopdracht kon niet worden uitgevoerd.',
-        child: Text('Historisch zoeken is tijdelijk niet beschikbaar.'),
-      ),
-      const SizedBox(height: 12),
-      OutlinedButton.icon(
-        key: const Key('historical-search-retry'),
-        onPressed: onRetry,
-        icon: const Icon(Icons.refresh),
-        label: const Text('Opnieuw proberen'),
-      ),
-    ],
-  );
+  Widget build(BuildContext context) {
+    final sourceMessages = sources
+        .where((source) => source.status != 'AVAILABLE')
+        .map(_historicalSourceMessage)
+        .toList(growable: false);
+    final label =
+        'De historische bronnen zijn niet beschikbaar.${_sourceMessagesLabel(sourceMessages)}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _HistoricalStatus(
+          label: label,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('Historisch zoeken is tijdelijk niet beschikbaar.'),
+              ...sourceMessages.map(Text.new),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          key: const Key('historical-search-retry'),
+          onPressed: onRetry,
+          icon: const Icon(Icons.refresh),
+          label: const Text('Opnieuw proberen'),
+        ),
+      ],
+    );
+  }
 }
 
 class _HistoricalValidationError extends StatelessWidget {
@@ -532,6 +600,24 @@ class _HistoricalStatus extends StatelessWidget {
     child: child ?? Text(label),
   );
 }
+
+String _historicalSourceMessage(HistoricalSourceStatus source) {
+  final name = switch (source.source) {
+    'EUROPEANA' => 'Europeana',
+    'OPEN_ARCHIEVEN' => 'Open Archieven',
+    _ => source.source,
+  };
+  final status = switch (source.status) {
+    'DISABLED' => 'niet geconfigureerd',
+    'TEMPORARILY_UNAVAILABLE' => 'tijdelijk niet beschikbaar',
+    'INVALID_RESPONSE' => 'ongeldige bronrespons',
+    _ => 'niet beschikbaar',
+  };
+  return '$name: $status.';
+}
+
+String _sourceMessagesLabel(List<String> messages) =>
+    messages.isEmpty ? '' : ' ${messages.join(' ')}';
 
 String historicalSourceQueryValue(HistoricalSourceChoice source) =>
     _sourceName(source);
