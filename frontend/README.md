@@ -21,7 +21,11 @@ messages. Full source failure shows a semantic source-problem status and the key
 `Opnieuw proberen` action without presenting a misleading result count. Results show the source
 identifier, retrieval time, technical availability, metadata rights, object/media rights, privacy
 status and a clearly labeled external source link; source metadata is shown only when the backend
-has explicit safe rights and privacy statuses. Available result cards also offer `Context bekijken`.
+has explicit safe rights and privacy statuses. Each selected source also shows its available result
+count for the current visible page. It shows a separate `Lokale Heemskerk-indicatie op basis van
+plaatsmetadata` only for certain, explicitly available place metadata; the indication is never
+presented as historical proof. Available empty sources show `0`, while disabled, temporarily
+unavailable or invalid sources show no numeric count. Available result cards also offer `Context bekijken`.
 The detail page shows title, place, period, person, event and the source/rights/privacy metadata,
 with explicit `Niet beschikbaar` and `Onzeker` labels for context fields whose status is
 `MISSING`/`UNAVAILABLE` or `UNCERTAIN`. It repeats the aggregate search state and the selected

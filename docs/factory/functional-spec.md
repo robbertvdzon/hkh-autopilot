@@ -374,13 +374,27 @@ frontend toont per falende bron de tekst "niet geconfigureerd", "tijdelijk niet 
 "ongeldige bronrespons". Een volledig beschikbare maar lege zoekopdracht is `NO_RESULTS` en is dus
 geen bronfout.
 
+Elke geselecteerde bron krijgt daarnaast een compacte dekkingssamenvatting. Bij een beschikbare
+bron is `resultCount` het aantal veilig genormaliseerde resultaten van die bron in de huidige
+zichtbare `results`-pagina; bij nul resultaten is dit expliciet `0`. `heemskerkCount` telt binnen
+diezelfde pagina uitsluitend resultaten waarvan `placeStatus` `AVAILABLE` is en de expliciete
+plaatswaarde na trimmen, Unicode-NFKC-normalisatie, samenvoegen van witruimte en
+hoofdletterongevoelige vergelijking exact `Heemskerk` is. Deze telling is een lokale indicatie op
+basis van plaatsmetadata, geen historisch bewijs. Voor een niet-beschikbare bron blijven beide
+tellingen `null`, zodat bronuitval niet als nulresultaat wordt gepresenteerd. De oorspronkelijke
+plaatswaarde en alle bestaande resultaatmetadata blijven ongewijzigd beschikbaar volgens de
+bestaande rechten- en privacyregels.
+
 Een foutieve zoekopdracht geeft HTTP 400 met een leesbare validatiefout. Volledige bronuitval geeft
 `SOURCE_FAILURE`, geen resultaatcount en een programmatisch uitleesbare bronprobleemstatus met de
 toetsenbordbedienbare actie `Opnieuw proberen`. Transportfouten blijven een afzonderlijke
 retrybare technische status. Bij uitval tijdens paginering wordt de bronstatus bijgewerkt, telt de
 bron niet meer mee en wordt de effectieve offset aangepast zodat beschikbare resultaten bereikbaar
 blijven. De gebruikerspagina communiceert laden, resultaten, nul resultaten, gedeeltelijke
-beschikbaarheid, bronuitval, validatie en opnieuw proberen via één status/live-regio.
+beschikbaarheid, bronuitval, validatie en opnieuw proberen via één status/live-regio. Bij een
+response met beschikbare bronnen leest die status ook de per-bron resultatentelling en de gelabelde
+Heemskerk-plaatsmetadata-indicatie voor; bij volledige bronuitval toont de pagina geen numerieke
+dekkingssamenvatting.
 Resultaatkaarten tonen de bronidentifier, ophaaldatum, afzonderlijke technische/rechten/
 privacystatussen en een tekstueel herkenbare externe link die uitsluitend naar de door de bron
 geleverde URL verwijst. Elk beschikbaar resultaat heeft daarnaast de actie `Context bekijken`.
@@ -567,7 +581,8 @@ De publieke historische zoekroute is gedekt met `HistoricalSearchTest` en
 `historical_search_test.dart`. De backendtests controleren het responsveld `state`, alle vier de
 geaggregeerde toestanden, de vier per-bronstatussen, veilige meldingen, beschikbare-resultaten-
 merging, uitsluitend beschikbare bijdragen aan `total`, uitval tijdens paginering en de effectieve
-offset, contextvelden en de vier contextstatussen. `HistoricalSearchTest` dekt daarnaast expliciete
+offset, per-bron `resultCount`/`heemskerkCount` voor volledige, lege, gedeeltelijke en falende
+bronbeschikbaarheid, contextvelden en de vier contextstatussen. `HistoricalSearchTest` dekt daarnaast expliciete
 plaatsmetadata, ontbrekende/onzekere context, exacte genormaliseerde relaties, periode-overlap zonder
 zelfstandige relatie, uitsluiting van het geopende resultaat en de limiet van drie relaties. De
 Flutter-tests controleren de zichtbaarheid van partiële resultaten, het onderscheid tussen nul

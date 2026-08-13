@@ -53,7 +53,11 @@
   expliciet `Niet beschikbaar`/`Onzeker` voor ontbrekende of onzekere context. Verwante resultaten
   worden uitsluitend uit de huidige zichtbare `results`-lijst bepaald, maximaal drie, na exacte
   deterministische normalisatie van plaats/persoon/gebeurtenis; een periode-overlap is alleen
-  aanvullende informatie en creëert geen relatie;
+  aanvullende informatie en creëert geen relatie. Per geselecteerde bron rapporteert de API ook
+  nullable `resultCount` en `heemskerkCount` voor de huidige zichtbare pagina. Alleen zekere,
+  expliciete plaatsmetadata die na NFKC-, witruimte- en hoofdletternormalisatie exact `Heemskerk`
+  is, telt mee; niet-beschikbare bronnen krijgen geen numerieke telling en de indicatie wordt niet
+  als historisch bewijs gepresenteerd;
 - `frontend/`: Flutter-gebruikersapp; homepage en statusflows staan in `lib/main.dart`,
   broninterfaces onder `lib/backend/`, `lib/news/` en `lib/historical/`, widgettests onder `test/`;
   de homepage heeft naast `Laatste nieuws` de ingang `Historisch zoeken` met een zelfstandige,
