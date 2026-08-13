@@ -48,6 +48,23 @@ data class HistoricalSearchQuery(
     val limit: Int = 100,
 )
 
+data class HistoricalRelationshipSource(
+    val name: String,
+)
+
+data class HistoricalRelationshipTarget(
+    val name: String,
+    val uri: String,
+    val link: String,
+)
+
+/** A relationship explicitly asserted by the provider for this source record. */
+data class HistoricalSearchRelationship(
+    val type: String,
+    val source: HistoricalRelationshipSource,
+    val target: HistoricalRelationshipTarget,
+)
+
 data class HistoricalSearchResult(
     val source: HistoricalSearchSource,
     val sourceRecordId: String,
@@ -70,6 +87,7 @@ data class HistoricalSearchResult(
     val placeStatus: HistoricalContextStatus = if (place == null) HistoricalContextStatus.MISSING else HistoricalContextStatus.AVAILABLE,
     val personStatus: HistoricalContextStatus = if (person == null) HistoricalContextStatus.MISSING else HistoricalContextStatus.AVAILABLE,
     val eventStatus: HistoricalContextStatus = if (event == null) HistoricalContextStatus.MISSING else HistoricalContextStatus.AVAILABLE,
+    val relationships: List<HistoricalSearchRelationship> = emptyList(),
 )
 
 /**
@@ -94,6 +112,7 @@ fun HistoricalSearchResult.failClosedMetadata(): HistoricalSearchResult =
             placeStatus = HistoricalContextStatus.UNAVAILABLE,
             personStatus = HistoricalContextStatus.UNAVAILABLE,
             eventStatus = HistoricalContextStatus.UNAVAILABLE,
+            relationships = emptyList(),
         )
     }
 

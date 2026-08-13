@@ -186,6 +186,70 @@ class HistoricalSearchTest {
     }
 
     @Test
+    fun `adapters map only complete explicit source relationships in provider order`() {
+        val fixture = startFixture(
+            """
+            {"response":{"number_found":1,"docs":[
+              {"identifier":"abc","url":"https://www.openarchieven.nl/a:abc",
+               "metadataRights":"ALLOWED","privacyStatus":"CLEAR",
+               "relationships":[
+                 {"type":"isPartOf","source":{"name":"Open Archieven"},
+                  "target":{"name":"Register 1900","uri":"https://data.example/target/1","link":"https://source.example/target/1"}},
+                 {"type":"derivedFrom","source":{"name":"Open Archieven"},
+                  "target":{"name":"Geen URI","link":"https://source.example/target/2"}},
+                 {"type":"relatedTo","source":{"name":"Open Archieven"},
+                  "target":{"name":"Geen link","uri":"https://data.example/target/3","link":"javascript:alert(1)"}},
+                 {"type":"afgeleid","source":{},
+                  "target":{"name":"Uit periode-overlap","uri":"https://data.example/target/4","link":"https://source.example/target/4"}}
+               ]}
+            ]}}
+            """.trimIndent(),
+        )
+        try {
+            val result = OpenArchievenSearchAdapter(
+                RestClient.builder().baseUrl(fixture.baseUrl).build(),
+                rateLimiter = HistoricalSearchRateLimiter { },
+                clock = fixedClock(),
+            ).search(HistoricalSearchQuery(text = "geschiedenis"))
+
+            assertEquals(1, result.results.single().relationships.size)
+            val relationship = result.results.single().relationships.single()
+            assertEquals("isPartOf", relationship.type)
+            assertEquals("Open Archieven", relationship.source.name)
+            assertEquals("Register 1900", relationship.target.name)
+            assertEquals("https://data.example/target/1", relationship.target.uri)
+            assertEquals("https://source.example/target/1", relationship.target.link)
+        } finally {
+            fixture.stop()
+        }
+    }
+
+    @Test
+    fun `relationships are removed with restricted metadata`() {
+        val fixture = startFixture(
+            """
+            {"totalResults":1,"items":[
+              {"id":"restricted","guid":"https://data.example/restricted",
+               "metadataRights":"RESTRICTED","privacyStatus":"CLEAR",
+               "relationships":[{"type":"relatedTo","source":{"name":"Europeana"},
+                 "target":{"name":"Target","uri":"https://data.example/target","link":"https://source.example/target"}}]}
+            ]}
+            """.trimIndent(),
+        )
+        try {
+            val result = EuropeanaSearchAdapter(
+                RestClient.builder().baseUrl(fixture.baseUrl).build(),
+                wskey = "test-key",
+                clock = fixedClock(),
+            ).search(HistoricalSearchQuery(text = "geschiedenis"))
+
+            assertTrue(result.results.single().relationships.isEmpty())
+        } finally {
+            fixture.stop()
+        }
+    }
+
+    @Test
     fun `open archieven marks event-only searches as low certainty`() {
         val fixture = startFixture("{\"response\":{\"number_found\":0,\"docs\":[]}}")
         try {
@@ -458,6 +522,17 @@ class HistoricalSearchTest {
                         rights = null,
                         privacy = null,
                         retrievedAt = fixedClock().instant(),
+                        relationships = listOf(
+                            HistoricalSearchRelationship(
+                                type = "isPartOf",
+                                source = HistoricalRelationshipSource("Open Archieven"),
+                                target = HistoricalRelationshipTarget(
+                                    name = "Register 1900",
+                                    uri = "https://data.example/target/1",
+                                    link = "https://source.example/target/1",
+                                ),
+                            ),
+                        ),
                     ),
                 ),
                 total = 1,
@@ -477,6 +552,12 @@ class HistoricalSearchTest {
         ).andExpect(status().isOk)
             .andExpect(jsonPath("$.results[0].sourceRecordId").value("record-1"))
             .andExpect(jsonPath("$.results[0].stableUrl").value("https://example.test/record-1"))
+            .andExpect(jsonPath("$.results[0].relationships").isArray)
+            .andExpect(jsonPath("$.results[0].relationships[0].type").value("isPartOf"))
+            .andExpect(jsonPath("$.results[0].relationships[0].source.name").value("Open Archieven"))
+            .andExpect(jsonPath("$.results[0].relationships[0].target.name").value("Register 1900"))
+            .andExpect(jsonPath("$.results[0].relationships[0].target.uri").value("https://data.example/target/1"))
+            .andExpect(jsonPath("$.results[0].relationships[0].target.link").value("https://source.example/target/1"))
             .andExpect(jsonPath("$.sources[0].status").value("AVAILABLE"))
             .andExpect(jsonPath("$.sources[0].resultCount").value(1))
             .andExpect(jsonPath("$.sources[0].heemskerkCount").value(0))

@@ -150,6 +150,7 @@ class EuropeanaSearchAdapter(
                     placeStatus = place.status,
                     personStatus = person.status,
                     eventStatus = event.status,
+                    relationships = item.explicitRelationships(),
                 ).failClosedMetadata()
             }
         val total = root.firstInt("totalResults", "total", "count") ?: items.size
@@ -287,6 +288,7 @@ class OpenArchievenSearchAdapter(
                     placeStatus = place.status,
                     personStatus = person.status,
                     eventStatus = event.status,
+                    relationships = item.explicitRelationships(),
             ).failClosedMetadata()
         }
         val total = response.firstInt("number_found", "numberFound", "total") ?: results.size
@@ -317,6 +319,30 @@ private fun JsonNode.consistentText(maxLength: Int, vararg names: String): Strin
     if (nonBlank.any { it.length > maxLength || it.any(Char::isISOControl) }) return null
     return nonBlank.distinct().singleOrNull()
 }
+
+/** Maps only the provider's explicitly named relationship collection. */
+private fun JsonNode.explicitRelationships(): List<HistoricalSearchRelationship> {
+    val relationNodes = get("relationships")?.takeIf(JsonNode::isArray)?.asIterable() ?: return emptyList()
+    return relationNodes.mapNotNull { relation ->
+        if (!relation.isObject) return@mapNotNull null
+        val type = relation.scalarField("type", 500) ?: return@mapNotNull null
+        val source = relation.get("source")?.takeIf(JsonNode::isObject)
+            ?.scalarField("name", 2_000)
+            ?: return@mapNotNull null
+        val target = relation.get("target")?.takeIf(JsonNode::isObject) ?: return@mapNotNull null
+        val targetName = target.scalarField("name", 2_000) ?: return@mapNotNull null
+        val targetUri = target.scalarField("uri", 2_000)?.asHttpUrl() ?: return@mapNotNull null
+        val targetLink = target.scalarField("link", 2_000)?.asHttpUrl() ?: return@mapNotNull null
+        HistoricalSearchRelationship(
+            type = type,
+            source = HistoricalRelationshipSource(source),
+            target = HistoricalRelationshipTarget(targetName, targetUri, targetLink),
+        )
+    }
+}
+
+private fun JsonNode.scalarField(name: String, maxLength: Int): String? =
+    scalarTexts(get(name)).singleOrNull()?.asSafeText(maxLength)
 
 private fun JsonNode.contextField(maxLength: Int, vararg names: String): HistoricalContextField {
     val values = names.flatMap { name -> scalarTexts(get(name)) }

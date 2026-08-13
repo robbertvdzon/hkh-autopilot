@@ -48,7 +48,10 @@
   fail-closed metadata/statusmapping en zonder opslag van zoekopdrachten of bronpayloads). Het
   resultaatcontract bevat expliciete `place`-, `person`- en `event`-velden met elk een contextstatus
   (`AVAILABLE`, `MISSING`, `UNCERTAIN` of `UNAVAILABLE`); plaats wordt nooit uit zoekterm, titel of
-  URL afgeleid. De beschikbare Flutter-resultaatkaart biedt `Context bekijken`; de detailpagina
+  URL afgeleid. Het bevat ook `relationships[]` voor complete relaties uit de expliciete providerdata,
+  met `type`, `source.name`, `target.name`, een stabiele HTTP(S)-`target.uri` en een externe
+  HTTP(S)-`target.link`; ontbrekende of onveilige relaties worden volledig weggelaten en nooit uit
+  metadata-overlap afgeleid. De beschikbare Flutter-resultaatkaart biedt `Context bekijken`; de detailpagina
   toont context-, bron-, rechten- en privacymetadata, herhaalt de zoek-/bronstatus en gebruikt
   expliciet `Niet beschikbaar`/`Onzeker` voor ontbrekende of onzekere context. Verwante resultaten
   worden uitsluitend uit de huidige zichtbare `results`-lijst bepaald, maximaal drie, na exacte
@@ -75,8 +78,9 @@
   bronkeuze, laad/succes/leeg/gedeeltelijke-beschikbaarheid/bronprobleem/retry-statussen,
   paginering en externe-linklabels. Bij gedeeltelijke beschikbaarheid blijven beschikbare resultaten
   zichtbaar; bij volledige bronuitval toont de pagina geen resultaatcount en biedt zij `Opnieuw
-  proberen`. `lib/historical/historical_context_detail.dart` bevat de contextdetailweergave en
-  de begrensde relatiebepaling; Unicode-normalisatie gebruikt de directe dependency
+  proberen`. `lib/historical/historical_context_detail.dart` bevat de contextdetailweergave, de aparte
+  sectie `Bronvastgelegde relatie` voor providerclaims en de begrensde afgeleide relatiebepaling;
+  Unicode-normalisatie gebruikt de directe dependency
   `unorm_dart`. `lib/records/`
   bevat de nieuwe publieke recorddetailpagina (`RecordDetailPage`) met de in-/uitklapbare sectie
   "Externe bronverificatie" (leest `GET /api/records/{localIdentifier}` via de nieuwe

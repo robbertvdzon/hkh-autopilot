@@ -52,6 +52,79 @@ String _sourceName(HistoricalSourceChoice source) => switch (source) {
 String? _optionalHistoricalFilter(String value) =>
     value.trim().isEmpty ? null : value;
 
+class HistoricalRelationshipSource {
+  const HistoricalRelationshipSource({required this.name});
+
+  final String name;
+}
+
+class HistoricalRelationshipTarget {
+  const HistoricalRelationshipTarget({
+    required this.name,
+    required this.uri,
+    required this.link,
+  });
+
+  final String name;
+  final String uri;
+  final String link;
+}
+
+class HistoricalSearchRelationship {
+  const HistoricalSearchRelationship({
+    required this.type,
+    required this.source,
+    required this.target,
+  });
+
+  final String type;
+  final HistoricalRelationshipSource source;
+  final HistoricalRelationshipTarget target;
+
+  static HistoricalSearchRelationship? tryParse(Object? value) {
+    if (value is! Map) return null;
+    final type = value['type'];
+    final source = value['source'];
+    final target = value['target'];
+    if (type is! String ||
+        type.trim().isEmpty ||
+        source is! Map ||
+        target is! Map) {
+      return null;
+    }
+    final sourceName = source['name'];
+    final targetName = target['name'];
+    final targetUri = target['uri'];
+    final targetLink = target['link'];
+    if (sourceName is! String ||
+        sourceName.trim().isEmpty ||
+        targetName is! String ||
+        targetName.trim().isEmpty ||
+        !_isHttpUrl(targetUri) ||
+        !_isHttpUrl(targetLink)) {
+      return null;
+    }
+    return HistoricalSearchRelationship(
+      type: type.trim(),
+      source: HistoricalRelationshipSource(name: sourceName.trim()),
+      target: HistoricalRelationshipTarget(
+        name: targetName.trim(),
+        uri: targetUri as String,
+        link: targetLink as String,
+      ),
+    );
+  }
+}
+
+bool _isHttpUrl(Object? value) {
+  if (value is! String || value.trim().isEmpty) return false;
+  final uri = Uri.tryParse(value);
+  return uri != null &&
+      uri.hasScheme &&
+      (uri.scheme == 'http' || uri.scheme == 'https') &&
+      uri.host.isNotEmpty;
+}
+
 class HistoricalSearchResult {
   const HistoricalSearchResult({
     required this.source,
@@ -75,6 +148,7 @@ class HistoricalSearchResult {
     HistoricalContextStatus? placeStatus,
     HistoricalContextStatus? personStatus,
     HistoricalContextStatus? eventStatus,
+    this.relationships = const [],
   }) : placeStatus =
            placeStatus ??
            (place == null
@@ -114,6 +188,13 @@ class HistoricalSearchResult {
         placeStatus: _contextStatusFromJson(json['placeStatus']),
         personStatus: _contextStatusFromJson(json['personStatus']),
         eventStatus: _contextStatusFromJson(json['eventStatus']),
+        relationships:
+            (json['relationships'] is List
+                    ? (json['relationships'] as List)
+                    : const <Object?>[])
+                .map(HistoricalSearchRelationship.tryParse)
+                .whereType<HistoricalSearchRelationship>()
+                .toList(growable: false),
       );
 
   final String source;
@@ -137,6 +218,7 @@ class HistoricalSearchResult {
   final HistoricalContextStatus placeStatus;
   final HistoricalContextStatus personStatus;
   final HistoricalContextStatus eventStatus;
+  final List<HistoricalSearchRelationship> relationships;
 }
 
 List<HistoricalFollowUpAction> historicalFollowUpActions(

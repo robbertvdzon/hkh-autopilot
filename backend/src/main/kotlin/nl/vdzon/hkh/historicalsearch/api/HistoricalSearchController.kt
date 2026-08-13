@@ -4,6 +4,7 @@ import java.time.Instant
 import nl.vdzon.hkh.historicalsearch.HistoricalPrivacyStatus
 import nl.vdzon.hkh.historicalsearch.HistoricalRightsStatus
 import nl.vdzon.hkh.historicalsearch.HistoricalSearchOutcome
+import nl.vdzon.hkh.historicalsearch.HistoricalSearchRelationship
 import nl.vdzon.hkh.historicalsearch.HistoricalSearchService
 import nl.vdzon.hkh.historicalsearch.HistoricalSearchValidation
 import nl.vdzon.hkh.historicalsearch.HistoricalTechnicalStatus
@@ -36,6 +37,21 @@ data class HistoricalSearchResultResponse(
     val placeStatus: String,
     val personStatus: String,
     val eventStatus: String,
+    val relationships: List<HistoricalSearchRelationshipResponse>,
+)
+
+data class HistoricalSearchRelationshipResponse(
+    val type: String,
+    val source: HistoricalRelationshipSourceResponse,
+    val target: HistoricalRelationshipTargetResponse,
+)
+
+data class HistoricalRelationshipSourceResponse(val name: String)
+
+data class HistoricalRelationshipTargetResponse(
+    val name: String,
+    val uri: String,
+    val link: String,
 )
 
 data class HistoricalSearchSourceStatusResponse(
@@ -103,6 +119,7 @@ private fun HistoricalSearchOutcome.toResponse() = HistoricalSearchResponse(
             placeStatus = it.placeStatus.name,
             personStatus = it.personStatus.name,
             eventStatus = it.eventStatus.name,
+            relationships = it.relationships.map { relationship -> relationship.toResponse() },
         )
     },
     total = total,
@@ -118,4 +135,10 @@ private fun HistoricalSearchOutcome.toResponse() = HistoricalSearchResponse(
         )
     },
     state = state.name,
+)
+
+private fun HistoricalSearchRelationship.toResponse() = HistoricalSearchRelationshipResponse(
+    type = type,
+    source = HistoricalRelationshipSourceResponse(source.name),
+    target = HistoricalRelationshipTargetResponse(target.name, target.uri, target.link),
 )

@@ -32,6 +32,12 @@ en gebeurtenis. Ontbrekende of onbeschikbare context wordt als `Niet beschikbaar
 tegenstrijdige context als `Onzeker` getoond. Verwante resultaten komen uitsluitend uit de huidige
 zichtbare resultatenpagina, worden op exact genormaliseerde plaats-, persoons- of gebeurtenisvelden
 gevonden en zijn begrensd op drie; een periode-overlap maakt op zichzelf geen relatie.
+Wanneer de externe bron expliciet relaties met doelrecords levert, toont de detailweergave daarnaast
+een afzonderlijke sectie `Bronvastgelegde relatie`. Iedere geldige bronrelatie bevat het relatietype,
+de bronnaam, de doelrecordnaam, een expliciete stabiele doel-URI en een externe doelrecordlink. De
+weergave labelt dit als bronclaim en vermeldt dat HKH de relatie niet heeft afgeleid; onvolledige of
+onveilige relaties worden niet opgenomen. De oorspronkelijke bronlink van het geopende resultaat,
+de metadata-overlap en de vervolgzoekacties blijven hiervan onafhankelijk.
 Vanuit de detailweergave zijn daarnaast nieuwe zoekingangen beschikbaar voor expliciet aanwezige,
 zekere plaats-, persoons- en gebeurtenismetadata en voor een geldige expliciete periode. Deze acties
 zijn fail-closed begrensd tot beschikbare resultaten met toegestane metadatarechten en een duidelijke
