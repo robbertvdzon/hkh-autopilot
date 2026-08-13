@@ -322,6 +322,64 @@ class HistoricalSearchTest {
     }
 
     @Test
+    fun `open archieven rejects contradictory provider totals in both directions`() {
+        val validDocument = """
+            {"source_name":"Open Archieven","uuid":"record-1",
+             "original_source_url":"https://www.openarchieven.nl/hee:record-1",
+             "metadataRights":"ALLOWED","privacyStatus":"CLEAR"}
+        """.trimIndent()
+        val fixtures = listOf(
+            """{"response":{"number_found":42,"docs":[]}}""",
+            """{"response":{"number_found":0,"docs":[$validDocument]}}""",
+        )
+
+        fixtures.forEach { body ->
+            val fixture = startFixture(body)
+            try {
+                val result = OpenArchievenSearchAdapter(
+                    RestClient.builder().baseUrl(fixture.baseUrl).build(),
+                    rateLimiter = HistoricalSearchRateLimiter { },
+                ).search(HistoricalSearchQuery(text = "Heemskerk"))
+
+                assertEquals(HistoricalTechnicalStatus.INVALID_RESPONSE, result.status)
+                assertTrue(result.results.isEmpty())
+                assertEquals(0, result.total)
+            } finally {
+                fixture.stop()
+            }
+        }
+    }
+
+    @Test
+    fun `open archieven rejects missing negative and malformed provider totals`() {
+        val validDocument = """
+            {"source_name":"Open Archieven","uuid":"record-1",
+             "original_source_url":"https://www.openarchieven.nl/hee:record-1",
+             "metadataRights":"ALLOWED","privacyStatus":"CLEAR"}
+        """.trimIndent()
+        val fixtures = listOf(
+            """{"response":{"docs":[$validDocument]}}""",
+            """{"response":{"number_found":-1,"docs":[]}}""",
+            """{"response":{"number_found":"1","docs":[$validDocument]}}""",
+        )
+
+        fixtures.forEach { body ->
+            val fixture = startFixture(body)
+            try {
+                val result = OpenArchievenSearchAdapter(
+                    RestClient.builder().baseUrl(fixture.baseUrl).build(),
+                    rateLimiter = HistoricalSearchRateLimiter { },
+                ).search(HistoricalSearchQuery(text = "Heemskerk"))
+
+                assertEquals(HistoricalTechnicalStatus.INVALID_RESPONSE, result.status)
+                assertTrue(result.results.isEmpty())
+            } finally {
+                fixture.stop()
+            }
+        }
+    }
+
+    @Test
     fun `open archieven rejects a response with a missing or unsafe required identity`() {
         val fixtures = listOf(
             """{"response":{"docs":[{"source_name":"Open Archieven","original_source_url":"https://example.test/record"}]}}""",

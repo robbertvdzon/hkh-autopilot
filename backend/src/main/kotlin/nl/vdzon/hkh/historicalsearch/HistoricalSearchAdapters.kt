@@ -244,6 +244,13 @@ class OpenArchievenSearchAdapter(
         val docsNode = response.get("docs")
         require(docsNode?.isArray == true) { "Open Archieven-respons bevat geen resultaatarray" }
         val rawDocs = docsNode.asIterable().toList()
+        val total = response.requiredNonNegativeInt("number_found")
+        require(rawDocs.isEmpty() == (total == 0)) {
+            "Open Archieven-respons bevat een tegenstrijdige resultaat telling"
+        }
+        require(total >= rawDocs.size) {
+            "Open Archieven-respons bevat een resultaat telling kleiner dan de pagina"
+        }
         val results = rawDocs.map { item ->
             require(item.isObject) { "Open Archieven-respons bevat een ongeldig resultaat" }
             val sourceName = item.requiredString("source_name", 500)
@@ -295,7 +302,6 @@ class OpenArchievenSearchAdapter(
                     originalSourceUrl = url,
             ).failClosedMetadata()
         }
-        val total = response.firstInt("number_found", "numberFound", "total") ?: results.size
         return HistoricalSearchPage(
             source, results, total.coerceAtLeast(0), HistoricalTechnicalStatus.AVAILABLE, consumed = rawDocs.size,
         )
@@ -331,6 +337,14 @@ private fun String?.asOpenArchievenUuid(): String? = asSafeText(500)?.takeIf {
 
 private fun JsonNode.requiredString(name: String, maxLength: Int): String? =
     get(name)?.takeIf(JsonNode::isString)?.asString()?.asSafeText(maxLength)
+
+private fun JsonNode.requiredNonNegativeInt(name: String): Int {
+    val node = get(name)
+    require(node?.isNumber == true) { "Open Archieven-respons bevat geen geldige $name" }
+    val value = node.asString().toIntOrNull()
+    require(value != null && value >= 0) { "Open Archieven-respons bevat geen geldige $name" }
+    return value
+}
 
 /** Maps only the provider's explicitly named relationship collection. */
 private fun JsonNode.explicitRelationships(): List<HistoricalSearchRelationship> {
