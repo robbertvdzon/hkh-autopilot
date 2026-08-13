@@ -36,13 +36,27 @@ class HistoricalSearchService(
         }
         val initialPages = cursors.map { it.initialPage }
         val merged = merge(cursors, query.start, query.limit)
-        val sources = cursors.map { it.status() }
-        val availableSources = sources.filter { it.status == HistoricalTechnicalStatus.AVAILABLE }
+        val sourceStatuses = cursors.map { it.status() }
+        val availableSources = sourceStatuses.filter { it.status == HistoricalTechnicalStatus.AVAILABLE }
         val total = cursors.sumOf { it.totalContribution() }
         val results = if (availableSources.isEmpty()) {
             emptyList()
         } else {
             merged.results.take((total - merged.start).coerceAtLeast(0))
+        }
+        val sources = sourceStatuses.map { status ->
+            if (status.status != HistoricalTechnicalStatus.AVAILABLE) {
+                status
+            } else {
+                val sourceResults = results.filter {
+                    it.source == status.source &&
+                        it.technicalStatus == HistoricalTechnicalStatus.AVAILABLE
+                }
+                status.copy(
+                    resultCount = sourceResults.size,
+                    heemskerkCount = sourceResults.count { it.isHeemskerkPlaceIndicator() },
+                )
+            }
         }
         val state = when {
             availableSources.isEmpty() -> HistoricalSearchState.SOURCE_FAILURE

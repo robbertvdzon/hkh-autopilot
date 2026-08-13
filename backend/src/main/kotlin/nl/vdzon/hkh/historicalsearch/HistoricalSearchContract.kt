@@ -2,6 +2,8 @@ package nl.vdzon.hkh.historicalsearch
 
 import java.net.URI
 import java.time.Instant
+import java.text.Normalizer
+import java.util.Locale
 
 enum class HistoricalSearchSource {
     EUROPEANA,
@@ -99,7 +101,33 @@ data class HistoricalSourceStatus(
     val source: HistoricalSearchSource,
     val status: HistoricalTechnicalStatus,
     val message: String? = null,
+    /** Count of safely normalized results visible on the current result page. */
+    val resultCount: Int? = null,
+    /** Count of visible results with a certain, normalized Heemskerk place value. */
+    val heemskerkCount: Int? = null,
 )
+
+fun HistoricalSearchResult.isHeemskerkPlaceIndicator(): Boolean =
+    placeStatus == HistoricalContextStatus.AVAILABLE &&
+        normalizeHistoricalPlace(place) == "heemskerk"
+
+/** Normalizes only explicit place metadata for the local indication. */
+fun normalizeHistoricalPlace(value: String?): String? {
+    val normalized = value?.let { Normalizer.normalize(it, Normalizer.Form.NFKC) } ?: return null
+    val collapsed = buildString(normalized.length) {
+        var whitespace = false
+        normalized.forEach { character ->
+            if (character.isWhitespace() || Character.isSpaceChar(character)) {
+                whitespace = true
+            } else {
+                if (whitespace && isNotEmpty()) append(' ')
+                append(character)
+                whitespace = false
+            }
+        }
+    }
+    return collapsed.trim().lowercase(Locale.ROOT).takeIf(String::isNotEmpty)
+}
 
 object HistoricalSourceMessages {
     const val NOT_CONFIGURED = "Bron is niet geconfigureerd."
