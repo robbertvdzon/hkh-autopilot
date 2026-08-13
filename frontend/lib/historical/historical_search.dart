@@ -2,8 +2,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 
 import '../records/external_link_launcher.dart';
+import 'historical_context_detail.dart';
 
 enum HistoricalSourceChoice { europeana, openArchieven }
+
+enum HistoricalContextStatus { available, missing, uncertain, unavailable }
+
+HistoricalContextStatus _contextStatusFromJson(
+  Object? value,
+  String? fieldValue,
+) => switch (value) {
+  'AVAILABLE' => HistoricalContextStatus.available,
+  'UNCERTAIN' => HistoricalContextStatus.uncertain,
+  'UNAVAILABLE' => HistoricalContextStatus.unavailable,
+  _ =>
+    fieldValue?.trim().isNotEmpty == true
+        ? HistoricalContextStatus.available
+        : HistoricalContextStatus.missing,
+};
 
 String _sourceName(HistoricalSourceChoice source) => switch (source) {
   HistoricalSourceChoice.europeana => 'EUROPEANA',
@@ -18,6 +34,7 @@ class HistoricalSearchResult {
     required this.retrievedAt,
     this.title,
     this.description,
+    this.place,
     this.person,
     this.event,
     this.dateStart,
@@ -29,7 +46,24 @@ class HistoricalSearchResult {
     this.metadataRights = 'UNKNOWN',
     this.objectMediaRights = 'UNKNOWN',
     this.privacyStatus = 'UNKNOWN',
-  });
+    HistoricalContextStatus? placeStatus,
+    HistoricalContextStatus? personStatus,
+    HistoricalContextStatus? eventStatus,
+  }) : placeStatus =
+           placeStatus ??
+           (place == null
+               ? HistoricalContextStatus.missing
+               : HistoricalContextStatus.available),
+       personStatus =
+           personStatus ??
+           (person == null
+               ? HistoricalContextStatus.missing
+               : HistoricalContextStatus.available),
+       eventStatus =
+           eventStatus ??
+           (event == null
+               ? HistoricalContextStatus.missing
+               : HistoricalContextStatus.available);
 
   factory HistoricalSearchResult.fromJson(Map<String, dynamic> json) =>
       HistoricalSearchResult(
@@ -38,6 +72,7 @@ class HistoricalSearchResult {
         stableUrl: json['stableUrl'] as String,
         title: json['title'] as String?,
         description: json['description'] as String?,
+        place: json['place'] as String?,
         person: json['person'] as String?,
         event: json['event'] as String?,
         dateStart: json['dateStart'] as String?,
@@ -50,6 +85,18 @@ class HistoricalSearchResult {
         metadataRights: json['metadataRights'] as String? ?? 'UNKNOWN',
         objectMediaRights: json['objectMediaRights'] as String? ?? 'UNKNOWN',
         privacyStatus: json['privacyStatus'] as String? ?? 'UNKNOWN',
+        placeStatus: _contextStatusFromJson(
+          json['placeStatus'],
+          json['place'] as String?,
+        ),
+        personStatus: _contextStatusFromJson(
+          json['personStatus'],
+          json['person'] as String?,
+        ),
+        eventStatus: _contextStatusFromJson(
+          json['eventStatus'],
+          json['event'] as String?,
+        ),
       );
 
   final String source;
@@ -57,6 +104,7 @@ class HistoricalSearchResult {
   final String stableUrl;
   final String? title;
   final String? description;
+  final String? place;
   final String? person;
   final String? event;
   final String? dateStart;
@@ -69,6 +117,9 @@ class HistoricalSearchResult {
   final String metadataRights;
   final String objectMediaRights;
   final String privacyStatus;
+  final HistoricalContextStatus placeStatus;
+  final HistoricalContextStatus personStatus;
+  final HistoricalContextStatus eventStatus;
 }
 
 class HistoricalSourceStatus {
@@ -447,7 +498,7 @@ class _HistoricalResults extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         ...response.results.map(
-          (result) => _HistoricalResultCard(result: result),
+          (result) => _HistoricalResultCard(result: result, response: response),
         ),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -468,9 +519,10 @@ class _HistoricalResults extends StatelessWidget {
 }
 
 class _HistoricalResultCard extends StatelessWidget {
-  const _HistoricalResultCard({required this.result});
+  const _HistoricalResultCard({required this.result, required this.response});
 
   final HistoricalSearchResult result;
+  final HistoricalSearchResponse response;
 
   @override
   Widget build(BuildContext context) {
@@ -511,6 +563,26 @@ class _HistoricalResultCard extends StatelessWidget {
               Text('Rechten: ${result.rights}'),
             if (metadataAvailable && result.privacy != null)
               Text('Privacybron: ${result.privacy}'),
+            if (result.technicalStatus == 'AVAILABLE')
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  key: Key(
+                    'historical-context-action-${result.sourceRecordId}',
+                  ),
+                  onPressed: () => Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(
+                      builder: (_) => HistoricalContextDetailPage(
+                        result: result,
+                        visibleResults: response.results,
+                        searchState: response.state,
+                        sourceStatuses: response.sources,
+                      ),
+                    ),
+                  ),
+                  child: const Text('Context bekijken'),
+                ),
+              ),
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(

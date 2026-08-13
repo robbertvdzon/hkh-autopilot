@@ -20,6 +20,7 @@ data class HistoricalSearchResultResponse(
     val stableUrl: String,
     val title: String?,
     val description: String?,
+    val place: String?,
     val person: String?,
     val event: String?,
     val dateStart: String?,
@@ -32,6 +33,9 @@ data class HistoricalSearchResultResponse(
     val metadataRights: String,
     val objectMediaRights: String,
     val privacyStatus: String,
+    val placeStatus: String,
+    val personStatus: String,
+    val eventStatus: String,
 )
 
 data class HistoricalSearchSourceStatusResponse(
@@ -81,6 +85,7 @@ private fun HistoricalSearchOutcome.toResponse() = HistoricalSearchResponse(
             stableUrl = it.stableUrl,
             title = it.title,
             description = it.description,
+            place = it.place,
             person = it.person,
             event = it.event,
             dateStart = it.dateStart,
@@ -93,6 +98,9 @@ private fun HistoricalSearchOutcome.toResponse() = HistoricalSearchResponse(
             metadataRights = it.metadataRights.name,
             objectMediaRights = it.objectMediaRights.name,
             privacyStatus = it.privacyStatus.name,
+            placeStatus = it.placeStatus.name,
+            personStatus = it.personStatus.name,
+            eventStatus = it.eventStatus.name,
         )
     },
     total = total,

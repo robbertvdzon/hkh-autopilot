@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hkh_app/backend/backend_client.dart';
 import 'package:hkh_app/backend/backend_status.dart';
 import 'package:hkh_app/historical/historical_search.dart';
+import 'package:hkh_app/historical/historical_context_detail.dart';
 import 'package:hkh_app/main.dart';
 import 'package:hkh_app/news/latest_news.dart';
 import 'package:http/http.dart' as http;
@@ -461,7 +462,7 @@ void main() {
       final externalLink = find.byKey(const Key('historical-external-link'));
       for (
         var index = 0;
-        index < 3 && externalLink.evaluate().isEmpty;
+        index < 6 && !_hasPrimaryFocusWithin(externalLink);
         index++
       ) {
         await tester.sendKeyEvent(LogicalKeyboardKey.tab);
@@ -502,6 +503,99 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Laatste nieuws'), findsOneWidget);
     expect(find.text('Historisch zoeken'), findsOneWidget);
+  });
+
+  testWidgets('opens context detail from an available result', (tester) async {
+    final result = HistoricalSearchResult(
+      source: 'OPEN_ARCHIEVEN',
+      sourceRecordId: 'context-1',
+      stableUrl: 'https://example.test/context-1',
+      retrievedAt: DateTime.utc(2026, 8, 12),
+      title: 'Kasteel',
+      place: 'Heemskerk',
+      person: 'Jan de Vries',
+      event: 'Huwelijk',
+      dateStart: '1900',
+      metadataRights: 'ALLOWED',
+      privacyStatus: 'CLEAR',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HistoricalSearchPage(
+          source: _HistoricalSource(
+            Future.value(
+              HistoricalSearchResponse(
+                results: [result],
+                total: 1,
+                start: 0,
+                limit: 100,
+                sources: const [
+                  HistoricalSourceStatus(
+                    source: 'OPEN_ARCHIEVEN',
+                    status: 'AVAILABLE',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.ensureVisible(
+      find.byKey(const Key('historical-search-submit')),
+    );
+    await tester.tap(find.byKey(const Key('historical-search-submit')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const Key('historical-context-action-context-1')),
+    );
+    tester
+        .widget<TextButton>(
+          find.byKey(const Key('historical-context-action-context-1')),
+        )
+        .onPressed!
+        .call();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Context van historisch zoekresultaat'), findsOneWidget);
+    expect(find.text('Plaats: Heemskerk'), findsOneWidget);
+    expect(find.text('Bron: Open Archieven'), findsOneWidget);
+    expect(find.text('Zoekstatus: Resultaten beschikbaar'), findsOneWidget);
+  });
+
+  testWidgets('shows uncertain and missing context explicitly', (tester) async {
+    final result = HistoricalSearchResult(
+      source: 'OPEN_ARCHIEVEN',
+      sourceRecordId: 'uncertain-1',
+      stableUrl: 'https://example.test/uncertain-1',
+      retrievedAt: DateTime.utc(2026, 8, 12),
+      place: 'Heemskerk',
+      placeStatus: HistoricalContextStatus.uncertain,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HistoricalContextDetailPage(
+          result: result,
+          visibleResults: [result],
+          searchState: 'PARTIAL_AVAILABILITY',
+          sourceStatuses: const [
+            HistoricalSourceStatus(
+              source: 'OPEN_ARCHIEVEN',
+              status: 'TEMPORARILY_UNAVAILABLE',
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(find.text('Plaats: Onzeker'), findsOneWidget);
+    expect(find.text('Persoon: Niet beschikbaar'), findsOneWidget);
+    expect(find.text('Gebeurtenis: Niet beschikbaar'), findsOneWidget);
+    expect(
+      find.text('Zoekstatus: Gedeeltelijke bronbeschikbaarheid'),
+      findsOneWidget,
+    );
+    expect(find.text('Bronstatus: Tijdelijk niet beschikbaar'), findsOneWidget);
   });
 }
 

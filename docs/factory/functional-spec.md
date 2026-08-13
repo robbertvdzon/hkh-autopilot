@@ -347,14 +347,16 @@ bronkeuze is `EUROPEANA` of `OPEN_ARCHIEVEN`; zonder keuze worden beide bronnen 
 resultaten cursorgewijs samengevoegd tot maximaal de gevraagde paginagrootte.
 
 De adapters leveren één genormaliseerd resultaatmodel met `source`, `sourceRecordId`, `stableUrl`,
-`title`, `description`, `person`, `event`, `dateStart`, `dateEnd`, `institution`, `rights`,
-`privacy`, `retrievedAt`, `technicalStatus`, `metadataRights`, `objectMediaRights` en
-`privacyStatus`. Alleen een geldige, door de bron geleverde HTTP(S)-recordlink en bronidentifier
-worden gebruikt; links worden niet lokaal geconstrueerd. Ontbrekende, ongeldige of tegenstrijdige
-metadata wordt niet inhoudelijk ingevuld. Titel, beschrijving, persoon, gebeurtenis, datering,
-bronhouder en bronrechten worden alleen getoond wanneer metadatarechten expliciet `ALLOWED` en
-privacy expliciet `CLEAR` zijn. Object-/mediarechten blijven een afzonderlijke status en verlenen
-nooit automatisch medierechten.
+`title`, `description`, `place`, `person`, `event`, `dateStart`, `dateEnd`, `institution`, `rights`,
+`privacy`, `retrievedAt`, `technicalStatus`, `metadataRights`, `objectMediaRights`, `privacyStatus`
+en de contextstatussen `placeStatus`, `personStatus` en `eventStatus`. Elke contextstatus is
+`AVAILABLE`, `MISSING`, `UNCERTAIN` of `UNAVAILABLE`. Alleen een geldige, door de bron geleverde
+HTTP(S)-recordlink en bronidentifier worden gebruikt; links worden niet lokaal geconstrueerd.
+Plaats wordt alleen uit expliciete bronmetadata overgenomen, nooit uit zoekfilters, titels of URLs.
+Ontbrekende, ongeldige of tegenstrijdige metadata wordt niet inhoudelijk ingevuld. Titel, beschrijving,
+plaats, persoon, gebeurtenis, datering, bronhouder en bronrechten worden alleen getoond wanneer
+metadatarechten expliciet `ALLOWED` en privacy expliciet `CLEAR` zijn. Object-/mediarechten blijven
+een afzonderlijke status en verlenen nooit automatisch medierechten.
 
 Europeana gebruikt `query`, herhaalde `qf`, `rows` en `start`; persoon wordt `who:<persoon>`, plek
 `where:<plek>` en een volledig ingevulde periode een inclusieve `YEAR:[<van> TO <tot>]`. Zonder
@@ -381,7 +383,21 @@ blijven. De gebruikerspagina communiceert laden, resultaten, nul resultaten, ged
 beschikbaarheid, bronuitval, validatie en opnieuw proberen via één status/live-regio.
 Resultaatkaarten tonen de bronidentifier, ophaaldatum, afzonderlijke technische/rechten/
 privacystatussen en een tekstueel herkenbare externe link die uitsluitend naar de door de bron
-geleverde URL verwijst.
+geleverde URL verwijst. Elk beschikbaar resultaat heeft daarnaast de actie `Context bekijken`.
+De detailweergave toont titel, plaats, periode, persoon, gebeurtenis, bronlabel en bronhouder,
+identifier, stabiele URI, server-side ophaaldatum, technische bronstatus, rechtenstatussen en
+privacystatus. Ontbrekende of onbeschikbare context wordt als `Niet beschikbaar` getoond; onzekere
+of tegenstrijdige context als `Onzeker`. De detailweergave herhaalt de geaggregeerde zoekstatus en
+de status van de bron van het geopende resultaat.
+
+Verwante resultaten worden uitsluitend bepaald uit de huidige zichtbare `results`-lijst. Het
+geopende resultaat wordt uitgesloten en er worden maximaal drie relaties getoond, in zichtbare
+volgorde. Een relatie vereist minstens één exact gelijk, beschikbaar plaats-, persoons- of
+gebeurtenisveld na trimmen, Unicode-NFKC-normalisatie, samenvoegen van witruimte en
+hoofdletterongevoelige vergelijking. Ontbrekende, onzekere en onbeschikbare waarden matchen nooit.
+Een overlappende periode mag alleen bij een bestaande relatie als aanvullende informatie worden
+getoond en vormt nooit zelfstandig een relatie. Elke relatie toont het gedeelde veld, de bron en de
+oorspronkelijke stabiele bronlink.
 
 ## Publieke recorddetailpagina en externe bronverificatie
 
@@ -551,9 +567,14 @@ De publieke historische zoekroute is gedekt met `HistoricalSearchTest` en
 `historical_search_test.dart`. De backendtests controleren het responsveld `state`, alle vier de
 geaggregeerde toestanden, de vier per-bronstatussen, veilige meldingen, beschikbare-resultaten-
 merging, uitsluitend beschikbare bijdragen aan `total`, uitval tijdens paginering en de effectieve
-offset. De Flutter-tests controleren de zichtbaarheid van partiële resultaten, het onderscheid
-tussen nul resultaten en volledige bronuitval, de bronmeldingen, één status/live-regio, de
-toetsenbordbedienbare retryactie, paginering met een korte pagina en behoud van bronmetadata.
+offset, contextvelden en de vier contextstatussen. `HistoricalSearchTest` dekt daarnaast expliciete
+plaatsmetadata, ontbrekende/onzekere context, exacte genormaliseerde relaties, periode-overlap zonder
+zelfstandige relatie, uitsluiting van het geopende resultaat en de limiet van drie relaties. De
+Flutter-tests controleren de zichtbaarheid van partiële resultaten, het onderscheid tussen nul
+resultaten en volledige bronuitval, de bronmeldingen, één status/live-regio, de
+toetsenbordbedienbare retryactie, paginering met een korte pagina en behoud van bronmetadata. De
+contextdetailtests controleren de actie `Context bekijken`, detailvelden, expliciete
+`Niet beschikbaar`/`Onzeker`-meldingen, bronlinks, bronstatussen, relaties en toetsenbordbediening.
 
 De publieke recorddetailpagina en externe bronverificatie zijn gedekt met backend unit-,
 integratie- en Flutter widget-/semantiektests: `RecordPublicStatusResolverTest` dekt alle

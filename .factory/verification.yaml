@@ -41,6 +41,7 @@ commands:
   - id: admin-flutter-analyze
     pathPrefixes:
       - frontend-admin/
+      - docs/stories/worklog/
       - .factory/verification.yaml
       - .github/workflows/verify.yml
     argv: [flutter, analyze]
@@ -49,6 +50,7 @@ commands:
   - id: admin-flutter-test
     pathPrefixes:
       - frontend-admin/
+      - docs/stories/worklog/
       - .factory/verification.yaml
       - .github/workflows/verify.yml
     argv: [flutter, test]

@@ -9,6 +9,7 @@ import java.time.ZoneOffset
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import org.hamcrest.Matchers.containsString
 import org.springframework.test.web.servlet.MockMvc
@@ -38,6 +39,82 @@ class HistoricalSearchTest {
         }
         assertFailsWith<IllegalArgumentException> {
             HistoricalSearchValidation.normalize(null, null, null, null, "18", null, null, 0, 100)
+        }
+    }
+
+    @Test
+    fun `relations use only certain exact context, exclude opened result and keep visible order`() {
+        val opened = historicalResult(HistoricalSearchSource.OPEN_ARCHIEVEN, 0).copy(
+            place = "  Heemskerk ",
+            person = "Jan",
+            placeStatus = HistoricalContextStatus.AVAILABLE,
+            personStatus = HistoricalContextStatus.AVAILABLE,
+            dateStart = "1900",
+            dateEnd = "1910",
+        )
+        val placeMatch = historicalResult(HistoricalSearchSource.OPEN_ARCHIEVEN, 1).copy(
+            place = "HEEMSKERK",
+            placeStatus = HistoricalContextStatus.AVAILABLE,
+            dateStart = "1905",
+            dateEnd = "1915",
+        )
+        val periodOnly = historicalResult(HistoricalSearchSource.OPEN_ARCHIEVEN, 2).copy(
+            dateStart = "1905",
+            dateEnd = "1906",
+        )
+        val uncertainPerson = historicalResult(HistoricalSearchSource.OPEN_ARCHIEVEN, 3).copy(
+            person = "JAN",
+            personStatus = HistoricalContextStatus.UNCERTAIN,
+        )
+        val personMatch = historicalResult(HistoricalSearchSource.OPEN_ARCHIEVEN, 4).copy(
+            person = " Jan ",
+            personStatus = HistoricalContextStatus.AVAILABLE,
+        )
+        val thirdMatch = historicalResult(HistoricalSearchSource.OPEN_ARCHIEVEN, 5).copy(
+            event = "Huwelijk",
+            eventStatus = HistoricalContextStatus.AVAILABLE,
+        )
+        val fourthMatch = historicalResult(HistoricalSearchSource.OPEN_ARCHIEVEN, 6).copy(
+            place = "Heemskerk",
+            placeStatus = HistoricalContextStatus.AVAILABLE,
+        )
+
+        val relations = HistoricalSearchRelations.find(
+            opened.copy(event = "Huwelijk", eventStatus = HistoricalContextStatus.AVAILABLE),
+            listOf(opened, placeMatch, periodOnly, uncertainPerson, personMatch, thirdMatch, fourthMatch),
+        )
+
+        assertEquals(listOf("OPEN_ARCHIEVEN-1", "OPEN_ARCHIEVEN-4", "OPEN_ARCHIEVEN-5"), relations.map { it.sourceRecordId })
+        assertEquals(listOf("Plaats"), relations.first().sharedFields.map { it.field })
+        assertEquals(listOf("Persoon"), relations[1].sharedFields.map { it.field })
+        assertEquals(listOf("Gebeurtenis"), relations[2].sharedFields.map { it.field })
+        assertTrue(relations.first().periodOverlaps)
+        assertFalse(relations[1].periodOverlaps)
+    }
+
+    @Test
+    fun `adapter distinguishes missing and contradictory place metadata`() {
+        val fixture = startFixture(
+            """
+            {"totalResults":2,"items":[
+              {"id":"uncertain","guid":"https://data.example/uncertain","place":["Heemskerk","Beverwijk"],"metadataRights":"ALLOWED","privacyStatus":"CLEAR"},
+              {"id":"missing","guid":"https://data.example/missing","metadataRights":"ALLOWED","privacyStatus":"CLEAR"}
+            ]}
+            """.trimIndent(),
+        )
+        try {
+            val results = EuropeanaSearchAdapter(
+                RestClient.builder().baseUrl(fixture.baseUrl).build(),
+                wskey = "test-key",
+                clock = fixedClock(),
+            ).search(HistoricalSearchQuery(text = "geschiedenis")).results
+
+            assertEquals(null, results[0].place)
+            assertEquals(HistoricalContextStatus.UNCERTAIN, results[0].placeStatus)
+            assertEquals(null, results[1].place)
+            assertEquals(HistoricalContextStatus.MISSING, results[1].placeStatus)
+        } finally {
+            fixture.stop()
         }
     }
 
