@@ -15,9 +15,12 @@ The homepage also provides the separate `Historisch zoeken` entry next to the la
 `GET /api/historical-search` with optional free text, place, person, event, year range and source
 filters. The response exposes an aggregate `state` (`RESULTS`, `NO_RESULTS`,
 `PARTIAL_AVAILABILITY` or `SOURCE_FAILURE`) and one technical status per selected source
-(`AVAILABLE`, `DISABLED`, `TEMPORARILY_UNAVAILABLE` or `INVALID_RESPONSE`). With partial
-availability the page keeps results from available sources visible and adds short, source-specific
-messages. Full source failure shows one semantic source-problem status, the safe message for every
+(`AVAILABLE`, `DISABLED`, `TEMPORARILY_UNAVAILABLE`, `INVALID_RESPONSE`, or for Open Archieven
+`TIMEOUT`, `HTTP_ERROR`, `INVALID_JSON` or `MISSING_REQUIRED_FIELDS`). With partial availability the
+page keeps results from available sources visible and adds short, source-specific messages. For the four Open
+Archieven statuses the fixed messages are `Open Archieven reageerde niet op tijd`, `Open Archieven
+gaf een fout bij het opvragen`, `Open Archieven stuurde een onleesbaar antwoord` and `Open Archieven
+stuurde een onvolledig antwoord`. Full source failure shows one semantic source-problem status, the safe message for every
 failed source and the keyboard-operable actions `Opnieuw proberen` and `Zoekopdracht aanpassen`,
 without presenting a misleading result count. `Zoekopdracht aanpassen` keeps the user on the same
 route, moves focus deliberately to the existing free-text field and preserves all entered values

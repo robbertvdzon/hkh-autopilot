@@ -44,7 +44,8 @@
   zelfstandige module `historicalsearch` voegt daarnaast `GET /api/historical-search` toe met
   genormaliseerde Europeana/Open Archieven-resultaten, bronkeuze, queryvalidatie, cursorpaginering,
   een geaggregeerde state (`RESULTS`, `NO_RESULTS`, `PARTIAL_AVAILABILITY` of `SOURCE_FAILURE`),
-  per-bronstatus (`AVAILABLE`, `DISABLED`, `TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`),
+  per-bronstatus (`AVAILABLE`, `DISABLED`, `TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`; voor
+  Open Archieven daarnaast `TIMEOUT`, `HTTP_ERROR`, `INVALID_JSON` of `MISSING_REQUIRED_FIELDS`),
   fail-closed metadata/statusmapping en zonder opslag van zoekopdrachten of bronpayloads). Het
   Open Archieven-resultaat exposeert in de publieke JSON-respons de door de bron geleverde
   `source_name`, de veilige referentie `stable_identifier` (`hee:uuid`) en
@@ -54,7 +55,10 @@
   niet-negatieve numerieke `number_found` en verplichte, niet-lege `source_name`, `uuid` en
   absolute HTTP(S)-`original_source_url` per document; ontbrekende, lege, onveilige of
   tegenstrijdige waarden maken de bron ongeldig. Een lege `docs`-lijst met `number_found: 0`
-  blijft een beschikbaar nulresultaat. Het
+  blijft een beschikbaar nulresultaat. Een niet-2xx antwoord is `HTTP_ERROR`, ook wanneer de body
+  geldige JSON bevat; een lege of onleesbare body is `INVALID_JSON`; ontbrekende, onjuiste, lege of
+  tegenstrijdige verplichte velden zijn `MISSING_REQUIRED_FIELDS`. Andere transportproblemen
+  blijven `TEMPORARILY_UNAVAILABLE`. Het
   publieke zoekresultaat mapt uitsluitend expliciete `ALLOWED` en `RESTRICTED` rechtenwaarden;
   ontbrekende, lege, niet-herkende of tegenstrijdige waarden worden `UNKNOWN` en het vrije bronveld
   `rights` bepaalt geen gecontroleerde status. Het

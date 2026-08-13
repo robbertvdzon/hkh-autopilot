@@ -455,8 +455,9 @@ privacyclassificatie.
   query geeft HTTP 400 met `{ "error": "..." }`; een geldig verzoek geeft `{ results, total, start,
   limit, sources, state }`. `state` is `RESULTS`, `NO_RESULTS`, `PARTIAL_AVAILABILITY` of
   `SOURCE_FAILURE`; `sources` bevat voor elke geselecteerde bron de technische status
-  (`AVAILABLE`, `DISABLED`, `TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`), een veilige korte
-  melding en nullable `resultCount`/`heemskerkCount`-velden. Voor een beschikbare bron tellen deze
+  (`AVAILABLE`, `DISABLED`, `TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`; voor Open Archieven
+  daarnaast `TIMEOUT`, `HTTP_ERROR`, `INVALID_JSON` of `MISSING_REQUIRED_FIELDS`), een veilige
+  korte melding en nullable `resultCount`/`heemskerkCount`-velden. Voor een beschikbare bron tellen deze
   velden alleen de veilig genormaliseerde resultaten in de huidige zichtbare `results`-pagina;
   voor een niet-beschikbare bron blijven ze `null`. Elk resultaat bevat de genormaliseerde metadata,
   de server-side UTC `retrievedAt`, de
@@ -512,11 +513,12 @@ privacyclassificatie.
   Archieven). Voor Open Archieven zijn bovendien een object `response`, een niet-negatieve
   numerieke `number_found` en per document de verplichte velden `source_name`, veilige `uuid` en
   absolute HTTP(S)-`original_source_url` met geldige host vereist. `number_found` moet met een
-  lege/niet-lege `docs`-pagina overeenkomen en minstens de paginagrootte omvatten. Foutobjecten,
-  lege/ongeldige JSON, ontbrekende of lege verplichte waarden en tegenstrijdige tellingen worden
-  fail-closed `INVALID_RESPONSE`; een ongeldige individuele Open Archieven-documentrespons maakt
-  dus de bronrespons ongeldig. Een lege `docs`-lijst met `number_found: 0` blijft een geldige lege
-  bronrespons. De bronlink wordt uitsluitend uit het bronantwoord overgenomen en nooit
+  lege/niet-lege `docs`-pagina overeenkomen en minstens de paginagrootte omvatten. Een niet-2xx
+  providerantwoord wordt `HTTP_ERROR`, ongeacht de body. Een lege of niet als JSON leesbare respons
+  wordt `INVALID_JSON`; foutobjecten, ontbrekende, lege, onjuiste of tegenstrijdige verplichte
+  velden worden `MISSING_REQUIRED_FIELDS`. Een ongeldige individuele Open Archieven-documentrespons
+  maakt dus de bronrespons ongeldig. Een lege `docs`-lijst met `number_found: 0` blijft een geldige
+  lege bronrespons. De bronlink wordt uitsluitend uit het bronantwoord overgenomen en nooit
   geconstrueerd.
 - `failClosedMetadata()` behoudt de veilige bronidentifier, bronlink, ophaaltijd en afzonderlijke
   statusvelden, maar wist inhoudelijke metadata tenzij `metadataRights == ALLOWED` én
@@ -555,6 +557,10 @@ actie focust het bestaande vrije-tekstveld zonder de ingevoerde zoekwaarden te w
 opnieuw via de laadstatus. Statussen gebruiken één `SemanticsRole.status`-node; de zichtbare tekst
 en laadindicatoren voegen geen extra statusknoop toe en de spinner is semantisch uitgesloten;
 automatische statusupdates verplaatsen de focus niet. De bewuste aanpasactie is de enige focusverplaatsing;
+de vier Open Archieven-diagnosestatussen worden gemapt naar de vaste meldingen `Open Archieven
+reageerde niet op tijd`, `Open Archieven gaf een fout bij het opvragen`, `Open Archieven stuurde een
+onleesbaar antwoord` en `Open Archieven stuurde een onvolledig antwoord`. Ruwe provider- of
+exceptioninhoud wordt nooit gerenderd;
 externe bronknoppen
 hebben een tekstueel label dat het openen van een externe bron in een nieuw tabblad aankondigt.
 
