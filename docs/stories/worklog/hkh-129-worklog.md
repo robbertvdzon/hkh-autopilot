@@ -24,3 +24,15 @@ Developer-run afgerond.
 - Verificatie groen: `mvn -B --no-transfer-progress clean verify` (305 tests),
   frontend analyze, 66 frontendtests, frontend webbuild, admin analyze en 36
   admintests; alle met exitcode 0 en zonder failures/errors.
+
+## Reviewnotities
+
+- Volledige story-diff ten opzichte van `main` gecontroleerd; het harness-bewijs is
+  geldig (`tested worktree tree` is gelijk aan `HEAD^{tree}`) en de gerichte backend-
+  (27 tests) en frontendtests (24 tests) zijn groen.
+- [blocker] `frontend/lib/historical/historical_rights_explanation.dart:3-9`
+  benoemt wel dat toegestane metadatarechten niet automatisch object-/mediarechten
+  geven, maar niet de omgekeerde richting. De acceptance criteria verlangen dat de
+  uitleg tekstueel maakt dat de ene status de andere niet impliceert; voeg ook toe
+  dat toegestane object-/mediarechten niet automatisch metadatarechten betekenen,
+  zowel op de resultaatkaart als in de detailweergave (die deze component delen).
