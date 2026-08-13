@@ -8,6 +8,31 @@ enum HistoricalSourceChoice { europeana, openArchieven }
 
 enum HistoricalContextStatus { available, missing, uncertain, unavailable }
 
+enum HistoricalFollowUpTopic { place, person, event, period }
+
+const historicalFollowUpWarning =
+    'Dit is een nieuwe zoekingang en bewijst geen relatie tussen bronnen.';
+
+class HistoricalFollowUpAction {
+  const HistoricalFollowUpAction({
+    required this.topic,
+    required this.label,
+    this.place,
+    this.person,
+    this.event,
+    this.fromYear,
+    this.toYear,
+  });
+
+  final HistoricalFollowUpTopic topic;
+  final String label;
+  final String? place;
+  final String? person;
+  final String? event;
+  final String? fromYear;
+  final String? toYear;
+}
+
 HistoricalContextStatus _contextStatusFromJson(
   Object? value,
   String? fieldValue,
@@ -25,6 +50,9 @@ String _sourceName(HistoricalSourceChoice source) => switch (source) {
   HistoricalSourceChoice.europeana => 'EUROPEANA',
   HistoricalSourceChoice.openArchieven => 'OPEN_ARCHIEVEN',
 };
+
+String? _optionalHistoricalFilter(String value) =>
+    value.trim().isEmpty ? null : value;
 
 class HistoricalSearchResult {
   const HistoricalSearchResult({
@@ -120,6 +148,77 @@ class HistoricalSearchResult {
   final HistoricalContextStatus placeStatus;
   final HistoricalContextStatus personStatus;
   final HistoricalContextStatus eventStatus;
+}
+
+List<HistoricalFollowUpAction> historicalFollowUpActions(
+  HistoricalSearchResult result,
+) {
+  if (result.technicalStatus != 'AVAILABLE' ||
+      result.metadataRights != 'ALLOWED' ||
+      result.privacyStatus != 'CLEAR') {
+    return const [];
+  }
+
+  final actions = <HistoricalFollowUpAction>[];
+  void addContextAction({
+    required HistoricalFollowUpTopic topic,
+    required HistoricalContextStatus status,
+    required String? value,
+    required String subject,
+  }) {
+    if (status != HistoricalContextStatus.available ||
+        value?.trim().isNotEmpty != true) {
+      return;
+    }
+    actions.add(
+      HistoricalFollowUpAction(
+        topic: topic,
+        label: 'Nieuwe zoekingang op $subject: $value',
+        place: topic == HistoricalFollowUpTopic.place ? value : null,
+        person: topic == HistoricalFollowUpTopic.person ? value : null,
+        event: topic == HistoricalFollowUpTopic.event ? value : null,
+      ),
+    );
+  }
+
+  addContextAction(
+    topic: HistoricalFollowUpTopic.place,
+    status: result.placeStatus,
+    value: result.place,
+    subject: 'plaats',
+  );
+  addContextAction(
+    topic: HistoricalFollowUpTopic.person,
+    status: result.personStatus,
+    value: result.person,
+    subject: 'persoon',
+  );
+  addContextAction(
+    topic: HistoricalFollowUpTopic.event,
+    status: result.eventStatus,
+    value: result.event,
+    subject: 'gebeurtenis',
+  );
+
+  final fromYear = result.dateStart?.trim();
+  final toYear = result.dateEnd?.trim();
+  final validYear = RegExp(r'^\d{4}$');
+  if (fromYear != null &&
+      toYear != null &&
+      validYear.hasMatch(fromYear) &&
+      validYear.hasMatch(toYear) &&
+      int.parse(fromYear) <= int.parse(toYear)) {
+    actions.add(
+      HistoricalFollowUpAction(
+        topic: HistoricalFollowUpTopic.period,
+        label:
+            'Nieuwe zoekingang op periode: ${result.dateStart}–${result.dateEnd}',
+        fromYear: result.dateStart,
+        toYear: result.dateEnd,
+      ),
+    );
+  }
+  return actions;
 }
 
 class HistoricalSourceStatus {
@@ -228,9 +327,10 @@ class HistoricalSearchValidationException implements Exception {
 }
 
 class HistoricalSearchPage extends StatefulWidget {
-  const HistoricalSearchPage({required this.source, super.key});
+  const HistoricalSearchPage({required this.source, this.followUp, super.key});
 
   final HistoricalSearchSource source;
+  final HistoricalFollowUpAction? followUp;
 
   @override
   State<HistoricalSearchPage> createState() => _HistoricalSearchPageState();
@@ -248,6 +348,22 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
   static const _limit = 100;
 
   @override
+  void initState() {
+    super.initState();
+    final followUp = widget.followUp;
+    if (followUp != null) {
+      _place.text = followUp.place ?? '';
+      _person.text = followUp.person ?? '';
+      _event.text = followUp.event ?? '';
+      _fromYear.text = followUp.fromYear ?? '';
+      _toYear.text = followUp.toYear ?? '';
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _runSearch();
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _text.dispose();
     _place.dispose();
@@ -262,12 +378,12 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
     final nextStart = start ?? 0;
     setState(() {
       _search = widget.source.loadHistoricalSearch(
-        text: _text.text,
-        place: _place.text,
-        person: _person.text,
-        event: _event.text,
-        fromYear: _fromYear.text,
-        toYear: _toYear.text,
+        text: _optionalHistoricalFilter(_text.text),
+        place: _optionalHistoricalFilter(_place.text),
+        person: _optionalHistoricalFilter(_person.text),
+        event: _optionalHistoricalFilter(_event.text),
+        fromYear: _optionalHistoricalFilter(_fromYear.text),
+        toYear: _optionalHistoricalFilter(_toYear.text),
         source: _source,
         start: nextStart,
         limit: _limit,
@@ -287,6 +403,17 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
               'Zoek in publieke historische bronnen.',
               style: Theme.of(context).textTheme.headlineSmall,
             ),
+            if (widget.followUp != null) ...[
+              const SizedBox(height: 8),
+              Text(widget.followUp!.label),
+              const SizedBox(height: 8),
+              Semantics(
+                container: true,
+                explicitChildNodes: true,
+                label: historicalFollowUpWarning,
+                child: const Text(historicalFollowUpWarning),
+              ),
+            ],
             const SizedBox(height: 16),
             TextField(
               controller: _text,
@@ -413,6 +540,7 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
                   return _HistoricalResults(
                     response: response,
                     state: state,
+                    source: widget.source,
                     onPrevious: response.start == 0
                         ? null
                         : () => _runSearch(
@@ -451,12 +579,14 @@ class _HistoricalResults extends StatelessWidget {
   const _HistoricalResults({
     required this.response,
     required this.state,
+    required this.source,
     required this.onPrevious,
     required this.onNext,
   });
 
   final HistoricalSearchResponse response;
   final String state;
+  final HistoricalSearchSource source;
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
 
@@ -511,7 +641,11 @@ class _HistoricalResults extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         ...response.results.map(
-          (result) => _HistoricalResultCard(result: result, response: response),
+          (result) => _HistoricalResultCard(
+            result: result,
+            response: response,
+            source: source,
+          ),
         ),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -532,10 +666,15 @@ class _HistoricalResults extends StatelessWidget {
 }
 
 class _HistoricalResultCard extends StatelessWidget {
-  const _HistoricalResultCard({required this.result, required this.response});
+  const _HistoricalResultCard({
+    required this.result,
+    required this.response,
+    required this.source,
+  });
 
   final HistoricalSearchResult result;
   final HistoricalSearchResponse response;
+  final HistoricalSearchSource source;
 
   @override
   Widget build(BuildContext context) {
@@ -590,6 +729,7 @@ class _HistoricalResultCard extends StatelessWidget {
                         visibleResults: response.results,
                         searchState: response.state,
                         sourceStatuses: response.sources,
+                        source: source,
                       ),
                     ),
                   ),
