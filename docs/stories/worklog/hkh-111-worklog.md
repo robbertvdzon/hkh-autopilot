@@ -9,6 +9,7 @@ Stappenplan:
 [x]: unit/widgettests voor queries, gating, waarschuwing en navigatie toevoegen
 [x]: formatten en volledig factory-vangnet uitvoeren
 [x]: worklog afronden met resultaten
+[x]: reviewbevindingen over fail-closed statusmapping en querydekking herstellen
 
 Done / rationale:
 - Worklog aangemaakt aan het begin van de developer-run, zoals voorgeschreven door de factory.
@@ -22,6 +23,12 @@ Done / rationale:
 - `historical_follow_up_test.dart` dekt exacte actievelden, fail-closed uitzonderingen, semantiek,
   waarschuwing, bronhergebruik en terugnavigatie. Er is geen opslagmechanisme toegevoegd.
 - Verificatie: backend `mvn -B --no-transfer-progress clean verify` (301 tests groen), frontend
-  `flutter analyze`, `flutter test --concurrency=1 --reporter expanded` (56 tests groen),
-  `flutter build web`, admin `flutter analyze` en `flutter test --concurrency=1 --reporter expanded`
+  `flutter analyze`, `flutter test` (57 tests groen),
+  `flutter build web`, admin `flutter analyze` en `flutter test`
   (35 tests groen) zijn allemaal succesvol afgerond.
+
+Reviewherstel:
+- De vorige review wees erop dat onbekende of expliciete `MISSING`-contextstatus niet naar
+  `AVAILABLE` mag terugvallen en dat de exacte vervolgquery nog voor persoon, gebeurtenis en
+  periode moet worden getest. De statusmapping is fail-closed gemaakt en de querydekking is
+  uitgebreid met alle vier onderwerpen; de volledige verificatie is daarna opnieuw groen gedraaid.

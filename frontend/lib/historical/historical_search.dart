@@ -33,18 +33,16 @@ class HistoricalFollowUpAction {
   final String? toYear;
 }
 
-HistoricalContextStatus _contextStatusFromJson(
-  Object? value,
-  String? fieldValue,
-) => switch (value) {
-  'AVAILABLE' => HistoricalContextStatus.available,
-  'UNCERTAIN' => HistoricalContextStatus.uncertain,
-  'UNAVAILABLE' => HistoricalContextStatus.unavailable,
-  _ =>
-    fieldValue?.trim().isNotEmpty == true
-        ? HistoricalContextStatus.available
-        : HistoricalContextStatus.missing,
-};
+HistoricalContextStatus _contextStatusFromJson(Object? value) =>
+    switch (value) {
+      'AVAILABLE' => HistoricalContextStatus.available,
+      'MISSING' => HistoricalContextStatus.missing,
+      'UNCERTAIN' => HistoricalContextStatus.uncertain,
+      'UNAVAILABLE' => HistoricalContextStatus.unavailable,
+      // A missing or unknown context status must never be promoted to a certain
+      // value merely because a payload happens to contain text.
+      _ => HistoricalContextStatus.unavailable,
+    };
 
 String _sourceName(HistoricalSourceChoice source) => switch (source) {
   HistoricalSourceChoice.europeana => 'EUROPEANA',
@@ -113,18 +111,9 @@ class HistoricalSearchResult {
         metadataRights: json['metadataRights'] as String? ?? 'UNKNOWN',
         objectMediaRights: json['objectMediaRights'] as String? ?? 'UNKNOWN',
         privacyStatus: json['privacyStatus'] as String? ?? 'UNKNOWN',
-        placeStatus: _contextStatusFromJson(
-          json['placeStatus'],
-          json['place'] as String?,
-        ),
-        personStatus: _contextStatusFromJson(
-          json['personStatus'],
-          json['person'] as String?,
-        ),
-        eventStatus: _contextStatusFromJson(
-          json['eventStatus'],
-          json['event'] as String?,
-        ),
+        placeStatus: _contextStatusFromJson(json['placeStatus']),
+        personStatus: _contextStatusFromJson(json['personStatus']),
+        eventStatus: _contextStatusFromJson(json['eventStatus']),
       );
 
   final String source;

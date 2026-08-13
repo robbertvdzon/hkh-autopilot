@@ -124,6 +124,28 @@ void main() {
     },
   );
 
+  test('does not promote missing or unknown API context statuses', () {
+    final missing = HistoricalSearchResult.fromJson({
+      'source': 'OPEN_ARCHIEVEN',
+      'sourceRecordId': 'missing-status',
+      'stableUrl': 'https://example.test/missing-status',
+      'retrievedAt': '2026-08-12T00:00:00Z',
+      'place': 'Heemskerk',
+      'person': 'Jan de Vries',
+      'event': 'Huwelijk',
+      'placeStatus': 'MISSING',
+      'personStatus': 'UNKNOWN',
+      'eventStatus': null,
+      'metadataRights': 'ALLOWED',
+      'privacyStatus': 'CLEAR',
+    });
+
+    expect(missing.placeStatus, HistoricalContextStatus.missing);
+    expect(missing.personStatus, HistoricalContextStatus.unavailable);
+    expect(missing.eventStatus, HistoricalContextStatus.unavailable);
+    expect(historicalFollowUpActions(missing), isEmpty);
+  });
+
   testWidgets(
     'starts an unfiltered exact follow-up and preserves both back steps',
     (tester) async {
@@ -205,10 +227,65 @@ void main() {
 
       await tester.pageBack();
       await tester.pumpAndSettle();
+
+      await tester.ensureVisible(
+        find.byKey(const Key('historical-follow-up-person-follow-up-1')),
+      );
+      await tester.tap(
+        find.byKey(const Key('historical-follow-up-person-follow-up-1')),
+      );
+      await tester.pumpAndSettle();
+      expect(source.calls, hasLength(2));
+      expect(source.calls[1].place, isNull);
+      expect(source.calls[1].person, 'Jan de Vries');
+      expect(source.calls[1].event, isNull);
+      expect(source.calls[1].fromYear, isNull);
+      expect(source.calls[1].toYear, isNull);
+      expect(source.calls[1].source, isNull);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const Key('historical-follow-up-event-follow-up-1')),
+      );
+      await tester.tap(
+        find.byKey(const Key('historical-follow-up-event-follow-up-1')),
+      );
+      await tester.pumpAndSettle();
+      expect(source.calls, hasLength(3));
+      expect(source.calls[2].place, isNull);
+      expect(source.calls[2].person, isNull);
+      expect(source.calls[2].event, 'Huwelijk');
+      expect(source.calls[2].fromYear, isNull);
+      expect(source.calls[2].toYear, isNull);
+      expect(source.calls[2].source, isNull);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const Key('historical-follow-up-period-follow-up-1')),
+      );
+      await tester.tap(
+        find.byKey(const Key('historical-follow-up-period-follow-up-1')),
+      );
+      await tester.pumpAndSettle();
+      expect(source.calls, hasLength(4));
+      expect(source.calls[3].place, isNull);
+      expect(source.calls[3].person, isNull);
+      expect(source.calls[3].event, isNull);
+      expect(source.calls[3].fromYear, '1900');
+      expect(source.calls[3].toYear, '1910');
+      expect(source.calls[3].source, isNull);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
       for (var index = 0; index < 5; index++) {
         await tester.drag(find.byType(ListView), const Offset(0, 500));
         await tester.pump();
       }
+      await tester.ensureVisible(
+        find.text('Context van historisch zoekresultaat'),
+      );
       expect(find.text('Context van historisch zoekresultaat'), findsOneWidget);
       await tester.pageBack();
       await tester.pumpAndSettle();
