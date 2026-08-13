@@ -46,6 +46,15 @@
   een geaggregeerde state (`RESULTS`, `NO_RESULTS`, `PARTIAL_AVAILABILITY` of `SOURCE_FAILURE`),
   per-bronstatus (`AVAILABLE`, `DISABLED`, `TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`),
   fail-closed metadata/statusmapping en zonder opslag van zoekopdrachten of bronpayloads). Het
+  Open Archieven-resultaat exposeert in de publieke JSON-respons de door de bron geleverde
+  `source_name`, de veilige referentie `stable_identifier` (`hee:uuid`) en
+  `original_source_url`; voor een Heemskerk-zoekopdracht worden `name=Heemskerk` en
+  `archive_code=hee` afzonderlijk meegestuurd. De bronlink wordt nooit lokaal geconstrueerd.
+  Een Open Archieven-respons is alleen geldig met een object `response`, een array `docs`, een
+  niet-negatieve numerieke `number_found` en verplichte, niet-lege `source_name`, `uuid` en
+  absolute HTTP(S)-`original_source_url` per document; ontbrekende, lege, onveilige of
+  tegenstrijdige waarden maken de bron ongeldig. Een lege `docs`-lijst met `number_found: 0`
+  blijft een beschikbaar nulresultaat. Het
   publieke zoekresultaat mapt uitsluitend expliciete `ALLOWED` en `RESTRICTED` rechtenwaarden;
   ontbrekende, lege, niet-herkende of tegenstrijdige waarden worden `UNKNOWN` en het vrije bronveld
   `rights` bepaalt geen gecontroleerde status. Het
@@ -55,7 +64,8 @@
   met `type`, `source.name`, `target.name`, een stabiele HTTP(S)-`target.uri` en een externe
   HTTP(S)-`target.link`; ontbrekende of onveilige relaties worden volledig weggelaten en nooit uit
   metadata-overlap afgeleid. De beschikbare Flutter-resultaatkaart biedt `Context bekijken`; de detailpagina
-  toont context-, bron-, rechten- en privacymetadata, herhaalt de zoek-/bronstatus en gebruikt
+  toont de genormaliseerde bronnaam, identifier en oorspronkelijke bronlink naast context-, bron-,
+  rechten- en privacymetadata, herhaalt de zoek-/bronstatus en gebruikt
   expliciet `Niet beschikbaar`/`Onzeker` voor ontbrekende of onzekere context. Verwante resultaten
   worden uitsluitend uit de huidige zichtbare `results`-lijst bepaald, maximaal drie, na exacte
   deterministische normalisatie van plaats/persoon/gebeurtenis; een periode-overlap is alleen

@@ -29,6 +29,14 @@ Heemskerk-indicatie op basis van zekere plaatsmetadata; die indicatie is geen hi
 De Europeana-wskey is uitsluitend server-side configuratie; zie
 [docs/factory/secrets-local.md](docs/factory/secrets-local.md) voor de configuratienamen.
 
+Voor een Heemskerk-zoekopdracht bevraagt de Open Archieven-adapter de bron met afzonderlijke
+parameters `name=Heemskerk` en `archive_code=hee`. Een geldig Open Archieven-resultaat exposeert
+de door de bron geleverde `source_name`, `stable_identifier` in de vorm `hee:uuid` en
+`original_source_url`; die bronlink wordt nooit lokaal samengesteld. Ontbrekende, lege,
+ongeldige of tegenstrijdige verplichte responsvelden maken de bronrespons ongeldig. Een lege
+`docs`-lijst met `number_found: 0` blijft daarentegen een beschikbaar nulresultaat. De adapter
+behoudt de bestaande User-Agent, limiet, paginering en procesbrede rate limit.
+
 De rechtenvelden van elk resultaat worden uitsluitend uit expliciete rechtenmetadata van dat
 bronresultaat bepaald. Alleen `ALLOWED` en `RESTRICTED` worden herkend; ontbrekende, lege,
 niet-herkende of tegenstrijdige waarden worden `UNKNOWN`. Het vrije tekstveld `rights` blijft

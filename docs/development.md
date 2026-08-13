@@ -111,7 +111,11 @@ remains separate from the public search contract below.
 The standalone `nl.vdzon.hkh.historicalsearch` module exposes `GET /api/historical-search`. It
 normalizes Europeana and Open Archieven results to one response shape with source, stable source
 identifier and URL, optional title/description/place/person/event/dates/institution/rights/privacy,
-and a server-side UTC `retrievedAt`. Each result also contains `relationships[]` for complete
+and a server-side UTC `retrievedAt`. Open Archieven additionally exposes the provider-normalized
+snake_case fields `source_name`, `stable_identifier` and `original_source_url` in the public
+response. For a Heemskerk search it sends `name=Heemskerk` and `archive_code=hee` as separate
+provider parameters. The identifier is formed from the provider's safe `uuid` as `hee:uuid` and
+the URL is copied only from the provider response; neither value is invented locally. Each result also contains `relationships[]` for complete
 relationships explicitly supplied by the provider: `type`, `source.name`, `target.name`, an
 explicit HTTP(S) `target.uri` and the provider-supplied HTTP(S) `target.link`. Relationships are
 kept in provider order, never inferred from metadata overlap or search context, and are removed
@@ -132,9 +136,11 @@ The Heemskerk value is displayed as a place-metadata indication, never as histor
 Each result also exposes `placeStatus`, `personStatus` and `eventStatus` with `AVAILABLE`, `MISSING`,
 `UNCERTAIN` or `UNAVAILABLE`. Context values are copied only from explicit provider fields;
 conflicting or unsafe values are withheld and marked accordingly. The Flutter result card offers
-`Context bekijken` for available results. Its detail page shows all available context and source
-metadata, the aggregate search state and the selected source status. Missing or unavailable values
-are rendered as `Niet beschikbaar`, uncertain values as `Onzeker`.
+`Context bekijken` for available results and shows the normalized provider source name and
+identifier when supplied. Its detail page shows the normalized source name, identifier and
+provider-supplied original URL alongside the available context and source metadata, the aggregate
+search state and the selected source status. Missing or unavailable values are rendered as
+`Niet beschikbaar`, uncertain values as `Onzeker`.
 
 The detail page calculates at most three related results from the response's currently visible
 `results` list; it does not fetch another provider page. The opened result is excluded. A relation
@@ -168,8 +174,12 @@ the route returns `SOURCE_FAILURE`, an empty result list and `total: 0`; this is
 
 Europeana is disabled independently when `HKH_EUROPEANA_WSKEY` is absent. Open Archieven uses the
 same descriptive user-agent and a process-wide limiter with at least 251 ms between requests.
-Provider records without a valid source URL or identifier are omitted, URLs are never constructed
-locally, and explicit rights/privacy checks suppress content metadata fail-closed. The route never
+Its response contract requires an object `response` with an array `docs` and a non-negative numeric
+`number_found`. The count must agree with whether the page is empty and cannot be smaller than the
+page size; missing, empty, malformed or contradictory required fields make the source
+`INVALID_RESPONSE`. Every Open Archieven document must provide a non-empty safe `source_name`, a
+safe `uuid` and an absolute HTTP(S) `original_source_url` with a valid host. URLs are never
+constructed locally, and explicit rights/privacy checks suppress content metadata fail-closed. The route never
 stores searches, raw provider responses, media or external personal data.
 
 For each result, `metadataRights` and `objectMediaRights` are mapped independently from explicit
