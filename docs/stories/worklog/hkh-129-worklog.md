@@ -48,3 +48,14 @@ Developer-run afgerond.
   uitleg tekstueel maakt dat de ene status de andere niet impliceert; voeg ook toe
   dat toegestane object-/mediarechten niet automatisch metadatarechten betekenen,
   zowel op de resultaatkaart als in de detailweergave (die deze component delen).
+
+## Vervolgreview
+
+- De eerdere blocker is opgelost: de gedeelde uitleg bevat nu ook expliciet de
+  omgekeerde onafhankelijkheid van object-/mediarechten en metadatarechten.
+- De uitleg blijft op zowel resultaatkaart als detailweergave een semantische,
+  toetsenbordbedienbare `TextButton` en de nieuwe tekst wordt door de semantiektest
+  gecontroleerd.
+- Geen nieuwe regressies gevonden in de volledige `main...HEAD`-diff. Gerichte
+  checks zijn groen: `HistoricalSearchTest` (27/27) en de relevante Flutter-tests
+  (25/25). Het factory-verificatieblok is geldig voor de actuele tree.
