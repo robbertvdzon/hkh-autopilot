@@ -15,6 +15,10 @@ enum class HistoricalTechnicalStatus {
     DISABLED,
     TEMPORARILY_UNAVAILABLE,
     INVALID_RESPONSE,
+    TIMEOUT,
+    HTTP_ERROR,
+    INVALID_JSON,
+    MISSING_REQUIRED_FIELDS,
 }
 
 enum class HistoricalRightsStatus {
@@ -158,6 +162,10 @@ object HistoricalSourceMessages {
     const val NOT_CONFIGURED = "Bron is niet geconfigureerd."
     const val TEMPORARILY_UNAVAILABLE = "Bron is tijdelijk niet beschikbaar."
     const val INVALID_RESPONSE = "Ongeldige bronrespons."
+    const val OPEN_ARCHIEVEN_TIMEOUT = "Open Archieven reageerde niet op tijd."
+    const val OPEN_ARCHIEVEN_HTTP_ERROR = "Open Archieven gaf een fout bij het opvragen."
+    const val OPEN_ARCHIEVEN_INVALID_JSON = "Open Archieven stuurde een onleesbaar antwoord."
+    const val OPEN_ARCHIEVEN_MISSING_REQUIRED_FIELDS = "Open Archieven stuurde een onvolledig antwoord."
 
     private val knownSafeMessages = setOf(
         "Europeana vereist een vrije zoekterm, persoon, plek of gebeurtenis.",
@@ -177,6 +185,10 @@ object HistoricalSourceMessages {
             message?.takeIf(knownSafeMessages::contains) ?: TEMPORARILY_UNAVAILABLE
         HistoricalTechnicalStatus.INVALID_RESPONSE ->
             message?.takeIf(knownSafeMessages::contains) ?: INVALID_RESPONSE
+        HistoricalTechnicalStatus.TIMEOUT -> OPEN_ARCHIEVEN_TIMEOUT
+        HistoricalTechnicalStatus.HTTP_ERROR -> OPEN_ARCHIEVEN_HTTP_ERROR
+        HistoricalTechnicalStatus.INVALID_JSON -> OPEN_ARCHIEVEN_INVALID_JSON
+        HistoricalTechnicalStatus.MISSING_REQUIRED_FIELDS -> OPEN_ARCHIEVEN_MISSING_REQUIRED_FIELDS
     }
 }
 

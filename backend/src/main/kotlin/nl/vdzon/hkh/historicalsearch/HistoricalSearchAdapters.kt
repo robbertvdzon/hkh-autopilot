@@ -1,12 +1,18 @@
 package nl.vdzon.hkh.historicalsearch
 
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.net.SocketTimeoutException
+import java.net.http.HttpTimeoutException
+import java.util.concurrent.TimeoutException
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpHeaders
+import org.springframework.http.client.JdkClientHttpRequestFactory
+import org.springframework.web.client.RestClientResponseException
 import org.springframework.web.client.RestClient
 import org.springframework.web.util.UriComponentsBuilder
 import tools.jackson.databind.JsonNode
@@ -23,6 +29,8 @@ class HistoricalSearchConfiguration(
     private val europeanaWskey: String,
     @param:Value("\${hkh.historical.open-archieven-base-url:https://api.openarchieven.nl/1.1}")
     private val openArchievenBaseUrl: String,
+    @param:Value("\${hkh.historical.open-archieven-timeout:10s}")
+    private val openArchievenTimeout: Duration,
 ) {
     @Bean
     fun historicalSearchRateLimiter(): HistoricalSearchRateLimiter = FourPerSecondHistoricalRateLimiter()
@@ -36,10 +44,19 @@ class HistoricalSearchConfiguration(
     @Bean
     fun openArchievenSearchAdapter(rateLimiter: HistoricalSearchRateLimiter): OpenArchievenSearchAdapter =
         OpenArchievenSearchAdapter(
-            restClient = RestClient.builder().baseUrl(openArchievenBaseUrl).build(),
+            restClient = openArchievenRestClient(openArchievenBaseUrl, openArchievenTimeout),
             rateLimiter = rateLimiter,
             configured = openArchievenBaseUrl.isNotBlank(),
         )
+
+    private fun openArchievenRestClient(baseUrl: String, timeout: Duration): RestClient {
+        val requestFactory = JdkClientHttpRequestFactory()
+        requestFactory.setReadTimeout(timeout)
+        return RestClient.builder()
+            .baseUrl(baseUrl)
+            .requestFactory(requestFactory)
+            .build()
+    }
 }
 
 fun interface HistoricalSearchRateLimiter {
@@ -169,6 +186,25 @@ class EuropeanaSearchAdapter(
     }
 }
 
+private fun Exception.transportStatus(): HistoricalTechnicalStatus = when {
+    this is OpenArchievenHttpError -> HistoricalTechnicalStatus.HTTP_ERROR
+    this is RestClientResponseException -> HistoricalTechnicalStatus.HTTP_ERROR
+    hasCause { it is SocketTimeoutException || it is HttpTimeoutException || it is TimeoutException } ->
+        HistoricalTechnicalStatus.TIMEOUT
+    else -> HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE
+}
+
+private class OpenArchievenHttpError : RuntimeException()
+
+private fun Throwable.hasCause(predicate: (Throwable) -> Boolean): Boolean {
+    var current: Throwable? = this
+    while (current != null) {
+        if (predicate(current)) return true
+        current = current.cause
+    }
+    return false
+}
+
 class OpenArchievenSearchAdapter(
     private val restClient: RestClient,
     private val rateLimiter: HistoricalSearchRateLimiter,
@@ -188,7 +224,7 @@ class OpenArchievenSearchAdapter(
                 "Open Archieven vereist een zoekterm, persoon of gebeurtenis.")
         rateLimiter.awaitPermit()
         val fetchedAt = Instant.now(clock)
-        val response = runCatching {
+        val response = try {
             restClient.get().uri { builder ->
                 var uri = UriComponentsBuilder.fromUri(builder.build()).path("/records/search.json")
                     .queryParam("name", name)
@@ -198,11 +234,23 @@ class OpenArchievenSearchAdapter(
                 query.place?.let { uri = uri.queryParam("eventplace", it) }
                 uri.build().toUri()
             }.headers { headers -> headers.set(HttpHeaders.USER_AGENT, USER_AGENT) }
-                .retrieve().body(String::class.java)
-        }.getOrNull() ?: return unavailable(fetchedAt)
-        if (response.isBlank()) return unavailable(fetchedAt, HistoricalTechnicalStatus.INVALID_RESPONSE)
-        return runCatching { parse(response, fetchedAt) }.getOrElse {
-            unavailable(fetchedAt, HistoricalTechnicalStatus.INVALID_RESPONSE)
+                .retrieve()
+                .onStatus({ !it.is2xxSuccessful }) { _, _ -> throw OpenArchievenHttpError() }
+                .body(String::class.java)
+        } catch (exception: Exception) {
+            return unavailable(fetchedAt, exception.transportStatus())
+        }
+        val body = response ?: return unavailable(fetchedAt, HistoricalTechnicalStatus.INVALID_JSON)
+        if (body.isBlank()) return unavailable(fetchedAt, HistoricalTechnicalStatus.INVALID_JSON)
+        val root = try {
+            objectMapper.readTree(body)
+        } catch (_: Exception) {
+            return unavailable(fetchedAt, HistoricalTechnicalStatus.INVALID_JSON)
+        }
+        return try {
+            parse(root, fetchedAt)
+        } catch (_: Exception) {
+            unavailable(fetchedAt, HistoricalTechnicalStatus.MISSING_REQUIRED_FIELDS)
         }
     }
 
@@ -228,15 +276,13 @@ class OpenArchievenSearchAdapter(
         return (term + year).trim()
     }
 
-    private fun parse(body: String, retrievedAt: Instant): HistoricalSearchPage {
-        val root = objectMapper.readTree(body)
+    private fun parse(root: JsonNode, retrievedAt: Instant): HistoricalSearchPage {
         if (root.get("error_code") != null || root.get("error_description") != null) {
             return HistoricalSearchPage(
                 source = source,
                 results = emptyList(),
                 total = 0,
-                status = HistoricalTechnicalStatus.INVALID_RESPONSE,
-                message = "Open Archieven retourneerde een foutrespons.",
+                status = HistoricalTechnicalStatus.MISSING_REQUIRED_FIELDS,
             )
         }
         val response = root.get("response")?.takeIf(JsonNode::isObject)

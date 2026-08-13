@@ -397,6 +397,10 @@ String _historicalSourceStatus(String status) => switch (status) {
   'DISABLED' => 'Niet beschikbaar',
   'TEMPORARILY_UNAVAILABLE' => 'Tijdelijk niet beschikbaar',
   'INVALID_RESPONSE' => 'Ongeldige bronrespons',
+  'TIMEOUT' => 'Open Archieven reageerde niet op tijd',
+  'HTTP_ERROR' => 'Open Archieven gaf een fout bij het opvragen',
+  'INVALID_JSON' => 'Open Archieven stuurde een onleesbaar antwoord',
+  'MISSING_REQUIRED_FIELDS' => 'Open Archieven stuurde een onvolledig antwoord',
   _ => 'Onbekend',
 };
 
