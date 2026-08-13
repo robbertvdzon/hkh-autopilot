@@ -142,6 +142,23 @@ void main() {
     expect(response.sources[1].heemskerkCount, isNull);
   });
 
+  test('parses the explicit Open Archieven normalized identity fields', () {
+    final result = HistoricalSearchResult.fromJson(const <String, dynamic>{
+      'source': 'OPEN_ARCHIEVEN',
+      'source_name': 'Noord-Hollands Archief',
+      'stable_identifier': 'hee:uuid-1',
+      'original_source_url': 'https://www.openarchieven.nl/hee:uuid-1',
+      'retrievedAt': '2026-08-13T00:00:00Z',
+    });
+
+    expect(result.normalizedSourceName, 'Noord-Hollands Archief');
+    expect(result.normalizedStableIdentifier, 'hee:uuid-1');
+    expect(
+      result.normalizedOriginalSourceUrl,
+      'https://www.openarchieven.nl/hee:uuid-1',
+    );
+  });
+
   testWidgets(
     'shows loading, success, fail-closed statuses and external action',
     (tester) async {

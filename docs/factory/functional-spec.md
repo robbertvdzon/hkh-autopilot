@@ -366,7 +366,10 @@ resultaten cursorgewijs samengevoegd tot maximaal de gevraagde paginagrootte.
 De adapters leveren één genormaliseerd resultaatmodel met `source`, `sourceRecordId`, `stableUrl`,
 `title`, `description`, `place`, `person`, `event`, `dateStart`, `dateEnd`, `institution`, `rights`,
 `privacy`, `retrievedAt`, `technicalStatus`, `metadataRights`, `objectMediaRights`, `privacyStatus`
-`relationships` en de contextstatussen `placeStatus`, `personStatus` en `eventStatus`. Iedere
+`relationships` en de contextstatussen `placeStatus`, `personStatus` en `eventStatus`. De publieke
+respons bevat voor Open Archieven daarnaast de door de bron geleverde snake_case-velden
+`source_name`, `stable_identifier` (`hee:uuid`) en `original_source_url`; de laatste wordt niet
+lokaal samengesteld. Iedere
 relatie bevat `type`, `source.name`, `target.name`, een door de bron geleverde stabiele HTTP(S)-URI
 in `target.uri` en een door de bron geleverde externe HTTP(S)-link in `target.link`; de lijst is
 leeg wanneer de bron geen expliciete volledige relaties levert. Elke contextstatus is
@@ -387,9 +390,16 @@ geen expliciete, verifieerbare status levert, niet dat rechten zijn toegestaan o
 Europeana gebruikt `query`, herhaalde `qf`, `rows` en `start`; persoon wordt `who:<persoon>`, plek
 `where:<plek>` en een volledig ingevulde periode een inclusieve `YEAR:[<van> TO <tot>]`. Zonder
 `HKH_EUROPEANA_WSKEY` is alleen Europeana uitgeschakeld. Open Archieven gebruikt `name`, optioneel
-`eventplace`, `number_show` en `start`; een gebeurtenis wordt als laagzekere naamterm gemarkeerd en
-de periode volgt de ondersteunde jaarzoeksyntaxis. Open Archieven is beperkt tot maximaal vier
-serververzoeken per seconde met minimaal 251 ms tussenruimte en een beschrijvende User-Agent.
+`eventplace`, `number_show` en `start`; voor een Heemskerk-zoekopdracht wordt daarnaast de vaste
+parameter `archive_code=hee` afzonderlijk meegestuurd. Een gebeurtenis wordt als laagzekere naamterm
+gemarkeerd en de periode volgt de ondersteunde jaarzoeksyntaxis. Open Archieven is beperkt tot
+maximaal vier serververzoeken per seconde met minimaal 251 ms tussenruimte en een beschrijvende
+User-Agent. Alleen een response-object met een array `docs`, een niet-negatieve numerieke
+`number_found` die met de lege/niet-lege pagina overeenkomt, en per document een niet-lege
+`source_name`, veilige `uuid` en absolute HTTP(S)-`original_source_url` is geldig. Ontbrekende,
+lege, onveilige of tegenstrijdige verplichte waarden maken de bron `INVALID_RESPONSE`; een lege
+`docs`-lijst met `number_found: 0` is juist `AVAILABLE` met `NO_RESULTS` wanneer alle bronnen leeg
+zijn.
 
 De route geeft per bron een technische status (`AVAILABLE`, `DISABLED`,
 `TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`) met een veilige, korte melding en de
@@ -421,11 +431,11 @@ beschikbaarheid, bronuitval, validatie en opnieuw proberen via één status/live
 response met beschikbare bronnen leest die status ook de per-bron resultatentelling en de gelabelde
 Heemskerk-plaatsmetadata-indicatie voor; bij volledige bronuitval toont de pagina geen numerieke
 dekkingssamenvatting.
-Resultaatkaarten tonen de bronidentifier, ophaaldatum, afzonderlijke technische/rechten/
-privacystatussen en een tekstueel herkenbare externe link die uitsluitend naar de door de bron
-geleverde URL verwijst. Elk beschikbaar resultaat heeft daarnaast de actie `Context bekijken`.
-De detailweergave toont titel, plaats, periode, persoon, gebeurtenis, bronlabel en bronhouder,
-identifier, stabiele URI, server-side ophaaldatum, technische bronstatus, rechtenstatussen en
+Resultaatkaarten tonen de genormaliseerde bronnaam en bronidentifier, ophaaldatum, afzonderlijke
+technische/rechten-/privacystatussen en een tekstueel herkenbare externe link die uitsluitend naar
+de door de bron geleverde URL verwijst. Elk beschikbaar resultaat heeft daarnaast de actie
+`Context bekijken`. De detailweergave toont titel, plaats, periode, persoon, gebeurtenis,
+genormaliseerde bronnaam en bronhouder, identifier, oorspronkelijke bron-URL, server-side ophaaldatum, technische bronstatus, rechtenstatussen en
 privacystatus. Ontbrekende of onbeschikbare context wordt als `Niet beschikbaar` getoond; onzekere
 of tegenstrijdige context als `Onzeker`. De detailweergave herhaalt de geaggregeerde zoekstatus en
 de status van de bron van het geopende resultaat.

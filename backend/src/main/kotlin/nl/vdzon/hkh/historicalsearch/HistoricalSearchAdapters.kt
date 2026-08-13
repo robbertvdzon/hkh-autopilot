@@ -3,7 +3,6 @@ package nl.vdzon.hkh.historicalsearch
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
-import java.util.Locale
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -191,14 +190,13 @@ class OpenArchievenSearchAdapter(
         val fetchedAt = Instant.now(clock)
         val response = runCatching {
             restClient.get().uri { builder ->
-                UriComponentsBuilder.fromUri(builder.build()).path("/records/search.json")
+                var uri = UriComponentsBuilder.fromUri(builder.build()).path("/records/search.json")
                     .queryParam("name", name)
                     .queryParam("number_show", query.limit.coerceAtMost(100))
                     .queryParam("start", query.start)
-                    .let { uri ->
-                        query.place?.let { uri.queryParam("eventplace", it) } ?: uri
-                    }
-                    .build().toUri()
+                if (isHeemskerkSearch(query)) uri = uri.queryParam("archive_code", "hee")
+                query.place?.let { uri = uri.queryParam("eventplace", it) }
+                uri.build().toUri()
             }.headers { headers -> headers.set(HttpHeaders.USER_AGENT, USER_AGENT) }
                 .retrieve().body(String::class.java)
         }.getOrNull() ?: return unavailable(fetchedAt)
@@ -207,6 +205,10 @@ class OpenArchievenSearchAdapter(
             unavailable(fetchedAt, HistoricalTechnicalStatus.INVALID_RESPONSE)
         }
     }
+
+    private fun isHeemskerkSearch(query: HistoricalSearchQuery): Boolean =
+        listOf(query.text, query.place, query.person)
+            .any { normalizeHistoricalPlace(it) == "heemskerk" }
 
     private fun buildNameQuery(query: HistoricalSearchQuery): String? {
         val primary = query.person ?: query.text ?: query.place
@@ -237,16 +239,27 @@ class OpenArchievenSearchAdapter(
                 message = "Open Archieven retourneerde een foutrespons.",
             )
         }
-        val response = root.get("response") ?: root
-        require(response.isObject) { "Open Archieven-respons bevat geen response-object" }
+        val response = root.get("response")?.takeIf(JsonNode::isObject)
+            ?: error("Open Archieven-respons bevat geen response-object")
         val docsNode = response.get("docs")
         require(docsNode?.isArray == true) { "Open Archieven-respons bevat geen resultaatarray" }
         val rawDocs = docsNode.asIterable().toList()
-        val docs = rawDocs.filter(JsonNode::isObject)
-        val results = docs.mapNotNull { item ->
-            val url = item.consistentText(2_000, "url", "stableUrl", "uri", "link").asHttpUrl() ?: return@mapNotNull null
-            val id = item.consistentText(2_000, "identifier", "id", "pid", "sourceRecordId").asSafeText()
-                ?: return@mapNotNull null
+        val total = response.requiredNonNegativeInt("number_found")
+        require(rawDocs.isEmpty() == (total == 0)) {
+            "Open Archieven-respons bevat een tegenstrijdige resultaat telling"
+        }
+        require(total >= rawDocs.size) {
+            "Open Archieven-respons bevat een resultaat telling kleiner dan de pagina"
+        }
+        val results = rawDocs.map { item ->
+            require(item.isObject) { "Open Archieven-respons bevat een ongeldig resultaat" }
+            val sourceName = item.requiredString("source_name", 500)
+                ?: error("Open Archieven-resultaat bevat geen source_name")
+            val uuid = item.requiredString("uuid", 500)?.asOpenArchievenUuid()
+                ?: error("Open Archieven-resultaat bevat geen geldige uuid")
+            val url = item.requiredString("original_source_url", 2_000)?.asHttpUrl()
+                ?: error("Open Archieven-resultaat bevat geen geldige original_source_url")
+            val stableIdentifier = "hee:$uuid"
             val place = item.contextField(500, "eventplace", "place", "location", "event_place")
             val person = item.contextField(500, "personname", "person", "name")
             val event = item.contextField(500, "eventtype", "_eventtype", "event")
@@ -264,7 +277,7 @@ class OpenArchievenSearchAdapter(
             val dates = normalizeDateRange(startDate, endDate)
             HistoricalSearchResult(
                 source = source,
-                sourceRecordId = id,
+                sourceRecordId = stableIdentifier,
                 stableUrl = url,
                     title = item.consistentText(2_000, "title", "sourcetype", "eventtype", "_eventtype"),
                     description = item.consistentText(2_000, "description", "source", "archive"),
@@ -284,9 +297,11 @@ class OpenArchievenSearchAdapter(
                     personStatus = person.status,
                     eventStatus = event.status,
                     relationships = item.explicitRelationships(),
+                    sourceName = sourceName,
+                    stableIdentifier = stableIdentifier,
+                    originalSourceUrl = url,
             ).failClosedMetadata()
         }
-        val total = response.firstInt("number_found", "numberFound", "total") ?: results.size
         return HistoricalSearchPage(
             source, results, total.coerceAtLeast(0), HistoricalTechnicalStatus.AVAILABLE, consumed = rawDocs.size,
         )
@@ -303,7 +318,7 @@ class OpenArchievenSearchAdapter(
 }
 
 /** Maps only the controlled rights values supplied by the result itself. */
-private fun parseHistoricalRights(value: String?): HistoricalRightsStatus = when (value?.trim()?.uppercase(Locale.ROOT)) {
+private fun parseHistoricalRights(value: String?): HistoricalRightsStatus = when (value?.trim()) {
     "ALLOWED" -> HistoricalRightsStatus.ALLOWED
     "RESTRICTED" -> HistoricalRightsStatus.RESTRICTED
     else -> HistoricalRightsStatus.UNKNOWN
@@ -314,6 +329,21 @@ private fun JsonNode.consistentText(maxLength: Int, vararg names: String): Strin
     val nonBlank = values.map(String::trim).filter(String::isNotBlank)
     if (nonBlank.any { it.length > maxLength || it.any(Char::isISOControl) }) return null
     return nonBlank.distinct().singleOrNull()
+}
+
+private fun String?.asOpenArchievenUuid(): String? = asSafeText(500)?.takeIf {
+    it.matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,498}"))
+}
+
+private fun JsonNode.requiredString(name: String, maxLength: Int): String? =
+    get(name)?.takeIf(JsonNode::isString)?.asString()?.asSafeText(maxLength)
+
+private fun JsonNode.requiredNonNegativeInt(name: String): Int {
+    val node = get(name)
+    require(node?.isNumber == true) { "Open Archieven-respons bevat geen geldige $name" }
+    val value = node.asString().toIntOrNull()
+    require(value != null && value >= 0) { "Open Archieven-respons bevat geen geldige $name" }
+    return value
 }
 
 /** Maps only the provider's explicitly named relationship collection. */

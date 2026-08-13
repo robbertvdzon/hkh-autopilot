@@ -464,7 +464,9 @@ privacyclassificatie.
   privacystatussen. De API-controller exposeert deze velden als `place`, `placeStatus`,
   `personStatus`, `eventStatus` en `relationships`, waarbij iedere relatie de velden `type`,
   `source.name`, `target.name`, `target.uri` en `target.link` behoudt. `stableUrl` blijft de link
-  naar het oorspronkelijke zoekresultaat.
+  naar het oorspronkelijke zoekresultaat. Voor Open Archieven bevat de response daarnaast de
+  expliciete snake_case-velden `source_name`, `stable_identifier` en `original_source_url`; de
+  identifier heeft voor deze adapter de vorm `hee:uuid`.
 - `HistoricalSearchService` kiest één bron of beide bronnen, haalt providerpagina's op met een
   maximum van 100 records, en merge't beide bronstromen via cursors. De cursor telt ook provider-
   records zonder geldige URL mee, zodat volgende pagina's geen duplicaten of gaten krijgen. Een
@@ -485,9 +487,10 @@ privacyclassificatie.
 - `HistoricalSearchAdapters.kt` bevat `EuropeanaSearchAdapter` en
   `OpenArchievenSearchAdapter`. Europeana gebruikt `GET /record/v2/search.json` met `wskey`,
   `query`, herhaalde `qf`, `rows` en `start`; Open Archieven gebruikt
-  `GET /records/search.json` met `name`, optioneel `eventplace`, `number_show` en `start`. Een
-  gebeurtenis wordt in Open Archieven met een `~` als lage zoekzekerheid toegevoegd; jaren volgen
-  de provider-syntaxis. Beide adapters lezen plaats, persoon en gebeurtenis uitsluitend uit
+  `GET /records/search.json` met `name`, optioneel `eventplace`, `number_show` en `start`. Wanneer
+  de zoekopdracht expliciet op Heemskerk uitkomt, stuurt de adapter `archive_code=hee` als aparte
+  parameter mee. Een gebeurtenis wordt in Open Archieven met een `~` als lage zoekzekerheid
+  toegevoegd; jaren volgen de provider-syntaxis. Beide adapters lezen plaats, persoon en gebeurtenis uitsluitend uit
   expliciete, scalar bronvelden. Daarnaast lezen ze uitsluitend een expliciete provider-array
   `relationships`; complete relaties worden in bronvolgorde gemapt. Een ontbrekend type, bronnaam,
   doelnaam, stabiele doel-URI of externe doel-link laat de volledige relatie weg. Relaties worden
@@ -506,9 +509,15 @@ privacyclassificatie.
   minimaal 251 ms tussen permits afdwingt. De limiet is procesbreed, niet per eindgebruikers-IP of
   per host. Er is geen cache en geen opslag van zoektermen, responses, media of persoonsgegevens.
 - De adapters vereisen een expliciete resultaatarray (`items` voor Europeana, `docs` voor Open
-  Archieven). Foutobjecten, lege/ongeldige JSON, ontbrekende identifiers/links en ongeldige of
-  tegenstrijdige datering worden `INVALID_RESPONSE` of worden uit de resultaten verwijderd. Een
-  bronlink wordt uitsluitend uit het bronantwoord overgenomen en nooit geconstrueerd.
+  Archieven). Voor Open Archieven zijn bovendien een object `response`, een niet-negatieve
+  numerieke `number_found` en per document de verplichte velden `source_name`, veilige `uuid` en
+  absolute HTTP(S)-`original_source_url` met geldige host vereist. `number_found` moet met een
+  lege/niet-lege `docs`-pagina overeenkomen en minstens de paginagrootte omvatten. Foutobjecten,
+  lege/ongeldige JSON, ontbrekende of lege verplichte waarden en tegenstrijdige tellingen worden
+  fail-closed `INVALID_RESPONSE`; een ongeldige individuele Open Archieven-documentrespons maakt
+  dus de bronrespons ongeldig. Een lege `docs`-lijst met `number_found: 0` blijft een geldige lege
+  bronrespons. De bronlink wordt uitsluitend uit het bronantwoord overgenomen en nooit
+  geconstrueerd.
 - `failClosedMetadata()` behoudt de veilige bronidentifier, bronlink, ophaaltijd en afzonderlijke
   statusvelden, maar wist inhoudelijke metadata tenzij `metadataRights == ALLOWED` én
   `privacyStatus == CLEAR`. Bij zo'n blokkade worden de drie contextstatussen `UNAVAILABLE` en
@@ -549,8 +558,9 @@ automatische statusupdates verplaatsen de focus niet. De bewuste aanpasactie is 
 externe bronknoppen
 hebben een tekstueel label dat het openen van een externe bron in een nieuw tabblad aankondigt.
 
-Een resultaatkaart toont alleen toegestane inhoudelijke metadata, plus altijd de veilige bronreferentie,
-ophaaldatum en de afzonderlijke technische, metadatarechten-, object-/mediarechten- en
+Een resultaatkaart toont alleen toegestane inhoudelijke metadata, plus altijd de genormaliseerde
+bronnaam, veilige bronidentifier, oorspronkelijke bron-URL, ophaaldatum en de afzonderlijke
+technische, metadatarechten-, object-/mediarechten- en
 privacystatussen. Een beschikbare kaart bevat de actie `Context bekijken`, die opent
 `historical_context_detail.dart`. De detailweergave toont de context- en bronvelden, herhaalt de
 zoek- en bronstatus, gebruikt `Niet beschikbaar`/`Onzeker` volgens de contextstatus en toont
