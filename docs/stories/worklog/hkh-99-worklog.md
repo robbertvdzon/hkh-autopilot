@@ -47,3 +47,16 @@ Developer 2026-08-13 (volledige herverificatie na reviewer-blokkade):
 - `cd frontend && flutter analyze`: groen zonder issues; `flutter test`: 51 tests geslaagd; `flutter build web`: geslaagd.
 - `cd frontend-admin && flutter analyze`: groen zonder issues; `flutter test`: 35 tests geslaagd.
 - De working tree bevat na de verificatie geen onverwachte build- of dependencywijzigingen; `.factory/verification.yaml` blijft ongewijzigd en bevat de stabiele zes commando's.
+
+Developer 2026-08-13 (nieuwe run na opnieuw gemarkeerd admin-bewijs als skipped):
+- De branch-implementatie, contextrelaties, fail-closed metadata en zichtbare-resultatenbegrenzing opnieuw gecontroleerd; er zijn geen conflictmarkers.
+- `cd backend && mvn -B --no-transfer-progress clean verify`: groen, 300 tests, 0 failures, 0 errors en 0 skipped.
+- `cd frontend && flutter analyze`: groen zonder issues; `flutter test`: 51 tests geslaagd; `flutter build web`: geslaagd.
+- `cd frontend-admin && flutter analyze`: groen zonder issues; `flutter test`: 35 tests geslaagd.
+- Alle zes commando's zijn daadwerkelijk gestart en volledig uitgewacht; geen stap is overgeslagen of voortijdig beëindigd.
+- De admin-commando's in `.factory/verification.yaml` zijn aanvullend gekoppeld aan `docs/stories/worklog/`, zodat een verplichte developer-worklogwijziging het volledige repositoryvangnet ook deterministisch activeert wanneer de story zelf geen admin-code wijzigt.
+
+Developer 2026-08-13 (eindcontrole na verificatieconfiguratie):
+- Het volledige vangnet is opnieuw uitgevoerd op de actuele working tree na de configwijziging.
+- Backend: `clean verify` groen met 300 tests; frontend: analyze groen, 51 tests geslaagd en webbuild geslaagd; admin: analyze groen en 35 tests geslaagd.
+- Alle zes commando's eindigden met exitcode 0, zonder failures of errors.
