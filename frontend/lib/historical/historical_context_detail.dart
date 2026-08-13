@@ -203,6 +203,7 @@ class HistoricalContextDetailPage extends StatelessWidget {
               icon: const Icon(Icons.open_in_new),
               label: const Text('Externe bron openen in nieuw tabblad'),
             ),
+            ..._sourceRelationshipSection(),
             ..._followUpSection(context),
             const Divider(height: 32),
             Semantics(
@@ -224,6 +225,21 @@ class HistoricalContextDetailPage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  List<Widget> _sourceRelationshipSection() {
+    if (result.relationships.isEmpty) return const [];
+    return [
+      const Divider(height: 32),
+      Semantics(header: true, child: const Text('Bronvastgelegde relatie')),
+      const SizedBox(height: 8),
+      ...result.relationships.asMap().entries.map(
+        (entry) => _HistoricalSourceRelationshipCard(
+          index: entry.key,
+          relationship: entry.value,
+        ),
+      ),
+    ];
   }
 
   Widget _detailField(String label, String? value) => Padding(
@@ -304,6 +320,48 @@ class _HistoricalRelationCard extends StatelessWidget {
               onPressed: () => openExternalLink(result.stableUrl),
               icon: const Icon(Icons.open_in_new),
               label: const Text('Verwante bron openen in nieuw tabblad'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HistoricalSourceRelationshipCard extends StatelessWidget {
+  const _HistoricalSourceRelationshipCard({
+    required this.index,
+    required this.relationship,
+  });
+
+  final int index;
+  final HistoricalSearchRelationship relationship;
+
+  @override
+  Widget build(BuildContext context) {
+    final target = relationship.target;
+    return Card(
+      key: Key('historical-source-relationship-$index'),
+      margin: const EdgeInsets.only(top: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Bronclaim: deze relatie is expliciet door de externe bron geleverd en niet door HKH afgeleid.',
+            ),
+            Text('Relatietype: ${relationship.type}'),
+            Text('Bron: ${relationship.source.name}'),
+            Text('Doelrecord: ${target.name}'),
+            Text('Stabiele doel-URI: ${target.uri}'),
+            TextButton.icon(
+              key: Key('historical-source-relationship-link-$index'),
+              onPressed: () => openExternalLink(target.link),
+              icon: const Icon(Icons.open_in_new),
+              label: const Text(
+                'Externe link naar doelrecord openen in nieuw tabblad',
+              ),
             ),
           ],
         ),
