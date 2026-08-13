@@ -21,9 +21,12 @@ Repositoryspecifieke build-, test- en toegankelijkheidsafspraken staan in
 De publieke zoekroute `GET /api/historical-search` zoekt, zonder lokale opslag van zoekopdrachten
 of bronpayloads, in Europeana en Open Archieven. De respons onderscheidt resultaten, nul resultaten,
 gedeeltelijke bronbeschikbaarheid en volledige bronuitval; `total` telt alleen beschikbare bronnen
-mee. Per geselecteerde bron geeft de respons daarnaast de telling op de huidige zichtbare pagina en
-een als zodanig gelabelde lokale Heemskerk-indicatie op basis van zekere plaatsmetadata; die indicatie
-is geen historisch bewijs. De Europeana-wskey is uitsluitend server-side configuratie; zie
+mee. De gebruikersroute kondigt deze overgangen aan via één statusregio. Bij volledige bronuitval
+zijn `Opnieuw proberen` en `Zoekopdracht aanpassen` beschikbaar; aanpassen behoudt de ingevulde
+waarden en brengt de focus naar het bestaande zoekveld. Per geselecteerde bron geeft de respons
+daarnaast de telling op de huidige zichtbare pagina en een als zodanig gelabelde lokale
+Heemskerk-indicatie op basis van zekere plaatsmetadata; die indicatie is geen historisch bewijs.
+De Europeana-wskey is uitsluitend server-side configuratie; zie
 [docs/factory/secrets-local.md](docs/factory/secrets-local.md) voor de configuratienamen.
 
 Beschikbare resultaten hebben een actie `Context bekijken`. Die detailweergave behoudt de bestaande

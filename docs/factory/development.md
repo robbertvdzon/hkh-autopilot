@@ -78,7 +78,10 @@
   bronkeuze, laad/succes/leeg/gedeeltelijke-beschikbaarheid/bronprobleem/retry-statussen,
   paginering en externe-linklabels. Bij gedeeltelijke beschikbaarheid blijven beschikbare resultaten
   zichtbaar; bij volledige bronuitval toont de pagina geen resultaatcount en biedt zij `Opnieuw
-  proberen`. `lib/historical/historical_context_detail.dart` bevat de contextdetailweergave, de aparte
+  proberen` en `Zoekopdracht aanpassen`. Aanpassen houdt de route en ingevulde zoekwaarden intact en
+  focust doelgericht het bestaande vrije-tekstveld; alleen deze bewuste actie verplaatst de focus.
+  Alle zoekstatussen gebruiken één `SemanticsRole.status`-node en de zichtbare laadindicator is
+  semantisch uitgesloten. `lib/historical/historical_context_detail.dart` bevat de contextdetailweergave, de aparte
   sectie `Bronvastgelegde relatie` voor providerclaims en de begrensde afgeleide relatiebepaling;
   Unicode-normalisatie gebruikt de directe dependency
   `unorm_dart`. `lib/records/`
