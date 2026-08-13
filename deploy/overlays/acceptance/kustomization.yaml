@@ -68,4 +68,4 @@ images:
   newTag: sha-68edd85
 - name: frontend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-frontend
-  newTag: sha-68edd85-acceptance
+  newTag: sha-8ad4e64-acceptance
