@@ -46,6 +46,9 @@
   een geaggregeerde state (`RESULTS`, `NO_RESULTS`, `PARTIAL_AVAILABILITY` of `SOURCE_FAILURE`),
   per-bronstatus (`AVAILABLE`, `DISABLED`, `TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`),
   fail-closed metadata/statusmapping en zonder opslag van zoekopdrachten of bronpayloads). Het
+  publieke zoekresultaat mapt uitsluitend expliciete `ALLOWED` en `RESTRICTED` rechtenwaarden;
+  ontbrekende, lege, niet-herkende of tegenstrijdige waarden worden `UNKNOWN` en het vrije bronveld
+  `rights` bepaalt geen gecontroleerde status. Het
   resultaatcontract bevat expliciete `place`-, `person`- en `event`-velden met elk een contextstatus
   (`AVAILABLE`, `MISSING`, `UNCERTAIN` of `UNAVAILABLE`); plaats wordt nooit uit zoekterm, titel of
   URL afgeleid. Het bevat ook `relationships[]` voor complete relaties uit de expliciete providerdata,
@@ -83,6 +86,9 @@
   Alle zoekstatussen gebruiken één `SemanticsRole.status`-node en de zichtbare laadindicator is
   semantisch uitgesloten. `lib/historical/historical_context_detail.dart` bevat de contextdetailweergave, de aparte
   sectie `Bronvastgelegde relatie` voor providerclaims en de begrensde afgeleide relatiebepaling;
+  de resultaatkaart en detailweergave tonen metadatarechten en object-/mediarechten afzonderlijk met
+  de gedeelde semantische, toetsenbordbedienbare `HistoricalRightsExplanation`; deze legt beide
+  richtingen van de onafhankelijke beoordeling uit en dat `UNKNOWN` geen toestemming of weigering is;
   Unicode-normalisatie gebruikt de directe dependency
   `unorm_dart`. `lib/records/`
   bevat de nieuwe publieke recorddetailpagina (`RecordDetailPage`) met de in-/uitklapbare sectie

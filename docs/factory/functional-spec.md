@@ -376,7 +376,13 @@ Plaats wordt alleen uit expliciete bronmetadata overgenomen, nooit uit zoekfilte
 Ontbrekende, ongeldige of tegenstrijdige metadata wordt niet inhoudelijk ingevuld. Titel, beschrijving,
 plaats, persoon, gebeurtenis, datering, bronhouder en bronrechten worden alleen getoond wanneer
 metadatarechten expliciet `ALLOWED` en privacy expliciet `CLEAR` zijn. Object-/mediarechten blijven
-een afzonderlijke status en verlenen nooit automatisch medierechten.
+een afzonderlijke status en verlenen nooit automatisch medierechten. Voor beide rechtenstatussen
+worden uitsluitend expliciete per-resultaatwaarden `ALLOWED` en `RESTRICTED` herkend; ontbrekende,
+lege, niet-herkende of tegenstrijdige waarden worden `UNKNOWN`. Het vrije tekstveld `rights` blijft
+broninformatie en bepaalt geen gecontroleerde status. De resultaatkaart en detailweergave tonen beide
+statussen tekstueel en bieden via een semantische, met Tab/Enter/spatie bedienbare uitleg de betekenis
+van de onafhankelijke beoordeling. De uitleg maakt ook duidelijk dat `UNKNOWN` betekent dat de bron
+geen expliciete, verifieerbare status levert, niet dat rechten zijn toegestaan of geweigerd.
 
 Europeana gebruikt `query`, herhaalde `qf`, `rows` en `start`; persoon wordt `who:<persoon>`, plek
 `where:<plek>` en een volledig ingevulde periode een inclusieve `YEAR:[<van> TO <tot>]`. Zonder

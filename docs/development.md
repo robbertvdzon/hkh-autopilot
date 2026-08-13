@@ -172,6 +172,11 @@ Provider records without a valid source URL or identifier are omitted, URLs are 
 locally, and explicit rights/privacy checks suppress content metadata fail-closed. The route never
 stores searches, raw provider responses, media or external personal data.
 
+For each result, `metadataRights` and `objectMediaRights` are mapped independently from explicit
+provider rights fields. The public search adapters recognize only `ALLOWED` and `RESTRICTED`; blank,
+missing, unrecognized or contradictory values become `UNKNOWN`. The free-text `rights`/`license`
+field remains source information and cannot determine either controlled status.
+
 ## User frontend
 
 The user application supports Flutter web and Android. It uses `http://localhost:8080` as its
@@ -223,6 +228,11 @@ result and uncertain or unavailable fields never match, and period overlap is on
 Provider-supplied relationships are rendered separately under `Bronvastgelegde relatie`, with the
 explicit source-claim text and an external link to the target record; they are not merged with the
 derived metadata-overlap relations or follow-up actions.
+
+Both the result card and context detail page include the shared `HistoricalRightsExplanation` control.
+It is a semantic button usable with Tab, Enter and Space, and explains that metadata rights and
+object/media rights are assessed independently in both directions. It also explains that `UNKNOWN`
+means the source supplied no explicit, verifiable status—not that rights are allowed or denied.
 
 `lib/records/` holds the new public record detail page (`RecordDetailPage`) and its collapsible
 "Externe bronverificatie" section, which loads `GET /api/records/{localIdentifier}` via the new
