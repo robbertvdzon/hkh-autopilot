@@ -40,3 +40,10 @@ Developer 2026-08-13 (herverificatie na reviewafwijzing):
 Reviewer follow-up 2026-08-13:
 - De Unicode-fix is gecontroleerd; `flutter test --concurrency=1 test/historical_context_detail_test.dart` slaagt met 3 tests.
 - [blocker] Het nieuwste `[FACTORY VERIFICATION EVIDENCE]`-blok rapporteert `admin-flutter-analyze` en `admin-flutter-test` nog steeds als `skipped`; handgeschreven claims in de developer-samenvatting vervangen dit bewijs niet.
+
+Developer 2026-08-13 (volledige herverificatie na reviewer-blokkade):
+- Alle zes factory-commando's zijn in deze run daadwerkelijk gestart en volledig uitgewacht; geen commando is overgeslagen of voortijdig beëindigd.
+- `cd backend && mvn -B --no-transfer-progress clean verify`: groen, 300 tests, 0 failures, 0 errors en 0 skipped.
+- `cd frontend && flutter analyze`: groen zonder issues; `flutter test`: 51 tests geslaagd; `flutter build web`: geslaagd.
+- `cd frontend-admin && flutter analyze`: groen zonder issues; `flutter test`: 35 tests geslaagd.
+- De working tree bevat na de verificatie geen onverwachte build- of dependencywijzigingen; `.factory/verification.yaml` blijft ongewijzigd en bevat de stabiele zes commando's.
