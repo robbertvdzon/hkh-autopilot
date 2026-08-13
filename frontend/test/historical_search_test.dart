@@ -8,6 +8,7 @@ import 'package:hkh_app/backend/backend_client.dart';
 import 'package:hkh_app/backend/backend_status.dart';
 import 'package:hkh_app/historical/historical_search.dart';
 import 'package:hkh_app/historical/historical_context_detail.dart';
+import 'package:hkh_app/historical/historical_rights_explanation.dart';
 import 'package:hkh_app/main.dart';
 import 'package:hkh_app/news/latest_news.dart';
 import 'package:http/http.dart' as http;
@@ -257,6 +258,70 @@ void main() {
       expect(find.text('Veilige beschrijving'), findsOneWidget);
       expect(find.text('Persoon: Jan'), findsOneWidget);
       expect(find.text('Datering: 1900'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'shows separate rights statuses and a keyboard accessible explanation',
+    (tester) async {
+      final response = HistoricalSearchResponse(
+        results: [
+          HistoricalSearchResult(
+            source: 'EUROPEANA',
+            sourceRecordId: 'rights-1',
+            stableUrl: 'https://example.test/rights-1',
+            retrievedAt: DateTime.utc(2026, 8, 12),
+            metadataRights: 'ALLOWED',
+            objectMediaRights: 'RESTRICTED',
+            privacyStatus: 'CLEAR',
+          ),
+        ],
+        total: 1,
+        start: 0,
+        limit: 100,
+        sources: const [
+          HistoricalSourceStatus(source: 'EUROPEANA', status: 'AVAILABLE'),
+        ],
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HistoricalSearchPage(
+            source: _HistoricalSource(Future.value(response)),
+          ),
+        ),
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('historical-search-submit')),
+      );
+      await tester.tap(find.byKey(const Key('historical-search-submit')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Metadatarechten: Toegestaan'), findsOneWidget);
+      expect(find.text('Object-/mediarechten: Beperkt'), findsOneWidget);
+      final toggle = find.byKey(
+        const Key('historical-rights-explanation-rights-1-toggle'),
+      );
+      expect(toggle, findsOneWidget);
+      final semantics = tester.getSemantics(toggle).getSemanticsData();
+      expect(semantics.flagsCollection.isButton, isTrue);
+      expect(semantics.hasAction(SemanticsAction.tap), isTrue);
+      await tester.ensureVisible(toggle);
+
+      for (
+        var index = 0;
+        index < 12 && !_hasPrimaryFocusWithin(toggle);
+        index++
+      ) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+      }
+      expect(_hasPrimaryFocusWithin(toggle), isTrue);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+      expect(find.text(historicalRightsExplanation), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pump();
+      expect(find.text(historicalRightsExplanation), findsNothing);
     },
   );
 
@@ -616,10 +681,14 @@ void main() {
         findsOneWidget,
       );
       final retrySemantics = tester.getSemantics(
-        find.byKey(const Key('historical-search-retry'), skipOffstage: false).last,
+        find
+            .byKey(const Key('historical-search-retry'), skipOffstage: false)
+            .last,
       );
       final adjustSemantics = tester.getSemantics(
-        find.byKey(const Key('historical-search-adjust'), skipOffstage: false).last,
+        find
+            .byKey(const Key('historical-search-adjust'), skipOffstage: false)
+            .last,
       );
       expect(
         retrySemantics.getSemanticsData().hasAction(SemanticsAction.tap),
