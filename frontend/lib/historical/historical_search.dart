@@ -409,6 +409,7 @@ class HistoricalSearchPage extends StatefulWidget {
 
 class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
   final _text = TextEditingController();
+  final _textFocusNode = FocusNode();
   final _place = TextEditingController();
   final _person = TextEditingController();
   final _event = TextEditingController();
@@ -437,12 +438,17 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
   @override
   void dispose() {
     _text.dispose();
+    _textFocusNode.dispose();
     _place.dispose();
     _person.dispose();
     _event.dispose();
     _fromYear.dispose();
     _toYear.dispose();
     super.dispose();
+  }
+
+  void _focusSearchForm() {
+    _textFocusNode.requestFocus();
   }
 
   void _runSearch({int? start}) {
@@ -489,6 +495,7 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
             const SizedBox(height: 16),
             TextField(
               controller: _text,
+              focusNode: _textFocusNode,
               decoration: const InputDecoration(
                 labelText: 'Vrije tekst',
                 hintText: 'Bijvoorbeeld een naam of onderwerp',
@@ -587,7 +594,7 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
                       label: 'Historische zoekresultaten worden geladen.',
                       child: Column(
                         children: [
-                          CircularProgressIndicator(),
+                          ExcludeSemantics(child: CircularProgressIndicator()),
                           SizedBox(height: 12),
                           Text('Historische zoekresultaten worden geladen.'),
                         ],
@@ -599,7 +606,10 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
                     if (error is HistoricalSearchValidationException) {
                       return _HistoricalValidationError(message: error.message);
                     }
-                    return _HistoricalError(onRetry: _runSearch);
+                    return _HistoricalError(
+                      onRetry: _runSearch,
+                      onAdjust: _focusSearchForm,
+                    );
                   }
                   final response = snapshot.requireData;
                   final state = _effectiveHistoricalSearchState(response);
@@ -607,6 +617,7 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
                     return _HistoricalError(
                       sources: response.sources,
                       onRetry: _runSearch,
+                      onAdjust: _focusSearchForm,
                     );
                   }
                   return _HistoricalResults(
@@ -832,10 +843,15 @@ class _HistoricalResultCard extends StatelessWidget {
 }
 
 class _HistoricalError extends StatelessWidget {
-  const _HistoricalError({required this.onRetry, this.sources = const []});
+  const _HistoricalError({
+    required this.onRetry,
+    required this.onAdjust,
+    this.sources = const [],
+  });
 
   final List<HistoricalSourceStatus> sources;
   final VoidCallback onRetry;
+  final VoidCallback onAdjust;
 
   @override
   Widget build(BuildContext context) {
@@ -844,7 +860,7 @@ class _HistoricalError extends StatelessWidget {
         .map(_historicalSourceMessage)
         .toList(growable: false);
     final label =
-        'De historische bronnen zijn niet beschikbaar.${_sourceMessagesLabel(sourceMessages)}';
+        'Geen historische bronnen konden worden geraadpleegd.${_sourceMessagesLabel(sourceMessages)}';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -853,7 +869,9 @@ class _HistoricalError extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('Historisch zoeken is tijdelijk niet beschikbaar.'),
+              const Text(
+                'Geen historische bronnen konden worden geraadpleegd.',
+              ),
               ...sourceMessages.map(Text.new),
             ],
           ),
@@ -864,6 +882,12 @@ class _HistoricalError extends StatelessWidget {
           onPressed: onRetry,
           icon: const Icon(Icons.refresh),
           label: const Text('Opnieuw proberen'),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton(
+          key: const Key('historical-search-adjust'),
+          onPressed: onAdjust,
+          child: const Text('Zoekopdracht aanpassen'),
         ),
       ],
     );
@@ -914,8 +938,11 @@ String _historicalSourceMessage(HistoricalSourceStatus source) {
 }
 
 String _historicalSourceSummary(HistoricalSourceStatus source) {
-  if (source.status != 'AVAILABLE' || source.resultCount == null) {
+  if (source.status != 'AVAILABLE') {
     return _historicalSourceMessage(source);
+  }
+  if (source.resultCount == null) {
+    return '${_historicalSourceName(source)}: beschikbaar.';
   }
   final indication = source.heemskerkCount;
   if (indication == null) {
