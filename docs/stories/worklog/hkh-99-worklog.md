@@ -21,3 +21,8 @@ Done / rationale:
 Aanvulling reviewherstel:
 - De Flutter-relatiematching normaliseert contextwaarden nu eerst Unicode-compatibel (NFKC), gelijk aan de backend, zodat canoniek equivalente schrijfwijzen zoals `Café` en `Cafe\u0301` exact gelijk matchen.
 - Een gerichte frontendtest dekt deze decomposed/composed Unicode-case.
+
+Developer-verificatierun 2026-08-13:
+- De huidige branch bevat de story-implementatie en de bijbehorende backend-/frontendtests; er zijn geen conflictmarkers aangetroffen.
+- Naar aanleiding van reviewcomment 3232 worden alle zes commando's uit het verplichte vangnet opnieuw uitgevoerd, inclusief `frontend-admin` analyze en tests, zodat geen stap als skipped achterblijft.
+- Resultaat: `backend-maven-verify` groen met 300 tests; `frontend-flutter-analyze`, `frontend-flutter-test` (51 tests), `frontend-flutter-build-web`, `admin-flutter-analyze` en `admin-flutter-test` (35 tests) allemaal groen, zonder failures of errors.
