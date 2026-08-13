@@ -31,3 +31,9 @@
 - `cd frontend && flutter build web`: groen.
 - `cd frontend-admin && flutter analyze`: groen.
 - `cd frontend-admin && flutter test`: groen, 35 tests, 0 failures/errors.
+
+## Review
+
+- Volledige diff `main...HEAD` beoordeeld; geen concrete blocker, bug, scope-regressie of ontbrekende testdekking gevonden.
+- Revisiongebonden factory-bewijs gecontroleerd: alle zes verplichte checks zijn groen en `testedTreeSha` komt overeen met `HEAD^{tree}`.
+- Gerichte controle `flutter test --concurrency=1 --reporter expanded test/historical_search_test.dart`: groen, 16 tests.
