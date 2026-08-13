@@ -114,7 +114,16 @@ identifier and URL, optional title/description/person/event/dates/institution/ri
 server-side UTC `retrievedAt`. The query accepts `q`, `place`, `person`, `event`, `fromYear`,
 `toYear`, `source`, `start` and `limit`; years must be four digits and be supplied as a pair, and
 `limit` is bounded to 100. With no source filter both providers are merged through source cursors
-without returning more than the requested page size.
+without returning more than the requested page size. The response also contains `state` with one of
+`RESULTS`, `NO_RESULTS`, `PARTIAL_AVAILABILITY` or `SOURCE_FAILURE`, plus a `sources` entry for
+each selected provider. Each source entry reports `AVAILABLE`, `DISABLED`,
+`TEMPORARILY_UNAVAILABLE` or `INVALID_RESPONSE` and a short safe message where applicable.
+
+Only sources that remain `AVAILABLE` contribute results and `total`. If a provider fails while a
+later cursor page is being fetched, its status and contribution are removed and the merged offset
+is rebased so remaining available results stay reachable. When every selected source is unavailable,
+the route returns `SOURCE_FAILURE`, an empty result list and `total: 0`; this is distinct from
+`NO_RESULTS`, which means all selected sources were available but returned no results.
 
 Europeana is disabled independently when `HKH_EUROPEANA_WSKEY` is absent. Open Archieven uses the
 same descriptive user-agent and a process-wide limiter with at least 251 ms between requests.
@@ -151,11 +160,15 @@ that changes after every search or chip selection.
 
 After the service check, the homepage also offers the separate `Historisch zoeken` entry. It opens
 `HistoricalSearchPage` with fields for free text, place, person, event, from/to year and an optional
-Europeana/Open Archieven source. The page has distinct loading, successful, empty, validation-error
-and retryable technical-error states, keyboard-operable pagination and retry controls, one semantic
-status node per active state, and external-link labels. A result shows technical availability,
-metadata rights, object/media rights and privacy separately; content metadata is rendered only when
-the backend explicitly marks metadata rights as allowed and privacy as clear.
+Europeana/Open Archieven source. The page maps the API aggregate state to distinct results, empty,
+partial-availability and full-source-failure states. Partial results remain visible and include a
+short message for every unavailable source; full source failure does not show a result count and
+offers the keyboard-operable `Opnieuw proberen` action. Loading, validation-error and transport
+error states remain separate. Pagination uses the server response offset and limit, including after
+a source fails during a later page. All states use one semantic status node, and external-link
+labels remain available. A result shows technical availability, metadata rights, object/media rights
+and privacy separately; content metadata is rendered only when the backend explicitly marks metadata
+rights as allowed and privacy as clear.
 
 `lib/records/` holds the new public record detail page (`RecordDetailPage`) and its collapsible
 "Externe bronverificatie" section, which loads `GET /api/records/{localIdentifier}` via the new

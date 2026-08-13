@@ -13,3 +13,13 @@ Stappenplan:
 
 Done / rationale:
 - Story-log aangemaakt zodat plan, voortgang en uitvoering onderdeel worden van de PR.
+
+Documentatie-update (2026-08-13):
+- De publieke historische zoekroute is bijgewerkt beschreven in de root-README, de frontend-README,
+  `docs/development.md` en de factory development-, functionele en technische specs.
+- De documentatie legt nu het API-veld `state`, de vier geaggregeerde toestanden, de vier technische
+  bronstatussen, beschikbare-resultaten-merging, correcte `total`-bijdragen, veilige bronmeldingen,
+  pagineringsherbasering en het onderscheid tussen gedeeltelijke beschikbaarheid en volledige
+  bronuitval vast.
+- Alleen documentatie is gewijzigd; productiecode en tests zijn ongemoeid gelaten. Er is geen aparte
+  changelog of handgeschreven API-documentatie in deze checkout die aanvullend bijgewerkt moest worden.

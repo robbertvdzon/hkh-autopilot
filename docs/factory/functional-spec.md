@@ -364,12 +364,24 @@ de periode volgt de ondersteunde jaarzoeksyntaxis. Open Archieven is beperkt tot
 serververzoeken per seconde met minimaal 251 ms tussenruimte en een beschrijvende User-Agent.
 
 De route geeft per bron een technische status (`AVAILABLE`, `DISABLED`,
-`TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`) met een veilige melding. Een foutieve zoekopdracht
-geeft HTTP 400 met een leesbare validatiefout; tijdelijke bronfouten en ongeldige bronresponses
-geven een retrybare foutstatus. De gebruikerspagina toont afzonderlijke laad-, succes-, lege-,
-validatie- en retrystatussen. Resultaatkaarten tonen de bronidentifier, ophaaldatum, afzonderlijke
-technische/rechten/privacystatussen en een tekstueel herkenbare externe link die uitsluitend naar
-de door de bron geleverde URL verwijst.
+`TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`) met een veilige, korte melding en de
+geaggregeerde zoektoestand `RESULTS`, `NO_RESULTS`, `PARTIAL_AVAILABILITY` of `SOURCE_FAILURE`.
+Alleen bronnen die uiteindelijk `AVAILABLE` zijn dragen bij aan `results` en `total`. Als minstens
+één bron beschikbaar is, blijven diens resultaten zichtbaar wanneer een andere bron uitvalt; de
+frontend toont per falende bron de tekst "niet geconfigureerd", "tijdelijk niet beschikbaar" of
+"ongeldige bronrespons". Een volledig beschikbare maar lege zoekopdracht is `NO_RESULTS` en is dus
+geen bronfout.
+
+Een foutieve zoekopdracht geeft HTTP 400 met een leesbare validatiefout. Volledige bronuitval geeft
+`SOURCE_FAILURE`, geen resultaatcount en een programmatisch uitleesbare bronprobleemstatus met de
+toetsenbordbedienbare actie `Opnieuw proberen`. Transportfouten blijven een afzonderlijke
+retrybare technische status. Bij uitval tijdens paginering wordt de bronstatus bijgewerkt, telt de
+bron niet meer mee en wordt de effectieve offset aangepast zodat beschikbare resultaten bereikbaar
+blijven. De gebruikerspagina communiceert laden, resultaten, nul resultaten, gedeeltelijke
+beschikbaarheid, bronuitval, validatie en opnieuw proberen via één status/live-regio.
+Resultaatkaarten tonen de bronidentifier, ophaaldatum, afzonderlijke technische/rechten/
+privacystatussen en een tekstueel herkenbare externe link die uitsluitend naar de door de bron
+geleverde URL verwijst.
 
 ## Publieke recorddetailpagina en externe bronverificatie
 
@@ -534,6 +546,14 @@ resultatentelling via `Semantics(liveRegion: true)` loopt en na elke zoekactie/c
 wijzigt; en een test die aantoont dat uitsluitend `LatestNewsItem`/`NewsEntity`/
 `AggregatedNewsEntity`-velden gerenderd worden, nooit record-intake-, privacyclassificatie- of
 externe-verificatiedata.
+
+De publieke historische zoekroute is gedekt met `HistoricalSearchTest` en
+`historical_search_test.dart`. De backendtests controleren het responsveld `state`, alle vier de
+geaggregeerde toestanden, de vier per-bronstatussen, veilige meldingen, beschikbare-resultaten-
+merging, uitsluitend beschikbare bijdragen aan `total`, uitval tijdens paginering en de effectieve
+offset. De Flutter-tests controleren de zichtbaarheid van partiële resultaten, het onderscheid
+tussen nul resultaten en volledige bronuitval, de bronmeldingen, één status/live-regio, de
+toetsenbordbedienbare retryactie, paginering met een korte pagina en behoud van bronmetadata.
 
 De publieke recorddetailpagina en externe bronverificatie zijn gedekt met backend unit-,
 integratie- en Flutter widget-/semantiektests: `RecordPublicStatusResolverTest` dekt alle

@@ -13,9 +13,15 @@ a back action.
 The homepage also provides the separate `Historisch zoeken` entry next to the latest-news flow. The
 `HistoricalSearchPage` searches public Europeana and Open Archieven records through
 `GET /api/historical-search` with optional free text, place, person, event, year range and source
-filters. Results show the source identifier, retrieval time, technical availability, metadata rights,
-object/media rights, privacy status and a clearly labeled external source link; source metadata is
-shown only when the backend has explicit safe rights and privacy statuses.
+filters. The response exposes an aggregate `state` (`RESULTS`, `NO_RESULTS`,
+`PARTIAL_AVAILABILITY` or `SOURCE_FAILURE`) and one technical status per selected source
+(`AVAILABLE`, `DISABLED`, `TEMPORARILY_UNAVAILABLE` or `INVALID_RESPONSE`). With partial
+availability the page keeps results from available sources visible and adds short, source-specific
+messages. Full source failure shows a semantic source-problem status and the keyboard-operable
+`Opnieuw proberen` action without presenting a misleading result count. Results show the source
+identifier, retrieval time, technical availability, metadata rights, object/media rights, privacy
+status and a clearly labeled external source link; source metadata is shown only when the backend
+has explicit safe rights and privacy statuses.
 
 ## Run and verify
 

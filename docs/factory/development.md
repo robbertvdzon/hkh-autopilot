@@ -43,12 +43,17 @@
   persoonsgegevens en gevoelige waarden worden niet opgeslagen, geretourneerd of gelogd. De
   zelfstandige module `historicalsearch` voegt daarnaast `GET /api/historical-search` toe met
   genormaliseerde Europeana/Open Archieven-resultaten, bronkeuze, queryvalidatie, cursorpaginering,
+  een geaggregeerde state (`RESULTS`, `NO_RESULTS`, `PARTIAL_AVAILABILITY` of `SOURCE_FAILURE`),
+  per-bronstatus (`AVAILABLE`, `DISABLED`, `TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`),
   fail-closed metadata/statusmapping en zonder opslag van zoekopdrachten of bronpayloads);
 - `frontend/`: Flutter-gebruikersapp; homepage en statusflows staan in `lib/main.dart`,
   broninterfaces onder `lib/backend/`, `lib/news/` en `lib/historical/`, widgettests onder `test/`;
   de homepage heeft naast `Laatste nieuws` de ingang `Historisch zoeken` met een zelfstandige,
   toegankelijke `HistoricalSearchPage` voor vrije tekst, plek, persoon, gebeurtenis, periode,
-  bronkeuze, laad/succes/leeg/fout/retry-statussen, paginering en externe-linklabels. `lib/records/`
+  bronkeuze, laad/succes/leeg/gedeeltelijke-beschikbaarheid/bronprobleem/retry-statussen,
+  paginering en externe-linklabels. Bij gedeeltelijke beschikbaarheid blijven beschikbare resultaten
+  zichtbaar; bij volledige bronuitval toont de pagina geen resultaatcount en biedt zij `Opnieuw
+  proberen`. `lib/records/`
   bevat de nieuwe publieke recorddetailpagina (`RecordDetailPage`) met de in-/uitklapbare sectie
   "Externe bronverificatie" (leest `GET /api/records/{localIdentifier}` via de nieuwe
   `RecordPublicSource` op `BackendClient`), inclusief een conditionele externe-linkopener
