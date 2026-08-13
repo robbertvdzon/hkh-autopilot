@@ -448,14 +448,21 @@ privacyclassificatie.
 - `HistoricalSearchController` registreert uitsluitend `GET /api/historical-search` met `q`,
   `place`, `person`, `event`, `fromYear`, `toYear`, `source`, `start` en `limit`. Een ongeldige
   query geeft HTTP 400 met `{ "error": "..." }`; een geldig verzoek geeft `{ results, total, start,
-  limit, sources }`. Elk resultaat bevat de genormaliseerde metadata, de server-side UTC
-  `retrievedAt` en afzonderlijke technische, metadatarechten-, object-/mediarechten- en
-  privacystatussen.
+  limit, sources, state }`. `state` is `RESULTS`, `NO_RESULTS`, `PARTIAL_AVAILABILITY` of
+  `SOURCE_FAILURE`; `sources` bevat voor elke geselecteerde bron de technische status
+  (`AVAILABLE`, `DISABLED`, `TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`) en een veilige korte
+  melding. Elk resultaat bevat de genormaliseerde metadata, de server-side UTC `retrievedAt` en
+  afzonderlijke technische, metadatarechten-, object-/mediarechten- en privacystatussen.
 - `HistoricalSearchService` kiest één bron of beide bronnen, haalt providerpagina's op met een
   maximum van 100 records, en merge't beide bronstromen via cursors. De cursor telt ook provider-
   records zonder geldige URL mee, zodat volgende pagina's geen duplicaten of gaten krijgen. Een
-  technische fout tijdens een vervolgaanvraag wordt als bronstatus doorgegeven en niet stil als
-  volledige pagina gepresenteerd.
+  records zonder geldige URL mee, zodat volgende pagina's geen duplicaten of gaten krijgen. Alleen
+  bronnen met de uiteindelijke status `AVAILABLE` leveren resultaten en een `total`-bijdrage. Een
+  technische fout tijdens een vervolgaanvraag wordt als bronstatus doorgegeven; de bron wordt uit
+  de merge gehaald en de effectieve offset wordt herberekend over de resterende beschikbare stream.
+  Als geen bron beschikbaar blijft, retourneert de service `SOURCE_FAILURE` met lege resultaten en
+  `total = 0`; alleen wanneer alle geselecteerde bronnen beschikbaar zijn en geen resultaten leveren,
+  is de toestand `NO_RESULTS`.
 - `HistoricalSearchAdapters.kt` bevat `EuropeanaSearchAdapter` en
   `OpenArchievenSearchAdapter`. Europeana gebruikt `GET /record/v2/search.json` met `wskey`,
   `query`, herhaalde `qf`, `rows` en `start`; Open Archieven gebruikt
@@ -490,9 +497,13 @@ blijven retrybare technische fouten.
 `HomePage` toont na een succesvolle servicecheck de gelabelde knop `Historisch zoeken` naast de
 bestaande nieuwsflow en opent de zelfstandige pagina. Het formulier bevat vrije tekst, plek, persoon,
 gebeurtenis, vanafjaar, eindjaar en bronkeuze. De pagina ondersteunt distincte laad-, succes-,
-lege-, validatie- en retrybare foutstatussen, paginering en volledig toetsenbordbedienbare retry- en
-paginaknoppen. Statussen gebruiken één `SemanticsRole.status`-node; externe bronknoppen hebben een
-tekstueel label dat het openen van een externe bron in een nieuw tabblad aankondigt.
+lege-, gedeeltelijke-beschikbaarheids-, volledige-bronuitval-, validatie- en retrybare foutstatussen,
+paginering en volledig toetsenbordbedienbare retry- en paginaknoppen. `HistoricalSearchResponse`
+leest de expliciete API-state en kan die voor compatibiliteit afleiden uit resultaten, totalen en
+bronstatussen wanneer de state ontbreekt. Gedeeltelijke beschikbaarheid toont beschikbare resultaten
+en per falende bron een veilige tekstuele melding; volledige bronuitval toont geen resultaatcount
+maar wel een retryactie. Statussen gebruiken één `SemanticsRole.status`-node; externe bronknoppen
+hebben een tekstueel label dat het openen van een externe bron in een nieuw tabblad aankondigt.
 
 Een resultaatkaart toont alleen toegestane inhoudelijke metadata, plus altijd de veilige bronreferentie,
 ophaaldatum en de afzonderlijke technische, metadatarechten-, object-/mediarechten- en

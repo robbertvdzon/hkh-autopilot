@@ -46,6 +46,7 @@ data class HistoricalSearchResponse(
     val start: Int,
     val limit: Int,
     val sources: List<HistoricalSearchSourceStatusResponse>,
+    val state: String,
 )
 
 data class HistoricalSearchErrorResponse(val error: String)
@@ -98,4 +99,5 @@ private fun HistoricalSearchOutcome.toResponse() = HistoricalSearchResponse(
     start = start,
     limit = limit,
     sources = sources.map { HistoricalSearchSourceStatusResponse(it.source.name, it.status.name, it.message) },
+    state = state.name,
 )

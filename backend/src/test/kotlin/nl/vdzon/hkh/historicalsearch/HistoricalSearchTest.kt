@@ -229,6 +229,81 @@ class HistoricalSearchTest {
         assertEquals(0, europeana.calls)
         assertEquals(1, open.calls)
         assertEquals(listOf(HistoricalSearchSource.OPEN_ARCHIEVEN), outcome.sources.map { it.source })
+        assertEquals(HistoricalSearchState.NO_RESULTS, outcome.state)
+    }
+
+    @Test
+    fun `service returns only available totals and marks partial availability`() {
+        val disabled = object : HistoricalSearchAdapter {
+            override val source = HistoricalSearchSource.EUROPEANA
+
+            override fun search(query: HistoricalSearchQuery) = HistoricalSearchPage(
+                source, emptyList(), 999, HistoricalTechnicalStatus.DISABLED,
+            )
+        }
+        val available = sequenceAdapter(HistoricalSearchSource.OPEN_ARCHIEVEN, 1)
+
+        val outcome = HistoricalSearchService(listOf(disabled, available)).search(
+            HistoricalSearchQuery(text = "kerk"),
+        )
+
+        assertEquals(HistoricalSearchState.PARTIAL_AVAILABILITY, outcome.state)
+        assertEquals(1, outcome.total)
+        assertEquals(1, outcome.results.size)
+        assertEquals(HistoricalSourceMessages.NOT_CONFIGURED, outcome.sources.first().message)
+    }
+
+    @Test
+    fun `temporary source failure keeps available results and contributes no total`() {
+        val temporarilyUnavailable = object : HistoricalSearchAdapter {
+            override val source = HistoricalSearchSource.EUROPEANA
+
+            override fun search(query: HistoricalSearchQuery) = HistoricalSearchPage(
+                source, emptyList(), 999, HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE,
+            )
+        }
+        val available = sequenceAdapter(HistoricalSearchSource.OPEN_ARCHIEVEN, 2)
+
+        val outcome = HistoricalSearchService(listOf(temporarilyUnavailable, available)).search(
+            HistoricalSearchQuery(text = "kerk"),
+        )
+
+        assertEquals(HistoricalSearchState.PARTIAL_AVAILABILITY, outcome.state)
+        assertEquals(2, outcome.total)
+        assertEquals(2, outcome.results.size)
+        assertEquals(
+            listOf(
+                HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE,
+                HistoricalTechnicalStatus.AVAILABLE,
+            ),
+            outcome.sources.map { it.status },
+        )
+    }
+
+    @Test
+    fun `service distinguishes no results from complete source failure`() {
+        val empty = fakeAdapter(HistoricalSearchSource.OPEN_ARCHIEVEN)
+        val noResults = HistoricalSearchService(listOf(empty)).search(
+            HistoricalSearchQuery(text = "kerk", source = HistoricalSearchSource.OPEN_ARCHIEVEN),
+        )
+        assertEquals(HistoricalSearchState.NO_RESULTS, noResults.state)
+        assertEquals(0, noResults.total)
+
+        val failed = object : HistoricalSearchAdapter {
+            override val source = HistoricalSearchSource.OPEN_ARCHIEVEN
+
+            override fun search(query: HistoricalSearchQuery) = HistoricalSearchPage(
+                source, emptyList(), 100, HistoricalTechnicalStatus.INVALID_RESPONSE,
+                "provider secret=do-not-return",
+            )
+        }
+        val sourceFailure = HistoricalSearchService(listOf(failed)).search(
+            HistoricalSearchQuery(text = "kerk", source = HistoricalSearchSource.OPEN_ARCHIEVEN),
+        )
+        assertEquals(HistoricalSearchState.SOURCE_FAILURE, sourceFailure.state)
+        assertEquals(0, sourceFailure.total)
+        assertTrue(sourceFailure.results.isEmpty())
+        assertEquals(HistoricalSourceMessages.INVALID_RESPONSE, sourceFailure.sources.single().message)
     }
 
     @Test
@@ -273,6 +348,7 @@ class HistoricalSearchTest {
             .andExpect(jsonPath("$.results[0].sourceRecordId").value("record-1"))
             .andExpect(jsonPath("$.results[0].stableUrl").value("https://example.test/record-1"))
             .andExpect(jsonPath("$.sources[0].status").value("AVAILABLE"))
+            .andExpect(jsonPath("$.state").value("RESULTS"))
             .andExpect(jsonPath("$.limit").value(1))
 
         mockMvc.perform(
@@ -336,6 +412,46 @@ class HistoricalSearchTest {
         assertEquals(listOf(0, 100), adapter.queries)
         assertEquals(HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE, outcome.sources.single().status)
         assertEquals("Vervolgpagina niet beschikbaar.", outcome.sources.single().message)
+        assertEquals(0, outcome.total)
+        assertEquals(HistoricalSearchState.SOURCE_FAILURE, outcome.state)
+    }
+
+    @Test
+    fun `continuation failure never returns results at an offset outside the final total`() {
+        val failing = object : HistoricalSearchAdapter {
+            override val source = HistoricalSearchSource.EUROPEANA
+
+            override fun search(query: HistoricalSearchQuery): HistoricalSearchPage =
+                if (query.start == 0) {
+                    HistoricalSearchPage(
+                        source = source,
+                        results = (0 until 100).map { index -> historicalResult(source, index) },
+                        total = 200,
+                        status = HistoricalTechnicalStatus.AVAILABLE,
+                    )
+                } else {
+                    HistoricalSearchPage(
+                        source = source,
+                        results = emptyList(),
+                        total = 200,
+                        status = HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE,
+                        consumed = 0,
+                    )
+                }
+        }
+        val available = recordingAdapter(HistoricalSearchSource.OPEN_ARCHIEVEN)
+
+        val outcome = HistoricalSearchService(listOf(failing, available)).search(
+            HistoricalSearchQuery(text = "kerk", start = 200, limit = 100),
+        )
+
+        assertEquals(100, outcome.start)
+        assertEquals(100, outcome.results.size)
+        assertEquals((100 until 200).map { "OPEN_ARCHIEVEN-$it" }, outcome.results.map { it.sourceRecordId })
+        assertEquals(200, outcome.total)
+        assertEquals(HistoricalSearchState.PARTIAL_AVAILABILITY, outcome.state)
+        assertEquals(HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE, outcome.sources.first().status)
+        assertEquals(HistoricalTechnicalStatus.AVAILABLE, outcome.sources.last().status)
     }
 
     @Test
@@ -347,6 +463,8 @@ class HistoricalSearchTest {
         val outcome = service.search(HistoricalSearchQuery(text = "kerk", start = 100, limit = 100))
 
         assertEquals(100, outcome.results.size)
+        assertEquals(400, outcome.total)
+        assertEquals(HistoricalSearchState.RESULTS, outcome.state)
         assertEquals(listOf(0), europeana.queries.map { it.start })
         assertEquals(listOf(0), open.queries.map { it.start })
         assertEquals(100, outcome.results.map { it.sourceRecordId }.distinct().size)

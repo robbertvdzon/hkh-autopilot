@@ -27,6 +27,13 @@ enum class HistoricalPrivacyStatus {
     UNKNOWN,
 }
 
+enum class HistoricalSearchState {
+    RESULTS,
+    NO_RESULTS,
+    PARTIAL_AVAILABILITY,
+    SOURCE_FAILURE,
+}
+
 data class HistoricalSearchQuery(
     val text: String? = null,
     val place: String? = null,
@@ -85,6 +92,32 @@ data class HistoricalSourceStatus(
     val status: HistoricalTechnicalStatus,
     val message: String? = null,
 )
+
+object HistoricalSourceMessages {
+    const val NOT_CONFIGURED = "Bron is niet geconfigureerd."
+    const val TEMPORARILY_UNAVAILABLE = "Bron is tijdelijk niet beschikbaar."
+    const val INVALID_RESPONSE = "Ongeldige bronrespons."
+
+    private val knownSafeMessages = setOf(
+        "Europeana vereist een vrije zoekterm, persoon, plek of gebeurtenis.",
+        "Europeana kon niet worden bevraagd.",
+        "Europeana is niet geconfigureerd.",
+        "Open Archieven vereist een zoekterm, persoon of gebeurtenis.",
+        "Open Archieven kon niet worden bevraagd.",
+        "Open Archieven retourneerde een foutrespons.",
+        "Vervolgpagina niet beschikbaar.",
+    )
+
+    /** Keeps adapter diagnostics short and prevents provider payloads reaching the client. */
+    fun safe(status: HistoricalTechnicalStatus, message: String?): String? = when (status) {
+        HistoricalTechnicalStatus.AVAILABLE -> null
+        HistoricalTechnicalStatus.DISABLED -> NOT_CONFIGURED
+        HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE ->
+            message?.takeIf(knownSafeMessages::contains) ?: TEMPORARILY_UNAVAILABLE
+        HistoricalTechnicalStatus.INVALID_RESPONSE ->
+            message?.takeIf(knownSafeMessages::contains) ?: INVALID_RESPONSE
+    }
+}
 
 data class HistoricalSearchPage(
     val source: HistoricalSearchSource,

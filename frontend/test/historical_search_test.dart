@@ -28,6 +28,7 @@ class _HistoricalSource implements HistoricalSearchSource {
 
   final Future<HistoricalSearchResponse> result;
   int calls = 0;
+  final starts = <int>[];
 
   @override
   Future<HistoricalSearchResponse> loadHistoricalSearch({
@@ -42,6 +43,7 @@ class _HistoricalSource implements HistoricalSearchSource {
     int limit = 100,
   }) {
     calls++;
+    starts.add(start);
     return result;
   }
 }
@@ -130,6 +132,7 @@ void main() {
           'total': 1,
           'start': 0,
           'limit': 100,
+          'state': 'RESULTS',
           'sources': [
             {
               'source': 'OPEN_ARCHIEVEN',
@@ -236,6 +239,67 @@ void main() {
     expect(find.text('Geen historische resultaten gevonden.'), findsOneWidget);
   });
 
+  testWidgets(
+    'uses the server page limit when a short page is paginated backwards',
+    (tester) async {
+      final source = _HistoricalSource(
+        Future.value(
+          HistoricalSearchResponse(
+            results: [
+              HistoricalSearchResult(
+                source: 'OPEN_ARCHIEVEN',
+                sourceRecordId: 'second-page',
+                stableUrl: 'https://example.test/second-page',
+                retrievedAt: DateTime.utc(2026, 8, 12),
+                metadataRights: 'ALLOWED',
+                privacyStatus: 'CLEAR',
+                title: 'Tweede beschikbare pagina',
+              ),
+            ],
+            total: 200,
+            start: 100,
+            limit: 100,
+            state: 'PARTIAL_AVAILABILITY',
+            sources: [
+              HistoricalSourceStatus(
+                source: 'EUROPEANA',
+                status: 'TEMPORARILY_UNAVAILABLE',
+              ),
+              HistoricalSourceStatus(
+                source: 'OPEN_ARCHIEVEN',
+                status: 'AVAILABLE',
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(home: HistoricalSearchPage(source: source)),
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('historical-search-submit')),
+      );
+      await tester.tap(find.byKey(const Key('historical-search-submit')));
+      await tester.pumpAndSettle();
+
+      expect(source.starts, [0]);
+      await tester.ensureVisible(find.text('Tweede beschikbare pagina'));
+      expect(find.text('Tweede beschikbare pagina'), findsOneWidget);
+      final previousButton = tester.widget<OutlinedButton>(
+        find
+            .ancestor(
+              of: find.text('Vorige resultaten'),
+              matching: find.byType(OutlinedButton),
+            )
+            .first,
+      );
+      previousButton.onPressed!();
+      await tester.pumpAndSettle();
+
+      expect(source.starts, [0, 0]);
+    },
+  );
+
   testWidgets('shows validation errors without offering a retry', (
     tester,
   ) async {
@@ -267,7 +331,7 @@ void main() {
   testWidgets(
     'shows retryable error when backend reports a source failure with HTTP 200',
     (tester) async {
-      const response = HistoricalSearchResponse(
+      final response = HistoricalSearchResponse(
         results: [],
         total: 0,
         start: 0,
@@ -292,6 +356,52 @@ void main() {
 
       expect(find.byKey(const Key('historical-search-retry')), findsOneWidget);
       expect(find.text('Geen historische resultaten gevonden.'), findsNothing);
+      expect(find.text('historische resultaten'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'keeps available results visible for partial source availability',
+    (tester) async {
+      final response = HistoricalSearchResponse(
+        results: [
+          HistoricalSearchResult(
+            source: 'OPEN_ARCHIEVEN',
+            sourceRecordId: 'partial-1',
+            stableUrl: 'https://example.test/partial-1',
+            retrievedAt: DateTime.utc(2026, 8, 12),
+            metadataRights: 'ALLOWED',
+            privacyStatus: 'CLEAR',
+            title: 'Beschikbaar resultaat',
+          ),
+        ],
+        total: 1,
+        start: 0,
+        limit: 100,
+        state: 'PARTIAL_AVAILABILITY',
+        sources: [
+          HistoricalSourceStatus(source: 'EUROPEANA', status: 'DISABLED'),
+          HistoricalSourceStatus(source: 'OPEN_ARCHIEVEN', status: 'AVAILABLE'),
+        ],
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HistoricalSearchPage(
+            source: _HistoricalSource(Future.value(response)),
+          ),
+        ),
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('historical-search-submit')),
+      );
+      await tester.tap(find.byKey(const Key('historical-search-submit')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Beschikbaar resultaat'));
+
+      expect(find.text('Beschikbaar resultaat'), findsOneWidget);
+      expect(find.text('Europeana: niet geconfigureerd.'), findsOneWidget);
+      expect(find.byKey(const Key('historical-search-retry')), findsNothing);
+      expect(find.text('1 historische resultaten'), findsOneWidget);
     },
   );
 

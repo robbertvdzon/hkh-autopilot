@@ -19,9 +19,10 @@ Repositoryspecifieke build-, test- en toegankelijkheidsafspraken staan in
 [docs/factory/](docs/factory/README.md).
 
 De publieke zoekroute `GET /api/historical-search` zoekt, zonder lokale opslag van zoekopdrachten
-of bronpayloads, in Europeana en Open Archieven. De Europeana-wskey is uitsluitend server-side
-configuratie; zie [docs/factory/secrets-local.md](docs/factory/secrets-local.md) voor de
-configuratienamen.
+of bronpayloads, in Europeana en Open Archieven. De respons onderscheidt resultaten, nul resultaten,
+gedeeltelijke bronbeschikbaarheid en volledige bronuitval; `total` telt alleen beschikbare bronnen
+mee. De Europeana-wskey is uitsluitend server-side configuratie; zie
+[docs/factory/secrets-local.md](docs/factory/secrets-local.md) voor de configuratienamen.
 
 ## Backend lokaal starten
 
