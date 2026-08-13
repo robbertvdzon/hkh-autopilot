@@ -413,6 +413,21 @@ Een overlappende periode mag alleen bij een bestaande relatie als aanvullende in
 getoond en vormt nooit zelfstandig een relatie. Elke relatie toont het gedeelde veld, de bron en de
 oorspronkelijke stabiele bronlink.
 
+Vanuit deze detailweergave kunnen nieuwe zoekingangen worden aangeboden voor een expliciet aanwezige,
+niet-lege en zekere plaats, persoon of gebeurtenis, en voor een expliciete geldige periode met een
+begin- en eindjaar van vier cijfers in de juiste volgorde. De actie verschijnt alleen wanneer het
+resultaat technisch `AVAILABLE` is, metadatarechten `ALLOWED` zijn en privacy `CLEAR` is. Waarden
+die ontbreken, onzeker of tegenstrijdig zijn, door rechten/privacy worden geblokkeerd of uit titel,
+zoekterm of URL zijn afgeleid, krijgen geen actie. De actie gebruikt exact de oorspronkelijke
+metadatawaarde en opent de bestaande historische zoekroute zonder bronfilter, waardoor de standaard
+bronkeuze Europeana en Open Archieven blijft gebruiken.
+
+De vervolgzoekweergave toont de gekozen vervolgwaarde en de tekst “Dit is een nieuwe zoekingang en
+bewijst geen relatie tussen bronnen.” De oorspronkelijke metadata blijft in de detailweergave staan.
+Vervolgacties zijn semantische buttons met zichtbare focus; terugnavigatie gaat eerst naar de
+detailweergave en daarna naar de oorspronkelijke resultatenlijst. De uitbreiding introduceert geen
+opslag van zoekopdrachten, bronpayloads, media of klikgeschiedenis.
+
 ## Publieke recorddetailpagina en externe bronverificatie
 
 Naast de bestaande beheerfrontend heeft de gebruikersfrontend nu een publieke recorddetailpagina
@@ -590,6 +605,9 @@ resultaten en volledige bronuitval, de bronmeldingen, één status/live-regio, d
 toetsenbordbedienbare retryactie, paginering met een korte pagina en behoud van bronmetadata. De
 contextdetailtests controleren de actie `Context bekijken`, detailvelden, expliciete
 `Niet beschikbaar`/`Onzeker`-meldingen, bronlinks, bronstatussen, relaties en toetsenbordbediening.
+De aanvullende `historical_follow_up_test.dart` controleert de vier exacte vervolgquery’s, fail-closed
+gating van onzekere/afgeleide of niet-toegestane waarden, de waarschuwing en beide
+terugnavigatiestappen; de gerichte suite bevat zes tests.
 
 De publieke recorddetailpagina en externe bronverificatie zijn gedekt met backend unit-,
 integratie- en Flutter widget-/semantiektests: `RecordPublicStatusResolverTest` dekt alle

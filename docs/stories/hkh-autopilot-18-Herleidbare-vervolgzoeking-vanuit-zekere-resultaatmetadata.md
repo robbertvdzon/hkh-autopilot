@@ -58,7 +58,9 @@ PO-samenvatting:
 - Terugnavigatie naar detail en daarna naar de resultatenlijst blijft behouden.
 - Er is geen opslag toegevoegd voor zoekopdrachten, brongegevens of klikgeschiedenis.
 - Gerichte tests: 6 groen. Volledig vangnet: backend 301 tests, frontend 59 tests, admin 35 tests; analyse en webbuild zijn geslaagd.
-- Documentatiebijwerking, merge en deploy zijn bewust niet binnen deze subtaak uitgevoerd.
+- De algemene README, frontend-handleiding, reguliere en factory-developmentdocs en de functionele
+  en technische factory-specs beschrijven nu de vervolgacties, fail-closed gating, queryhergebruik,
+  waarschuwing en terugnavigatie. Merge en deploy vallen buiten deze documentatietaak.
 
 <!-- deploy-summary:start -->
 Je kunt nu vanuit een historisch zoekresultaat direct verder zoeken op de betrouwbare plaats, persoon, gebeurtenis of periode die daar staat. De nieuwe zoekingang maakt duidelijk dat dit geen bewijs is dat twee bronnen bij elkaar horen.

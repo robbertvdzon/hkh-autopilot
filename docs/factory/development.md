@@ -58,6 +58,16 @@
   expliciete plaatsmetadata die na NFKC-, witruimte- en hoofdletternormalisatie exact `Heemskerk`
   is, telt mee; niet-beschikbare bronnen krijgen geen numerieke telling en de indicatie wordt niet
   als historisch bewijs gepresenteerd;
+- `historical_context_detail.dart` kan daarnaast nieuwe zoekingangen aanbieden voor expliciete,
+  niet-lege en zekere plaats-, persoons- en gebeurteniswaarden en voor een geldige expliciete periode
+  met twee geordende viercijferige jaren. De gate vereist technische status `AVAILABLE`,
+  metadatarechten `ALLOWED` en privacy `CLEAR`; ontbrekende, onzekere, tegenstrijdige, beperkte of
+  uit titel/zoekterm/URL afgeleide waarden leveren geen actie op. De bestaande
+  `HistoricalSearchSource` wordt hergebruikt met de oorspronkelijke waarde, zonder bronfilter, en
+  start automatisch een nieuwe zoekingang over de standaardbronnen Europeana en Open Archieven. De
+  vervolgpagina toont de waarde en de waarschuwing dat dit geen bewezen relatie tussen bronnen is;
+  de route-stack bewaart terugnavigatie naar detail en resultatenlijst. Er is geen lokale opslag van
+  zoekopdrachten, bronpayloads, media of klikgeschiedenis;
 - `frontend/`: Flutter-gebruikersapp; homepage en statusflows staan in `lib/main.dart`,
   broninterfaces onder `lib/backend/`, `lib/news/` en `lib/historical/`, widgettests onder `test/`;
   de homepage heeft naast `Laatste nieuws` de ingang `Historisch zoeken` met een zelfstandige,
