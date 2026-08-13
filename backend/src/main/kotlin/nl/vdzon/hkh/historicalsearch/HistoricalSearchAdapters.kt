@@ -3,6 +3,7 @@ package nl.vdzon.hkh.historicalsearch
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.util.Locale
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -144,8 +145,8 @@ class EuropeanaSearchAdapter(
                     rights = item.consistentText(500, "rights", "dcRights", "dc:rights"),
                     privacy = item.consistentText(500, "privacy", "privacyStatus", "personalDataStatus"),
                     retrievedAt = retrievedAt,
-                    metadataRights = explicitRights(item.consistentText(500, "metadataRights", "metadataRightsStatus")),
-                    objectMediaRights = explicitRights(item.consistentText(500, "objectRights", "mediaRights", "objectMediaRightsStatus")),
+                    metadataRights = parseHistoricalRights(item.consistentText(500, "metadataRights", "metadataRightsStatus")),
+                    objectMediaRights = parseHistoricalRights(item.consistentText(500, "objectRights", "mediaRights", "objectMediaRightsStatus")),
                     privacyStatus = explicitPrivacy(item.consistentText(500, "privacyStatus", "privacy")),
                     placeStatus = place.status,
                     personStatus = person.status,
@@ -161,12 +162,6 @@ class EuropeanaSearchAdapter(
 
     private fun unavailable(at: Instant, status: HistoricalTechnicalStatus = HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE) =
         HistoricalSearchPage(source, emptyList(), 0, status, "Europeana kon niet worden bevraagd.")
-
-    private fun explicitRights(value: String?): HistoricalRightsStatus = when (value?.trim()?.uppercase()) {
-        "ALLOWED", "OPEN", "PUBLIC", "PERMITTED" -> HistoricalRightsStatus.ALLOWED
-        "RESTRICTED", "CLOSED", "LIMITED" -> HistoricalRightsStatus.RESTRICTED
-        else -> HistoricalRightsStatus.UNKNOWN
-    }
 
     private fun explicitPrivacy(value: String?): HistoricalPrivacyStatus = when (value?.trim()?.uppercase()) {
         "CLEAR", "PUBLIC", "NO_PERSONAL_DATA", "NO_PERSONS" -> HistoricalPrivacyStatus.CLEAR
@@ -282,8 +277,8 @@ class OpenArchievenSearchAdapter(
                 rights = item.consistentText(500, "rights", "license"),
                 privacy = item.consistentText(500, "privacy", "privacyStatus"),
                 retrievedAt = retrievedAt,
-                    metadataRights = explicitRights(item.consistentText(500, "metadataRights", "metadataRightsStatus")),
-                    objectMediaRights = explicitRights(item.consistentText(500, "objectRights", "objectMediaRightsStatus")),
+                    metadataRights = parseHistoricalRights(item.consistentText(500, "metadataRights", "metadataRightsStatus")),
+                    objectMediaRights = parseHistoricalRights(item.consistentText(500, "objectRights", "objectMediaRightsStatus")),
                     privacyStatus = explicitPrivacy(item.consistentText(500, "privacyStatus", "privacy")),
                     placeStatus = place.status,
                     personStatus = person.status,
@@ -300,17 +295,18 @@ class OpenArchievenSearchAdapter(
     private fun unavailable(at: Instant, status: HistoricalTechnicalStatus = HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE) =
         HistoricalSearchPage(source, emptyList(), 0, status, "Open Archieven kon niet worden bevraagd.")
 
-    private fun explicitRights(value: String?): HistoricalRightsStatus = when (value?.trim()?.uppercase()) {
-        "ALLOWED", "OPEN", "PUBLIC", "PERMITTED" -> HistoricalRightsStatus.ALLOWED
-        "RESTRICTED", "CLOSED", "LIMITED" -> HistoricalRightsStatus.RESTRICTED
-        else -> HistoricalRightsStatus.UNKNOWN
-    }
-
     private fun explicitPrivacy(value: String?): HistoricalPrivacyStatus = when (value?.trim()?.uppercase()) {
         "CLEAR", "PUBLIC", "NO_PERSONAL_DATA", "NO_PERSONS" -> HistoricalPrivacyStatus.CLEAR
         "BLOCKED", "RESTRICTED", "PERSONAL_DATA", "LIVING_PERSON" -> HistoricalPrivacyStatus.BLOCKED
         else -> HistoricalPrivacyStatus.UNKNOWN
     }
+}
+
+/** Maps only the controlled rights values supplied by the result itself. */
+private fun parseHistoricalRights(value: String?): HistoricalRightsStatus = when (value?.trim()?.uppercase(Locale.ROOT)) {
+    "ALLOWED" -> HistoricalRightsStatus.ALLOWED
+    "RESTRICTED" -> HistoricalRightsStatus.RESTRICTED
+    else -> HistoricalRightsStatus.UNKNOWN
 }
 
 private fun JsonNode.consistentText(maxLength: Int, vararg names: String): String? {

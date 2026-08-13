@@ -3,6 +3,7 @@ import 'package:unorm_dart/unorm_dart.dart' as unorm;
 
 import '../records/external_link_launcher.dart';
 import 'historical_search.dart';
+import 'historical_rights_explanation.dart';
 
 class HistoricalContextRelation {
   const HistoricalContextRelation({
@@ -191,6 +192,10 @@ class HistoricalContextDetailPage extends StatelessWidget {
             _detailField(
               'Object-/mediarechten',
               _historicalStatus(result.objectMediaRights),
+            ),
+            HistoricalRightsExplanation(
+              keyPrefix:
+                  'historical-rights-explanation-detail-${result.sourceRecordId}',
             ),
             _detailField(
               'Privacystatus',

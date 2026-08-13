@@ -29,6 +29,13 @@ Heemskerk-indicatie op basis van zekere plaatsmetadata; die indicatie is geen hi
 De Europeana-wskey is uitsluitend server-side configuratie; zie
 [docs/factory/secrets-local.md](docs/factory/secrets-local.md) voor de configuratienamen.
 
+De rechtenvelden van elk resultaat worden uitsluitend uit expliciete rechtenmetadata van dat
+bronresultaat bepaald. Alleen `ALLOWED` en `RESTRICTED` worden herkend; ontbrekende, lege,
+niet-herkende of tegenstrijdige waarden worden `UNKNOWN`. Het vrije tekstveld `rights` blijft
+aanvullende broninformatie en bepaalt geen gecontroleerde status. Kaart en detailweergave tonen
+metadatarechten en object-/mediarechten afzonderlijk, met een semantische, toetsenbordbedienbare
+uitleg dat beide statussen onafhankelijk zijn en dat `UNKNOWN` geen toestemming of weigering betekent.
+
 Beschikbare resultaten hebben een actie `Context bekijken`. Die detailweergave behoudt de bestaande
 bron-, identifier-, URL-, ophaal-, rechten- en privacymetadata en toont ook plaats, periode, persoon
 en gebeurtenis. Ontbrekende of onbeschikbare context wordt als `Niet beschikbaar` en onzekere of

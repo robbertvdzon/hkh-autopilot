@@ -3,6 +3,7 @@ import 'package:flutter/semantics.dart';
 
 import '../records/external_link_launcher.dart';
 import 'historical_context_detail.dart';
+import 'historical_rights_explanation.dart';
 
 enum HistoricalSourceChoice { europeana, openArchieven }
 
@@ -793,6 +794,10 @@ class _HistoricalResultCard extends StatelessWidget {
             ),
             Text('Metadatarechten: ${_status(result.metadataRights)}'),
             Text('Object-/mediarechten: ${_status(result.objectMediaRights)}'),
+            HistoricalRightsExplanation(
+              keyPrefix:
+                  'historical-rights-explanation-${result.sourceRecordId}',
+            ),
             Text('Privacy: ${_status(result.privacyStatus)}'),
             if (metadataAvailable && result.rights != null)
               Text('Rechten: ${result.rights}'),

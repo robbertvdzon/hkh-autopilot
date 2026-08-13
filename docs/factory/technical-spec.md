@@ -493,7 +493,11 @@ privacyclassificatie.
   doelnaam, stabiele doel-URI of externe doel-link laat de volledige relatie weg. Relaties worden
   nooit uit contextvelden, titels, zoekfilters, URL's of periode-overlap afgeleid. Ontbrekende velden
   worden `MISSING`; conflicterende, te lange of onveilige waarden `UNCERTAIN`. Beide adapters sturen
-  `HKH-Autopilot-HistoricalSearch/1.0`.
+  `HKH-Autopilot-HistoricalSearch/1.0`. De rechtenmapping gebruikt voor beide velden alleen de
+  expliciete resultaatvelden `metadataRights`/`metadataRightsStatus` en
+  `objectRights`/`mediaRights`/`objectMediaRightsStatus`: exact `ALLOWED` wordt `ALLOWED`, exact
+  `RESTRICTED` wordt `RESTRICTED` en alles wat ontbreekt, leeg, niet-herkend of tegenstrijdig is
+  wordt `UNKNOWN`. Het vrije `rights`- of `license`-veld wordt niet voor deze mapping gebruikt.
 - De Europeana-wskey komt uit `hkh.historical.europeana-wskey` / `HKH_EUROPEANA_WSKEY`. Een lege
   waarde markeert alleen Europeana als `DISABLED`; Open Archieven blijft onafhankelijk beschikbaar.
   De providerbasis-URL's zijn overschrijfbaar via `HKH_HISTORICAL_EUROPEANA_BASE_URL` en
@@ -555,6 +559,12 @@ de backend geleverde stabiele URL. Providerrelaties worden daarnaast alleen bij 
 geldige lijst getoond in `Bronvastgelegde relatie`, met expliciete bronclaimtekst, target-URI en
 een tekstueel aangekondigde externe link naar `target.link`. De frontend gebruikt `unorm_dart`
 voor dezelfde NFKC-normalisatie als de backend.
+
+De resultaatkaart en detailweergave gebruiken de gedeelde widget
+`historical_rights_explanation.dart`/`HistoricalRightsExplanation`. Deze rendert een semantische
+Material `TextButton`-bediening die via Tab, Enter en spatie bereikbaar is. Na activering toont de
+widget de uitleg dat metadatarechten en object-/mediarechten onafhankelijk worden beoordeeld in beide
+richtingen en dat `UNKNOWN` alleen betekent dat de bron geen expliciete, verifieerbare status levert.
 
 De detailweergave bevat ook `historicalFollowUpActions`, die alleen acties teruggeeft wanneer het
 resultaat technisch `AVAILABLE` is, metadatarechten `ALLOWED` zijn en privacy `CLEAR` is. Voor plaats,

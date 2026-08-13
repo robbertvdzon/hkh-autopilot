@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hkh_app/historical/historical_context_detail.dart';
+import 'package:hkh_app/historical/historical_rights_explanation.dart';
 import 'package:hkh_app/historical/historical_search.dart';
 
 HistoricalSearchResult _result(
@@ -14,6 +16,8 @@ HistoricalSearchResult _result(
   HistoricalContextStatus? personStatus,
   HistoricalContextStatus? eventStatus,
   List<HistoricalSearchRelationship> relationships = const [],
+  String metadataRights = 'UNKNOWN',
+  String objectMediaRights = 'UNKNOWN',
 }) => HistoricalSearchResult(
   source: 'OPEN_ARCHIEVEN',
   sourceRecordId: id,
@@ -27,6 +31,8 @@ HistoricalSearchResult _result(
   placeStatus: placeStatus,
   personStatus: personStatus,
   eventStatus: eventStatus,
+  metadataRights: metadataRights,
+  objectMediaRights: objectMediaRights,
   relationships: relationships,
 );
 
@@ -254,4 +260,45 @@ void main() {
       findsNothing,
     );
   });
+
+  testWidgets(
+    'shows separate rights statuses and their explanation in detail',
+    (tester) async {
+      final result = _result(
+        'rights-detail',
+        metadataRights: 'ALLOWED',
+        objectMediaRights: 'RESTRICTED',
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: HistoricalContextDetailPage(
+            result: result,
+            visibleResults: [result],
+            searchState: 'RESULTS',
+            sourceStatuses: const [],
+          ),
+        ),
+      );
+
+      expect(find.text('Metadatarechten: Toegestaan'), findsOneWidget);
+      expect(find.text('Object-/mediarechten: Beperkt'), findsOneWidget);
+      await tester.drag(find.byType(ListView), const Offset(0, -500));
+      await tester.pump();
+      final toggle = find.byKey(
+        const Key('historical-rights-explanation-detail-rights-detail-toggle'),
+      );
+      expect(toggle, findsOneWidget);
+      expect(
+        tester
+            .getSemantics(toggle)
+            .getSemanticsData()
+            .hasAction(SemanticsAction.tap),
+        isTrue,
+      );
+      await tester.ensureVisible(toggle);
+      await tester.tap(toggle);
+      await tester.pump();
+      expect(find.text(historicalRightsExplanation), findsOneWidget);
+    },
+  );
 }

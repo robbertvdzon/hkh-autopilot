@@ -119,6 +119,85 @@ class HistoricalSearchTest {
     }
 
     @Test
+    fun `europeana maps only explicit controlled rights and fails closed otherwise`() {
+        val fixture = startFixture(
+            """
+            {"totalResults":5,"items":[
+              {"id":"allowed","guid":"https://data.example/allowed",
+               "metadataRights":"ALLOWED","objectMediaRightsStatus":"ALLOWED"},
+              {"id":"restricted","guid":"https://data.example/restricted",
+               "metadataRightsStatus":"RESTRICTED","objectRights":"RESTRICTED"},
+              {"id":"missing","guid":"https://data.example/missing",
+               "rights":"ALLOWED","license":"RESTRICTED"},
+              {"id":"unrecognized","guid":"https://data.example/unrecognized",
+               "metadataRights":"PUBLIC","objectMediaRightsStatus":"CLOSED"},
+              {"id":"contradictory","guid":"https://data.example/contradictory",
+               "metadataRights":"ALLOWED","metadataRightsStatus":"RESTRICTED",
+               "objectRights":"ALLOWED","objectMediaRightsStatus":"RESTRICTED"}
+            ]}
+            """.trimIndent(),
+        )
+        try {
+            val results = EuropeanaSearchAdapter(
+                RestClient.builder().baseUrl(fixture.baseUrl).build(),
+                wskey = "test-key",
+                clock = fixedClock(),
+            ).search(HistoricalSearchQuery(text = "rechten")).results
+
+            assertEquals(
+                listOf(
+                    HistoricalRightsStatus.ALLOWED,
+                    HistoricalRightsStatus.RESTRICTED,
+                    HistoricalRightsStatus.UNKNOWN,
+                    HistoricalRightsStatus.UNKNOWN,
+                    HistoricalRightsStatus.UNKNOWN,
+                ),
+                results.map { it.metadataRights },
+            )
+            assertEquals(
+                listOf(
+                    HistoricalRightsStatus.ALLOWED,
+                    HistoricalRightsStatus.RESTRICTED,
+                    HistoricalRightsStatus.UNKNOWN,
+                    HistoricalRightsStatus.UNKNOWN,
+                    HistoricalRightsStatus.UNKNOWN,
+                ),
+                results.map { it.objectMediaRights },
+            )
+        } finally {
+            fixture.stop()
+        }
+    }
+
+    @Test
+    fun `open archieven maps explicit rights independently from source rights text`() {
+        val fixture = startFixture(
+            """
+            {"response":{"number_found":2,"docs":[
+              {"identifier":"allowed","url":"https://data.example/allowed",
+               "metadataRights":"ALLOWED","objectRights":"RESTRICTED","rights":"PUBLIC"},
+              {"identifier":"unknown","url":"https://data.example/unknown",
+               "rights":"ALLOWED","metadataRights":"not-a-status"}
+            ]}}
+            """.trimIndent(),
+        )
+        try {
+            val results = OpenArchievenSearchAdapter(
+                RestClient.builder().baseUrl(fixture.baseUrl).build(),
+                rateLimiter = HistoricalSearchRateLimiter { },
+                clock = fixedClock(),
+            ).search(HistoricalSearchQuery(text = "rechten")).results
+
+            assertEquals(HistoricalRightsStatus.ALLOWED, results[0].metadataRights)
+            assertEquals(HistoricalRightsStatus.RESTRICTED, results[0].objectMediaRights)
+            assertEquals(HistoricalRightsStatus.UNKNOWN, results[1].metadataRights)
+            assertEquals(HistoricalRightsStatus.UNKNOWN, results[1].objectMediaRights)
+        } finally {
+            fixture.stop()
+        }
+    }
+
+    @Test
     fun `europeana repeats qf and only returns source supplied stable links`() {
         val fixture = startFixture(
             """

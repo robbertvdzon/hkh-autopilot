@@ -34,6 +34,13 @@ with explicit `Niet beschikbaar` and `Onzeker` labels for context fields whose s
 `MISSING`/`UNAVAILABLE` or `UNCERTAIN`. It repeats the aggregate search state and the selected
 source status so partial availability and source failure remain understandable.
 
+The controlled rights fields are fail-closed per result: only explicit `ALLOWED` and `RESTRICTED`
+values from the provider become statuses. Missing, blank, unrecognized or conflicting rights values
+become `UNKNOWN`; the free-text `rights` field remains source information and is never translated
+into a controlled status. Result cards and the context detail page show metadata rights and
+object/media rights separately, with the shared keyboard-operable explanation that the two statuses
+are independent in both directions and that `UNKNOWN` does not mean allowed or denied.
+
 The detail page derives up to three related results only from the current response page, excluding
 the opened result. A relation requires an exactly equal place, person or event after deterministic
 trim, Unicode-NFKC, whitespace and case normalization; missing, uncertain and unavailable values
