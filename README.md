@@ -24,6 +24,13 @@ gedeeltelijke bronbeschikbaarheid en volledige bronuitval; `total` telt alleen b
 mee. De Europeana-wskey is uitsluitend server-side configuratie; zie
 [docs/factory/secrets-local.md](docs/factory/secrets-local.md) voor de configuratienamen.
 
+Beschikbare resultaten hebben een actie `Context bekijken`. Die detailweergave behoudt de bestaande
+bron-, identifier-, URL-, ophaal-, rechten- en privacymetadata en toont ook plaats, periode, persoon
+en gebeurtenis. Ontbrekende of onbeschikbare context wordt als `Niet beschikbaar` en onzekere of
+tegenstrijdige context als `Onzeker` getoond. Verwante resultaten komen uitsluitend uit de huidige
+zichtbare resultatenpagina, worden op exact genormaliseerde plaats-, persoons- of gebeurtenisvelden
+gevonden en zijn begrensd op drie; een periode-overlap maakt op zichzelf geen relatie.
+
 ## Backend lokaal starten
 
 Vereisten: JDK 21 en Maven 3.9 of nieuwer.

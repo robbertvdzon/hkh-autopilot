@@ -45,7 +45,15 @@
   genormaliseerde Europeana/Open Archieven-resultaten, bronkeuze, queryvalidatie, cursorpaginering,
   een geaggregeerde state (`RESULTS`, `NO_RESULTS`, `PARTIAL_AVAILABILITY` of `SOURCE_FAILURE`),
   per-bronstatus (`AVAILABLE`, `DISABLED`, `TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`),
-  fail-closed metadata/statusmapping en zonder opslag van zoekopdrachten of bronpayloads);
+  fail-closed metadata/statusmapping en zonder opslag van zoekopdrachten of bronpayloads). Het
+  resultaatcontract bevat expliciete `place`-, `person`- en `event`-velden met elk een contextstatus
+  (`AVAILABLE`, `MISSING`, `UNCERTAIN` of `UNAVAILABLE`); plaats wordt nooit uit zoekterm, titel of
+  URL afgeleid. De beschikbare Flutter-resultaatkaart biedt `Context bekijken`; de detailpagina
+  toont context-, bron-, rechten- en privacymetadata, herhaalt de zoek-/bronstatus en gebruikt
+  expliciet `Niet beschikbaar`/`Onzeker` voor ontbrekende of onzekere context. Verwante resultaten
+  worden uitsluitend uit de huidige zichtbare `results`-lijst bepaald, maximaal drie, na exacte
+  deterministische normalisatie van plaats/persoon/gebeurtenis; een periode-overlap is alleen
+  aanvullende informatie en creëert geen relatie;
 - `frontend/`: Flutter-gebruikersapp; homepage en statusflows staan in `lib/main.dart`,
   broninterfaces onder `lib/backend/`, `lib/news/` en `lib/historical/`, widgettests onder `test/`;
   de homepage heeft naast `Laatste nieuws` de ingang `Historisch zoeken` met een zelfstandige,
@@ -53,7 +61,9 @@
   bronkeuze, laad/succes/leeg/gedeeltelijke-beschikbaarheid/bronprobleem/retry-statussen,
   paginering en externe-linklabels. Bij gedeeltelijke beschikbaarheid blijven beschikbare resultaten
   zichtbaar; bij volledige bronuitval toont de pagina geen resultaatcount en biedt zij `Opnieuw
-  proberen`. `lib/records/`
+  proberen`. `lib/historical/historical_context_detail.dart` bevat de contextdetailweergave en
+  de begrensde relatiebepaling; Unicode-normalisatie gebruikt de directe dependency
+  `unorm_dart`. `lib/records/`
   bevat de nieuwe publieke recorddetailpagina (`RecordDetailPage`) met de in-/uitklapbare sectie
   "Externe bronverificatie" (leest `GET /api/records/{localIdentifier}` via de nieuwe
   `RecordPublicSource` op `BackendClient`), inclusief een conditionele externe-linkopener

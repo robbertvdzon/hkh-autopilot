@@ -21,7 +21,17 @@ messages. Full source failure shows a semantic source-problem status and the key
 `Opnieuw proberen` action without presenting a misleading result count. Results show the source
 identifier, retrieval time, technical availability, metadata rights, object/media rights, privacy
 status and a clearly labeled external source link; source metadata is shown only when the backend
-has explicit safe rights and privacy statuses.
+has explicit safe rights and privacy statuses. Available result cards also offer `Context bekijken`.
+The detail page shows title, place, period, person, event and the source/rights/privacy metadata,
+with explicit `Niet beschikbaar` and `Onzeker` labels for context fields whose status is
+`MISSING`/`UNAVAILABLE` or `UNCERTAIN`. It repeats the aggregate search state and the selected
+source status so partial availability and source failure remain understandable.
+
+The detail page derives up to three related results only from the current response page, excluding
+the opened result. A relation requires an exactly equal place, person or event after deterministic
+trim, Unicode-NFKC, whitespace and case normalization; missing, uncertain and unavailable values
+never match. An overlapping period is displayed only as additional information on an existing
+relation. Relation cards retain the candidate source label, identifier and original stable URL.
 
 ## Run and verify
 

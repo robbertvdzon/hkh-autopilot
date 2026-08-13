@@ -110,14 +110,29 @@ remains separate from the public search contract below.
 
 The standalone `nl.vdzon.hkh.historicalsearch` module exposes `GET /api/historical-search`. It
 normalizes Europeana and Open Archieven results to one response shape with source, stable source
-identifier and URL, optional title/description/person/event/dates/institution/rights/privacy, and a
-server-side UTC `retrievedAt`. The query accepts `q`, `place`, `person`, `event`, `fromYear`,
+identifier and URL, optional title/description/place/person/event/dates/institution/rights/privacy,
+and a server-side UTC `retrievedAt`. The query accepts `q`, `place`, `person`, `event`, `fromYear`,
 `toYear`, `source`, `start` and `limit`; years must be four digits and be supplied as a pair, and
 `limit` is bounded to 100. With no source filter both providers are merged through source cursors
 without returning more than the requested page size. The response also contains `state` with one of
 `RESULTS`, `NO_RESULTS`, `PARTIAL_AVAILABILITY` or `SOURCE_FAILURE`, plus a `sources` entry for
 each selected provider. Each source entry reports `AVAILABLE`, `DISABLED`,
 `TEMPORARILY_UNAVAILABLE` or `INVALID_RESPONSE` and a short safe message where applicable.
+
+Each result also exposes `placeStatus`, `personStatus` and `eventStatus` with `AVAILABLE`, `MISSING`,
+`UNCERTAIN` or `UNAVAILABLE`. Context values are copied only from explicit provider fields;
+conflicting or unsafe values are withheld and marked accordingly. The Flutter result card offers
+`Context bekijken` for available results. Its detail page shows all available context and source
+metadata, the aggregate search state and the selected source status. Missing or unavailable values
+are rendered as `Niet beschikbaar`, uncertain values as `Onzeker`.
+
+The detail page calculates at most three related results from the response's currently visible
+`results` list; it does not fetch another provider page. The opened result is excluded. A relation
+requires one or more exactly equal, deterministically normalized available fields among place,
+person or event (trim, Unicode NFKC, whitespace collapse and case-insensitive comparison). Missing,
+uncertain and unavailable fields never match. An overlapping period is only an annotation on an
+existing relation, never a relation by itself. Each relation retains the candidate's source,
+identifier and original stable URL.
 
 Only sources that remain `AVAILABLE` contribute results and `total`. If a provider fails while a
 later cursor page is being fetched, its status and contribution are removed and the merged offset
@@ -168,7 +183,12 @@ error states remain separate. Pagination uses the server response offset and lim
 a source fails during a later page. All states use one semantic status node, and external-link
 labels remain available. A result shows technical availability, metadata rights, object/media rights
 and privacy separately; content metadata is rendered only when the backend explicitly marks metadata
-rights as allowed and privacy as clear.
+rights as allowed and privacy as clear. Available results expose `Context bekijken`, opening the
+context detail page in `lib/historical/historical_context_detail.dart`. That page renders place,
+period, person, event and source metadata, shows `Niet beschikbaar` or `Onzeker` from the explicit
+context statuses, and repeats the aggregate search/source status. It derives at most three relations
+from the current response page using exact NFKC-normalized place/person/event equality; the opened
+result and uncertain or unavailable fields never match, and period overlap is only supplementary.
 
 `lib/records/` holds the new public record detail page (`RecordDetailPage`) and its collapsible
 "Externe bronverificatie" section, which loads `GET /api/records/{localIdentifier}` via the new
