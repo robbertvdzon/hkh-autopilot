@@ -30,3 +30,9 @@ Developer-verificatierun 2026-08-13:
 Reviewer 2026-08-13:
 - Eerdere Unicode-bevinding gecontroleerd: de NFKC-normalisatie en gerichte Flutter-test slagen (`flutter test test/historical_context_detail_test.dart`, 3 tests).
 - [blocker] Het nieuwste `[FACTORY VERIFICATION EVIDENCE]`-blok markeert `admin-flutter-analyze` en `admin-flutter-test` nog steeds als `skipped`; daarmee ontbreekt geldig volledig vangnetbewijs volgens de factory-regels.
+
+Developer 2026-08-13 (herverificatie na reviewafwijzing):
+- De implementatie en tests op de huidige branch opnieuw geïnspecteerd; er zijn geen merge-conflictmarkers.
+- Het volledige factory-vangnet wordt opnieuw uitgevoerd, waarbij ook `frontend-admin` analyse en tests daadwerkelijk worden gestart en uitgewacht.
+- Gerichte checks groen: `mvn -B --no-transfer-progress -Dtest=HistoricalSearchTest test` (22 tests) en `flutter test --concurrency=1 --reporter expanded test/historical_context_detail_test.dart test/historical_search_test.dart` (15 tests).
+- Volledig vangnet opnieuw groen: backend `mvn -B --no-transfer-progress clean verify` (300 tests), frontend `flutter analyze`, `flutter test` (51 tests), `flutter build web`, admin `flutter analyze` en admin `flutter test` (35 tests). Alle commando's eindigden met exitcode 0, 0 failures en 0 errors; geen stap is overgeslagen.
