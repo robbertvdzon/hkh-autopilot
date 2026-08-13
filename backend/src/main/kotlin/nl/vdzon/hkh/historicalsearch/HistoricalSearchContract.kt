@@ -52,6 +52,7 @@ data class HistoricalSearchResult(
     val stableUrl: String,
     val title: String?,
     val description: String?,
+    val place: String? = null,
     val person: String?,
     val event: String?,
     val dateStart: String?,
@@ -64,6 +65,9 @@ data class HistoricalSearchResult(
     val metadataRights: HistoricalRightsStatus = HistoricalRightsStatus.UNKNOWN,
     val objectMediaRights: HistoricalRightsStatus = HistoricalRightsStatus.UNKNOWN,
     val privacyStatus: HistoricalPrivacyStatus = HistoricalPrivacyStatus.UNKNOWN,
+    val placeStatus: HistoricalContextStatus = if (place == null) HistoricalContextStatus.MISSING else HistoricalContextStatus.AVAILABLE,
+    val personStatus: HistoricalContextStatus = if (person == null) HistoricalContextStatus.MISSING else HistoricalContextStatus.AVAILABLE,
+    val eventStatus: HistoricalContextStatus = if (event == null) HistoricalContextStatus.MISSING else HistoricalContextStatus.AVAILABLE,
 )
 
 /**
@@ -77,6 +81,7 @@ fun HistoricalSearchResult.failClosedMetadata(): HistoricalSearchResult =
         copy(
             title = null,
             description = null,
+            place = null,
             person = null,
             event = null,
             dateStart = null,
@@ -84,6 +89,9 @@ fun HistoricalSearchResult.failClosedMetadata(): HistoricalSearchResult =
             institution = null,
             rights = null,
             privacy = null,
+            placeStatus = HistoricalContextStatus.UNAVAILABLE,
+            personStatus = HistoricalContextStatus.UNAVAILABLE,
+            eventStatus = HistoricalContextStatus.UNAVAILABLE,
         )
     }
 

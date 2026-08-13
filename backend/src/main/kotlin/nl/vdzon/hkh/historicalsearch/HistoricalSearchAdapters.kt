@@ -123,6 +123,9 @@ class EuropeanaSearchAdapter(
                     ?: return@mapNotNull null
                 val id = item.consistentText(2_000, "id", "identifier", "sourceRecordId", "about").asSafeText()
                     ?: return@mapNotNull null
+                val place = item.contextField(500, "place", "where", "location", "dcCoverage", "dc:coverage", "edmPlaceLabel")
+                val person = item.contextField(500, "who", "person", "dcCreator", "dc:creator")
+                val event = item.contextField(500, "event", "type", "dcType", "dc:type")
                 val startDate = item.consistentText(100, "dateStart", "year", "yearBegin", "edmTimespanLabel")
                 val endDate = item.consistentText(100, "dateEnd", "yearEnd")
                 val dates = normalizeDateRange(startDate, endDate)
@@ -132,8 +135,9 @@ class EuropeanaSearchAdapter(
                     stableUrl = url,
                     title = item.consistentText(2_000, "title", "dcTitle", "dc:title"),
                     description = item.consistentText(2_000, "description", "dcDescription", "dc:description"),
-                    person = item.consistentText(500, "who", "person", "dcCreator", "dc:creator"),
-                    event = item.consistentText(500, "event", "type", "dcType", "dc:type"),
+                    place = place.value,
+                    person = person.value,
+                    event = event.value,
                     dateStart = dates?.first,
                     dateEnd = dates?.second,
                     institution = item.consistentText(2_000, "institution", "edmProvider", "provider", "dataProvider"),
@@ -143,6 +147,9 @@ class EuropeanaSearchAdapter(
                     metadataRights = explicitRights(item.consistentText(500, "metadataRights", "metadataRightsStatus")),
                     objectMediaRights = explicitRights(item.consistentText(500, "objectRights", "mediaRights", "objectMediaRightsStatus")),
                     privacyStatus = explicitPrivacy(item.consistentText(500, "privacyStatus", "privacy")),
+                    placeStatus = place.status,
+                    personStatus = person.status,
+                    eventStatus = event.status,
                 ).failClosedMetadata()
             }
         val total = root.firstInt("totalResults", "total", "count") ?: items.size
@@ -244,6 +251,9 @@ class OpenArchievenSearchAdapter(
             val url = item.consistentText(2_000, "url", "stableUrl", "uri", "link").asHttpUrl() ?: return@mapNotNull null
             val id = item.consistentText(2_000, "identifier", "id", "pid", "sourceRecordId").asSafeText()
                 ?: return@mapNotNull null
+            val place = item.contextField(500, "eventplace", "place", "location", "event_place")
+            val person = item.contextField(500, "personname", "person", "name")
+            val event = item.contextField(500, "eventtype", "_eventtype", "event")
             val eventDate = item.get("eventdate")
             val startDate = if (eventDate != null) {
                 eventDate.consistentText(100, "year", "dateStart")
@@ -260,19 +270,23 @@ class OpenArchievenSearchAdapter(
                 source = source,
                 sourceRecordId = id,
                 stableUrl = url,
-                title = item.consistentText(2_000, "title", "sourcetype", "eventtype", "_eventtype"),
-                description = item.consistentText(2_000, "description", "source", "archive"),
-                person = item.consistentText(500, "personname", "person", "name"),
-                event = item.consistentText(500, "eventtype", "_eventtype", "event"),
+                    title = item.consistentText(2_000, "title", "sourcetype", "eventtype", "_eventtype"),
+                    description = item.consistentText(2_000, "description", "source", "archive"),
+                    place = place.value,
+                    person = person.value,
+                    event = event.value,
                 dateStart = dates?.first,
                 dateEnd = dates?.second,
                 institution = item.consistentText(2_000, "archive_org", "archive", "institution"),
                 rights = item.consistentText(500, "rights", "license"),
                 privacy = item.consistentText(500, "privacy", "privacyStatus"),
                 retrievedAt = retrievedAt,
-                metadataRights = explicitRights(item.consistentText(500, "metadataRights", "metadataRightsStatus")),
-                objectMediaRights = explicitRights(item.consistentText(500, "objectRights", "objectMediaRightsStatus")),
-                privacyStatus = explicitPrivacy(item.consistentText(500, "privacyStatus", "privacy")),
+                    metadataRights = explicitRights(item.consistentText(500, "metadataRights", "metadataRightsStatus")),
+                    objectMediaRights = explicitRights(item.consistentText(500, "objectRights", "objectMediaRightsStatus")),
+                    privacyStatus = explicitPrivacy(item.consistentText(500, "privacyStatus", "privacy")),
+                    placeStatus = place.status,
+                    personStatus = person.status,
+                    eventStatus = event.status,
             ).failClosedMetadata()
         }
         val total = response.firstInt("number_found", "numberFound", "total") ?: results.size
@@ -302,6 +316,22 @@ private fun JsonNode.consistentText(maxLength: Int, vararg names: String): Strin
     val nonBlank = values.map(String::trim).filter(String::isNotBlank)
     if (nonBlank.any { it.length > maxLength || it.any(Char::isISOControl) }) return null
     return nonBlank.distinct().singleOrNull()
+}
+
+private fun JsonNode.contextField(maxLength: Int, vararg names: String): HistoricalContextField {
+    val values = names.flatMap { name -> scalarTexts(get(name)) }
+        .map(String::trim)
+        .filter(String::isNotBlank)
+    if (values.isEmpty()) return HistoricalContextField(null, HistoricalContextStatus.MISSING)
+    if (values.any { it.length > maxLength || it.any(Char::isISOControl) }) {
+        return HistoricalContextField(null, HistoricalContextStatus.UNCERTAIN)
+    }
+    val distinct = values.distinct()
+    return if (distinct.size == 1) {
+        HistoricalContextField(distinct.single(), HistoricalContextStatus.AVAILABLE)
+    } else {
+        HistoricalContextField(null, HistoricalContextStatus.UNCERTAIN)
+    }
 }
 
 private fun JsonNode.firstInt(vararg names: String): Int? = names.asSequence()
