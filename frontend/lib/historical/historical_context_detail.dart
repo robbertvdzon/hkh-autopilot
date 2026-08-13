@@ -173,10 +173,16 @@ class HistoricalContextDetailPage extends StatelessWidget {
               'Gebeurtenis',
               _contextValue(result.event, result.eventStatus),
             ),
-            _detailField('Bron', _historicalSourceLabel(result.source)),
+            _detailField('Bron', result.normalizedSourceName),
             _detailField('Bronhouder', result.institution),
-            _detailField('Stabiele bronidentifier', result.sourceRecordId),
-            _detailField('Stabiele bron-URI', result.stableUrl),
+            _detailField(
+              'Stabiele bronidentifier',
+              result.normalizedStableIdentifier,
+            ),
+            _detailField(
+              'Stabiele bron-URI',
+              result.normalizedOriginalSourceUrl,
+            ),
             _detailField(
               'Server-side opgehaald',
               result.retrievedAt.toLocal().toString(),
@@ -204,7 +210,8 @@ class HistoricalContextDetailPage extends StatelessWidget {
             const SizedBox(height: 8),
             TextButton.icon(
               key: const Key('historical-context-source-link'),
-              onPressed: () => openExternalLink(result.stableUrl),
+              onPressed: () =>
+                  openExternalLink(result.normalizedOriginalSourceUrl),
               icon: const Icon(Icons.open_in_new),
               label: const Text('Externe bron openen in nieuw tabblad'),
             ),
@@ -317,12 +324,13 @@ class _HistoricalRelationCard extends StatelessWidget {
             Text('Gedeeld: ${relation.sharedFields.join(', ')}'),
             if (relation.periodOverlaps)
               const Text('Aanvullend: overlappende periode'),
-            Text('Bron: ${_historicalSourceLabel(result.source)}'),
-            Text('Bronidentifier: ${result.sourceRecordId}'),
-            Text('Stabiele bronlink: ${result.stableUrl}'),
+            Text('Bron: ${result.normalizedSourceName}'),
+            Text('Bronidentifier: ${result.normalizedStableIdentifier}'),
+            Text('Stabiele bronlink: ${result.normalizedOriginalSourceUrl}'),
             TextButton.icon(
               key: Key('historical-relation-link-$index'),
-              onPressed: () => openExternalLink(result.stableUrl),
+              onPressed: () =>
+                  openExternalLink(result.normalizedOriginalSourceUrl),
               icon: const Icon(Icons.open_in_new),
               label: const Text('Verwante bron openen in nieuw tabblad'),
             ),
@@ -383,12 +391,6 @@ String _contextValue(String? value, HistoricalContextStatus status) =>
       HistoricalContextStatus.missing ||
       HistoricalContextStatus.unavailable => 'Niet beschikbaar',
     };
-
-String _historicalSourceLabel(String source) => switch (source) {
-  'EUROPEANA' => 'Europeana',
-  'OPEN_ARCHIEVEN' => 'Open Archieven',
-  _ => source,
-};
 
 String _historicalSourceStatus(String status) => switch (status) {
   'AVAILABLE' => 'Beschikbaar',

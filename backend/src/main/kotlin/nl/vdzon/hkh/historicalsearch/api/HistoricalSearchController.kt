@@ -1,5 +1,6 @@
 package nl.vdzon.hkh.historicalsearch.api
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.Instant
 import nl.vdzon.hkh.historicalsearch.HistoricalPrivacyStatus
 import nl.vdzon.hkh.historicalsearch.HistoricalRightsStatus
@@ -38,6 +39,12 @@ data class HistoricalSearchResultResponse(
     val personStatus: String,
     val eventStatus: String,
     val relationships: List<HistoricalSearchRelationshipResponse>,
+    @get:JsonProperty("source_name")
+    val sourceName: String?,
+    @get:JsonProperty("stable_identifier")
+    val stableIdentifier: String?,
+    @get:JsonProperty("original_source_url")
+    val originalSourceUrl: String?,
 )
 
 data class HistoricalSearchRelationshipResponse(
@@ -120,6 +127,9 @@ private fun HistoricalSearchOutcome.toResponse() = HistoricalSearchResponse(
             personStatus = it.personStatus.name,
             eventStatus = it.eventStatus.name,
             relationships = it.relationships.map { relationship -> relationship.toResponse() },
+            sourceName = it.sourceName,
+            stableIdentifier = it.stableIdentifier,
+            originalSourceUrl = it.originalSourceUrl,
         )
     },
     total = total,

@@ -150,6 +150,9 @@ class HistoricalSearchResult {
     HistoricalContextStatus? personStatus,
     HistoricalContextStatus? eventStatus,
     this.relationships = const [],
+    this.sourceName,
+    this.stableIdentifier,
+    this.originalSourceUrl,
   }) : placeStatus =
            placeStatus ??
            (place == null
@@ -166,37 +169,51 @@ class HistoricalSearchResult {
                ? HistoricalContextStatus.missing
                : HistoricalContextStatus.available);
 
-  factory HistoricalSearchResult.fromJson(Map<String, dynamic> json) =>
-      HistoricalSearchResult(
-        source: json['source'] as String,
-        sourceRecordId: json['sourceRecordId'] as String,
-        stableUrl: json['stableUrl'] as String,
-        title: json['title'] as String?,
-        description: json['description'] as String?,
-        place: json['place'] as String?,
-        person: json['person'] as String?,
-        event: json['event'] as String?,
-        dateStart: json['dateStart'] as String?,
-        dateEnd: json['dateEnd'] as String?,
-        institution: json['institution'] as String?,
-        rights: json['rights'] as String?,
-        privacy: json['privacy'] as String?,
-        retrievedAt: DateTime.parse(json['retrievedAt'] as String),
-        technicalStatus: json['technicalStatus'] as String? ?? 'UNKNOWN',
-        metadataRights: json['metadataRights'] as String? ?? 'UNKNOWN',
-        objectMediaRights: json['objectMediaRights'] as String? ?? 'UNKNOWN',
-        privacyStatus: json['privacyStatus'] as String? ?? 'UNKNOWN',
-        placeStatus: _contextStatusFromJson(json['placeStatus']),
-        personStatus: _contextStatusFromJson(json['personStatus']),
-        eventStatus: _contextStatusFromJson(json['eventStatus']),
-        relationships:
-            (json['relationships'] is List
-                    ? (json['relationships'] as List)
-                    : const <Object?>[])
-                .map(HistoricalSearchRelationship.tryParse)
-                .whereType<HistoricalSearchRelationship>()
-                .toList(growable: false),
-      );
+  factory HistoricalSearchResult.fromJson(
+    Map<String, dynamic> json,
+  ) => HistoricalSearchResult(
+    source: json['source'] as String,
+    sourceRecordId:
+        json['sourceRecordId'] as String? ??
+        json['stable_identifier'] as String? ??
+        (throw const FormatException('Ontbrekende stabiele bronidentifier.')),
+    stableUrl:
+        json['stableUrl'] as String? ??
+        json['original_source_url'] as String? ??
+        (throw const FormatException('Ontbrekende oorspronkelijke bron-URL.')),
+    title: json['title'] as String?,
+    description: json['description'] as String?,
+    place: json['place'] as String?,
+    person: json['person'] as String?,
+    event: json['event'] as String?,
+    dateStart: json['dateStart'] as String?,
+    dateEnd: json['dateEnd'] as String?,
+    institution: json['institution'] as String?,
+    rights: json['rights'] as String?,
+    privacy: json['privacy'] as String?,
+    retrievedAt: DateTime.parse(json['retrievedAt'] as String),
+    technicalStatus: json['technicalStatus'] as String? ?? 'UNKNOWN',
+    metadataRights: json['metadataRights'] as String? ?? 'UNKNOWN',
+    objectMediaRights: json['objectMediaRights'] as String? ?? 'UNKNOWN',
+    privacyStatus: json['privacyStatus'] as String? ?? 'UNKNOWN',
+    placeStatus: _contextStatusFromJson(json['placeStatus']),
+    personStatus: _contextStatusFromJson(json['personStatus']),
+    eventStatus: _contextStatusFromJson(json['eventStatus']),
+    relationships:
+        (json['relationships'] is List
+                ? (json['relationships'] as List)
+                : const <Object?>[])
+            .map(HistoricalSearchRelationship.tryParse)
+            .whereType<HistoricalSearchRelationship>()
+            .toList(growable: false),
+    sourceName: json['source_name'] as String? ?? json['sourceName'] as String?,
+    stableIdentifier:
+        json['stable_identifier'] as String? ??
+        json['stableIdentifier'] as String?,
+    originalSourceUrl:
+        json['original_source_url'] as String? ??
+        json['originalSourceUrl'] as String?,
+  );
 
   final String source;
   final String sourceRecordId;
@@ -220,6 +237,21 @@ class HistoricalSearchResult {
   final HistoricalContextStatus personStatus;
   final HistoricalContextStatus eventStatus;
   final List<HistoricalSearchRelationship> relationships;
+  final String? sourceName;
+  final String? stableIdentifier;
+  final String? originalSourceUrl;
+
+  String get normalizedSourceName =>
+      sourceName ??
+      switch (source) {
+        'EUROPEANA' => 'Europeana',
+        'OPEN_ARCHIEVEN' => 'Open Archieven',
+        _ => source,
+      };
+
+  String get normalizedStableIdentifier => stableIdentifier ?? sourceRecordId;
+
+  String get normalizedOriginalSourceUrl => originalSourceUrl ?? stableUrl;
 }
 
 List<HistoricalFollowUpAction> historicalFollowUpActions(
@@ -787,7 +819,8 @@ class _HistoricalResultCard extends StatelessWidget {
               Text(
                 'Datering: ${result.dateStart ?? 'Onbekend'}${result.dateEnd == null ? '' : '–${result.dateEnd}'}',
               ),
-            Text('Bronidentifier: ${result.sourceRecordId}'),
+            Text('Bronnaam: ${result.normalizedSourceName}'),
+            Text('Bronidentifier: ${result.normalizedStableIdentifier}'),
             Text('Opgehaald: ${result.retrievedAt.toLocal()}'),
             Text(
               'Technische beschikbaarheid: ${_status(result.technicalStatus)}',
@@ -828,7 +861,8 @@ class _HistoricalResultCard extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
                 key: const Key('historical-external-link'),
-                onPressed: () => openExternalLink(result.stableUrl),
+                onPressed: () =>
+                    openExternalLink(result.normalizedOriginalSourceUrl),
                 icon: const Icon(Icons.open_in_new),
                 label: const Text('Externe bron openen in nieuw tabblad'),
               ),

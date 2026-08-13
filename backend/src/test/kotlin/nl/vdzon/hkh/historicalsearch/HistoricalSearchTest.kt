@@ -173,11 +173,13 @@ class HistoricalSearchTest {
     fun `open archieven maps explicit rights independently from source rights text`() {
         val fixture = startFixture(
             """
-            {"response":{"number_found":2,"docs":[
-              {"identifier":"allowed","url":"https://data.example/allowed",
+            {"response":{"number_found":3,"docs":[
+              {"source_name":"Open Archieven","uuid":"allowed","original_source_url":"https://data.example/allowed",
                "metadataRights":"ALLOWED","objectRights":"RESTRICTED","rights":"PUBLIC"},
-              {"identifier":"unknown","url":"https://data.example/unknown",
-               "rights":"ALLOWED","metadataRights":"not-a-status"}
+              {"source_name":"Open Archieven","uuid":"unknown","original_source_url":"https://data.example/unknown",
+               "rights":"ALLOWED","metadataRights":"not-a-status"},
+              {"source_name":"Open Archieven","uuid":"lowercase","original_source_url":"https://data.example/lowercase",
+               "metadataRights":"allowed","objectRights":"ALLOWED"}
             ]}}
             """.trimIndent(),
         )
@@ -192,6 +194,8 @@ class HistoricalSearchTest {
             assertEquals(HistoricalRightsStatus.RESTRICTED, results[0].objectMediaRights)
             assertEquals(HistoricalRightsStatus.UNKNOWN, results[1].metadataRights)
             assertEquals(HistoricalRightsStatus.UNKNOWN, results[1].objectMediaRights)
+            assertEquals(HistoricalRightsStatus.UNKNOWN, results[2].metadataRights)
+            assertEquals(HistoricalRightsStatus.ALLOWED, results[2].objectMediaRights)
         } finally {
             fixture.stop()
         }
@@ -236,8 +240,8 @@ class HistoricalSearchTest {
         val fixture = startFixture(
             """
             {"response":{"number_found":1,"docs":[
-              {"identifier":"abc","personname":"Jan de Vries","eventtype":"Huwelijk","eventdate":{"year":1900},
-               "archive_org":"Historisch Archief","url":"https://www.openarchieven.nl/a:abc",
+              {"source_name":"Historisch Archief","uuid":"abc","original_source_url":"https://www.openarchieven.nl/hee:abc",
+               "personname":"Jan de Vries","eventtype":"Huwelijk","eventdate":{"year":1900},
                "metadataRights":"ALLOWED","privacyStatus":"CLEAR"}
             ]}}
             """.trimIndent(),
@@ -254,10 +258,14 @@ class HistoricalSearchTest {
             val params = UriComponentsBuilder.fromUriString(fixture.lastPath).build().queryParams
             assertEquals("Jan%201900-1910", params.getFirst("name"))
             assertEquals("Heemskerk", params.getFirst("eventplace"))
+            assertEquals("hee", params.getFirst("archive_code"))
             assertEquals("100", params.getFirst("number_show"))
             assertEquals("0", params.getFirst("start"))
             assertEquals("HKH-Autopilot-HistoricalSearch/1.0", fixture.lastUserAgent)
-            assertEquals("abc", result.results.single().sourceRecordId)
+            assertEquals("hee:abc", result.results.single().sourceRecordId)
+            assertEquals("Historisch Archief", result.results.single().sourceName)
+            assertEquals("hee:abc", result.results.single().stableIdentifier)
+            assertEquals("https://www.openarchieven.nl/hee:abc", result.results.single().originalSourceUrl)
             assertEquals("1900", result.results.single().dateStart)
         } finally {
             fixture.stop()
@@ -265,11 +273,95 @@ class HistoricalSearchTest {
     }
 
     @Test
+    fun `open archieven maps the Heemskerk fixture contract and request parameters`() {
+        val fixture = startFixture(
+            """
+            {"response":{"number_found":1,"docs":[
+              {"source_name":"Noord-Hollands Archief","uuid":"9f3a",
+               "original_source_url":"https://www.openarchieven.nl/hee:9f3a",
+               "eventplace":"Heemskerk","metadataRights":"ALLOWED","privacyStatus":"CLEAR"}
+            ]}}
+            """.trimIndent(),
+        )
+        try {
+            val result = OpenArchievenSearchAdapter(
+                RestClient.builder().baseUrl(fixture.baseUrl).build(),
+                rateLimiter = HistoricalSearchRateLimiter { },
+                clock = fixedClock(),
+            ).search(HistoricalSearchQuery(text = "Heemskerk"))
+
+            val params = UriComponentsBuilder.fromUriString(fixture.lastPath).build().queryParams
+            assertEquals("Heemskerk", params.getFirst("name"))
+            assertEquals("hee", params.getFirst("archive_code"))
+            assertEquals("Noord-Hollands Archief", result.results.single().sourceName)
+            assertEquals("hee:9f3a", result.results.single().stableIdentifier)
+            assertEquals("hee:9f3a", result.results.single().sourceRecordId)
+            assertEquals("https://www.openarchieven.nl/hee:9f3a", result.results.single().originalSourceUrl)
+            assertEquals("https://www.openarchieven.nl/hee:9f3a", result.results.single().stableUrl)
+            assertEquals("Heemskerk", result.results.single().place)
+        } finally {
+            fixture.stop()
+        }
+    }
+
+    @Test
+    fun `open archieven accepts an explicit empty docs array as available no results`() {
+        val fixture = startFixture("{\"response\":{\"number_found\":0,\"docs\":[]}}")
+        try {
+            val result = OpenArchievenSearchAdapter(
+                RestClient.builder().baseUrl(fixture.baseUrl).build(),
+                rateLimiter = HistoricalSearchRateLimiter { },
+            ).search(HistoricalSearchQuery(text = "Heemskerk"))
+
+            assertEquals(HistoricalTechnicalStatus.AVAILABLE, result.status)
+            assertEquals(0, result.total)
+            assertTrue(result.results.isEmpty())
+        } finally {
+            fixture.stop()
+        }
+    }
+
+    @Test
+    fun `open archieven rejects a response with a missing or unsafe required identity`() {
+        val fixtures = listOf(
+            """{"response":{"docs":[{"source_name":"Open Archieven","original_source_url":"https://example.test/record"}]}}""",
+            """{"response":{"docs":[{"source_name":"Open Archieven","uuid":"unsafe:id","original_source_url":"https://example.test/record"}]}}""",
+            """{"response":{"docs":[{"source_name":"Open Archieven","uuid":"abc","original_source_url":"javascript:alert(1)"}]}}""",
+        )
+
+        fixtures.forEach { body ->
+            val fixture = startFixture(body)
+            try {
+                val result = OpenArchievenSearchAdapter(
+                    RestClient.builder().baseUrl(fixture.baseUrl).build(),
+                    rateLimiter = HistoricalSearchRateLimiter { },
+                ).search(HistoricalSearchQuery(text = "Heemskerk"))
+
+                assertEquals(HistoricalTechnicalStatus.INVALID_RESPONSE, result.status)
+                assertTrue(result.results.isEmpty())
+            } finally {
+                fixture.stop()
+            }
+        }
+    }
+
+    @Test
+    fun `open archieven transport failure is temporary and not an empty result`() {
+        val result = OpenArchievenSearchAdapter(
+            RestClient.builder().baseUrl("http://127.0.0.1:1").build(),
+            rateLimiter = HistoricalSearchRateLimiter { },
+        ).search(HistoricalSearchQuery(text = "Heemskerk"))
+
+        assertEquals(HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE, result.status)
+        assertTrue(result.results.isEmpty())
+    }
+
+    @Test
     fun `adapters map only complete explicit source relationships in provider order`() {
         val fixture = startFixture(
             """
             {"response":{"number_found":1,"docs":[
-              {"identifier":"abc","url":"https://www.openarchieven.nl/a:abc",
+              {"source_name":"Open Archieven","uuid":"abc","original_source_url":"https://www.openarchieven.nl/hee:abc",
                "metadataRights":"ALLOWED","privacyStatus":"CLEAR",
                "relationships":[
                  {"type":"isPartOf","source":{"name":"Open Archieven"},
@@ -601,6 +693,9 @@ class HistoricalSearchTest {
                         rights = null,
                         privacy = null,
                         retrievedAt = fixedClock().instant(),
+                        sourceName = "Noord-Hollands Archief",
+                        stableIdentifier = "hee:record-1",
+                        originalSourceUrl = "https://www.openarchieven.nl/hee:record-1",
                         relationships = listOf(
                             HistoricalSearchRelationship(
                                 type = "isPartOf",
@@ -631,6 +726,9 @@ class HistoricalSearchTest {
         ).andExpect(status().isOk)
             .andExpect(jsonPath("$.results[0].sourceRecordId").value("record-1"))
             .andExpect(jsonPath("$.results[0].stableUrl").value("https://example.test/record-1"))
+            .andExpect(jsonPath("$.results[0].source_name").value("Noord-Hollands Archief"))
+            .andExpect(jsonPath("$.results[0].stable_identifier").value("hee:record-1"))
+            .andExpect(jsonPath("$.results[0].original_source_url").value("https://www.openarchieven.nl/hee:record-1"))
             .andExpect(jsonPath("$.results[0].relationships").isArray)
             .andExpect(jsonPath("$.results[0].relationships[0].type").value("isPartOf"))
             .andExpect(jsonPath("$.results[0].relationships[0].source.name").value("Open Archieven"))

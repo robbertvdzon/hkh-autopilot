@@ -88,6 +88,12 @@ data class HistoricalSearchResult(
     val personStatus: HistoricalContextStatus = if (person == null) HistoricalContextStatus.MISSING else HistoricalContextStatus.AVAILABLE,
     val eventStatus: HistoricalContextStatus = if (event == null) HistoricalContextStatus.MISSING else HistoricalContextStatus.AVAILABLE,
     val relationships: List<HistoricalSearchRelationship> = emptyList(),
+    /** Provider-supplied normalized source name, when the provider exposes one. */
+    val sourceName: String? = null,
+    /** Full provider reference, for example `hee:uuid`, when available. */
+    val stableIdentifier: String? = null,
+    /** Provider-supplied original result URL; never constructed locally. */
+    val originalSourceUrl: String? = null,
 )
 
 /**
