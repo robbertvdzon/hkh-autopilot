@@ -307,6 +307,53 @@ class HistoricalSearchTest {
         assertEquals(1, open.calls)
         assertEquals(listOf(HistoricalSearchSource.OPEN_ARCHIEVEN), outcome.sources.map { it.source })
         assertEquals(HistoricalSearchState.NO_RESULTS, outcome.state)
+        assertEquals(0, outcome.sources.single().resultCount)
+        assertEquals(0, outcome.sources.single().heemskerkCount)
+    }
+
+    @Test
+    fun `service counts only visible certain normalized Heemskerk place metadata per source`() {
+        val europeana = object : HistoricalSearchAdapter {
+            override val source = HistoricalSearchSource.EUROPEANA
+
+            override fun search(query: HistoricalSearchQuery) = HistoricalSearchPage(
+                source = source,
+                results = listOf(
+                    historicalResult(source, 1).copy(
+                        place = "  H\uFF25\uFF25\uFF2D\uFF33\uFF2B\uFF45\uFF52\uFF2B\t",
+                        placeStatus = HistoricalContextStatus.AVAILABLE,
+                    ),
+                    historicalResult(source, 2).copy(
+                        place = "Heemskerk\u00A0",
+                        placeStatus = HistoricalContextStatus.AVAILABLE,
+                    ),
+                    historicalResult(source, 3).copy(
+                        place = "Heemskerk",
+                        placeStatus = HistoricalContextStatus.UNCERTAIN,
+                    ),
+                    historicalResult(source, 4).copy(
+                        place = "Beverwijk",
+                        placeStatus = HistoricalContextStatus.AVAILABLE,
+                    ),
+                    historicalResult(source, 5),
+                ),
+                total = 5,
+                status = HistoricalTechnicalStatus.AVAILABLE,
+                consumed = 5,
+            )
+        }
+        val open = sequenceAdapter(HistoricalSearchSource.OPEN_ARCHIEVEN, 1)
+
+        val outcome = HistoricalSearchService(listOf(europeana, open)).search(
+            HistoricalSearchQuery(text = "kerk"),
+        )
+
+        val europeanaStatus = outcome.sources.first { it.source == HistoricalSearchSource.EUROPEANA }
+        val openStatus = outcome.sources.first { it.source == HistoricalSearchSource.OPEN_ARCHIEVEN }
+        assertEquals(5, europeanaStatus.resultCount)
+        assertEquals(2, europeanaStatus.heemskerkCount)
+        assertEquals(1, openStatus.resultCount)
+        assertEquals(0, openStatus.heemskerkCount)
     }
 
     @Test
@@ -328,6 +375,8 @@ class HistoricalSearchTest {
         assertEquals(1, outcome.total)
         assertEquals(1, outcome.results.size)
         assertEquals(HistoricalSourceMessages.NOT_CONFIGURED, outcome.sources.first().message)
+        assertEquals(null, outcome.sources.first().resultCount)
+        assertEquals(1, outcome.sources.last().resultCount)
     }
 
     @Test
@@ -355,6 +404,8 @@ class HistoricalSearchTest {
             ),
             outcome.sources.map { it.status },
         )
+        assertEquals(null, outcome.sources.first().resultCount)
+        assertEquals(2, outcome.sources.last().resultCount)
     }
 
     @Test
@@ -381,6 +432,8 @@ class HistoricalSearchTest {
         assertEquals(0, sourceFailure.total)
         assertTrue(sourceFailure.results.isEmpty())
         assertEquals(HistoricalSourceMessages.INVALID_RESPONSE, sourceFailure.sources.single().message)
+        assertEquals(null, sourceFailure.sources.single().resultCount)
+        assertEquals(null, sourceFailure.sources.single().heemskerkCount)
     }
 
     @Test
@@ -425,6 +478,8 @@ class HistoricalSearchTest {
             .andExpect(jsonPath("$.results[0].sourceRecordId").value("record-1"))
             .andExpect(jsonPath("$.results[0].stableUrl").value("https://example.test/record-1"))
             .andExpect(jsonPath("$.sources[0].status").value("AVAILABLE"))
+            .andExpect(jsonPath("$.sources[0].resultCount").value(1))
+            .andExpect(jsonPath("$.sources[0].heemskerkCount").value(0))
             .andExpect(jsonPath("$.state").value("RESULTS"))
             .andExpect(jsonPath("$.limit").value(1))
 

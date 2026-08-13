@@ -127,6 +127,8 @@ class HistoricalSourceStatus {
     required this.source,
     required this.status,
     this.message,
+    this.resultCount,
+    this.heemskerkCount,
   });
 
   factory HistoricalSourceStatus.fromJson(Map<String, dynamic> json) =>
@@ -134,11 +136,15 @@ class HistoricalSourceStatus {
         source: json['source'] as String,
         status: json['status'] as String,
         message: json['message'] as String?,
+        resultCount: json['resultCount'] as int?,
+        heemskerkCount: json['heemskerkCount'] as int?,
       );
 
   final String source;
   final String status;
   final String? message;
+  final int? resultCount;
+  final int? heemskerkCount;
 }
 
 class HistoricalSearchResponse {
@@ -456,16 +462,23 @@ class _HistoricalResults extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sourceSummaries = response.sources
+        .map(_historicalSourceSummary)
+        .toList(growable: false);
     final sourceMessages = response.sources
         .where((source) => source.status != 'AVAILABLE')
         .map(_historicalSourceMessage)
         .toList(growable: false);
+    final statusSourceLabels =
+        response.sources.any((source) => source.resultCount != null)
+        ? sourceSummaries
+        : sourceMessages;
     final noResults =
         state == 'NO_RESULTS' ||
         (response.results.isEmpty && response.total == 0);
     final statusLabel = noResults
-        ? 'De historische zoekopdracht leverde geen resultaten op.${_sourceMessagesLabel(sourceMessages)}'
-        : '${response.total} historische resultaten geladen.${_sourceMessagesLabel(sourceMessages)}';
+        ? 'De historische zoekopdracht leverde geen resultaten op.${_sourceMessagesLabel(statusSourceLabels)}'
+        : '${response.total} historische resultaten geladen.${_sourceMessagesLabel(statusSourceLabels)}';
     if (noResults) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -476,7 +489,7 @@ class _HistoricalResults extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text('Geen historische resultaten gevonden.'),
-                ...sourceMessages.map(Text.new),
+                ...sourceSummaries.map(Text.new),
               ],
             ),
           ),
@@ -492,7 +505,7 @@ class _HistoricalResults extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text('${response.total} historische resultaten'),
-              ...sourceMessages.map(Text.new),
+              ...sourceSummaries.map(Text.new),
             ],
           ),
         ),
@@ -687,6 +700,27 @@ String _historicalSourceMessage(HistoricalSourceStatus source) {
   };
   return '$name: $status.';
 }
+
+String _historicalSourceSummary(HistoricalSourceStatus source) {
+  if (source.status != 'AVAILABLE' || source.resultCount == null) {
+    return _historicalSourceMessage(source);
+  }
+  final indication = source.heemskerkCount;
+  if (indication == null) {
+    return '${_historicalSourceName(source)}: beschikbaar.';
+  }
+  return '${_historicalSourceName(source)}: beschikbaar, '
+      '${source.resultCount} resultaten. '
+      'Lokale Heemskerk-indicatie op basis van plaatsmetadata: $indication '
+      '(geen historisch bewijs).';
+}
+
+String _historicalSourceName(HistoricalSourceStatus source) =>
+    switch (source.source) {
+      'EUROPEANA' => 'Europeana',
+      'OPEN_ARCHIEVEN' => 'Open Archieven',
+      _ => source.source,
+    };
 
 String _sourceMessagesLabel(List<String> messages) =>
     messages.isEmpty ? '' : ' ${messages.join(' ')}';

@@ -453,8 +453,11 @@ privacyclassificatie.
   query geeft HTTP 400 met `{ "error": "..." }`; een geldig verzoek geeft `{ results, total, start,
   limit, sources, state }`. `state` is `RESULTS`, `NO_RESULTS`, `PARTIAL_AVAILABILITY` of
   `SOURCE_FAILURE`; `sources` bevat voor elke geselecteerde bron de technische status
-  (`AVAILABLE`, `DISABLED`, `TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`) en een veilige korte
-  melding. Elk resultaat bevat de genormaliseerde metadata, de server-side UTC `retrievedAt`, de
+  (`AVAILABLE`, `DISABLED`, `TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`), een veilige korte
+  melding en nullable `resultCount`/`heemskerkCount`-velden. Voor een beschikbare bron tellen deze
+  velden alleen de veilig genormaliseerde resultaten in de huidige zichtbare `results`-pagina;
+  voor een niet-beschikbare bron blijven ze `null`. Elk resultaat bevat de genormaliseerde metadata,
+  de server-side UTC `retrievedAt`, de
   contextvelden/statussen en afzonderlijke technische, metadatarechten-, object-/mediarechten- en
   privacystatussen. De API-controller exposeert deze velden als `place`, `placeStatus`,
   `personStatus` en `eventStatus`.
@@ -468,6 +471,13 @@ privacyclassificatie.
   Als geen bron beschikbaar blijft, retourneert de service `SOURCE_FAILURE` met lege resultaten en
   `total = 0`; alleen wanneer alle geselecteerde bronnen beschikbaar zijn en geen resultaten leveren,
   is de toestand `NO_RESULTS`.
+- `HistoricalSearchService` berekent `heemskerkCount` uitsluitend met
+  `HistoricalSearchResult.isHeemskerkPlaceIndicator()`: `placeStatus` moet `AVAILABLE` zijn en de
+  expliciete plaatswaarde wordt met Unicode-NFKC, samengevoegde witruimte en hoofdletterongevoelige
+  vergelijking exact genormaliseerd naar `heemskerk`. Er worden geen plaatswaarden uit zoekfilters,
+  titels of URLs afgeleid. Een beschikbare lege bron krijgt tellingen `0`; een bron met een andere
+  technische status krijgt geen numerieke telling. De telling blijft een plaatsmetadata-indicatie
+  en wordt niet als historisch bewijs gepresenteerd.
 - `HistoricalSearchAdapters.kt` bevat `EuropeanaSearchAdapter` en
   `OpenArchievenSearchAdapter`. Europeana gebruikt `GET /record/v2/search.json` met `wskey`,
   `query`, herhaalde `qf`, `rows` en `start`; Open Archieven gebruikt
@@ -514,8 +524,11 @@ lege-, gedeeltelijke-beschikbaarheids-, volledige-bronuitval-, validatie- en ret
 paginering en volledig toetsenbordbedienbare retry- en paginaknoppen. `HistoricalSearchResponse`
 leest de expliciete API-state en kan die voor compatibiliteit afleiden uit resultaten, totalen en
 bronstatussen wanneer de state ontbreekt. Gedeeltelijke beschikbaarheid toont beschikbare resultaten
-en per falende bron een veilige tekstuele melding; volledige bronuitval toont geen resultaatcount
-maar wel een retryactie. Statussen gebruiken één `SemanticsRole.status`-node; externe bronknoppen
+en per falende bron een veilige tekstuele melding. Bij beschikbare bronnen toont de status/live-regio
+per bron de resultatentelling en de tekst `Lokale Heemskerk-indicatie op basis van plaatsmetadata:
+<aantal> (geen historisch bewijs)`. Volledige bronuitval toont geen resultaatcount of andere
+numerieke brondekking, maar wel een retryactie. Statussen gebruiken één `SemanticsRole.status`-node;
+externe bronknoppen
 hebben een tekstueel label dat het openen van een externe bron in een nieuw tabblad aankondigt.
 
 Een resultaatkaart toont alleen toegestane inhoudelijke metadata, plus altijd de veilige bronreferentie,

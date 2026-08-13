@@ -42,6 +42,8 @@ data class HistoricalSearchSourceStatusResponse(
     val source: String,
     val status: String,
     val message: String?,
+    val resultCount: Int?,
+    val heemskerkCount: Int?,
 )
 
 data class HistoricalSearchResponse(
@@ -106,6 +108,14 @@ private fun HistoricalSearchOutcome.toResponse() = HistoricalSearchResponse(
     total = total,
     start = start,
     limit = limit,
-    sources = sources.map { HistoricalSearchSourceStatusResponse(it.source.name, it.status.name, it.message) },
+    sources = sources.map {
+        HistoricalSearchSourceStatusResponse(
+            source = it.source.name,
+            status = it.status.name,
+            message = it.message,
+            resultCount = it.resultCount,
+            heemskerkCount = it.heemskerkCount,
+        )
+    },
     state = state.name,
 )

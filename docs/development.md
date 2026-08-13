@@ -118,6 +118,12 @@ without returning more than the requested page size. The response also contains 
 `RESULTS`, `NO_RESULTS`, `PARTIAL_AVAILABILITY` or `SOURCE_FAILURE`, plus a `sources` entry for
 each selected provider. Each source entry reports `AVAILABLE`, `DISABLED`,
 `TEMPORARILY_UNAVAILABLE` or `INVALID_RESPONSE` and a short safe message where applicable.
+Available source entries also expose nullable `resultCount` and `heemskerkCount`: the former counts
+only that source's safely normalized results on the current visible response page, while the latter
+counts only results with `placeStatus == AVAILABLE` whose explicit place metadata equals `Heemskerk`
+after trim, Unicode-NFKC normalization, whitespace collapse and case-insensitive comparison. A
+successful empty source reports both values as `0`; an unavailable source reports both as `null`.
+The Heemskerk value is displayed as a place-metadata indication, never as historical proof.
 
 Each result also exposes `placeStatus`, `personStatus` and `eventStatus` with `AVAILABLE`, `MISSING`,
 `UNCERTAIN` or `UNAVAILABLE`. Context values are copied only from explicit provider fields;
@@ -178,7 +184,8 @@ After the service check, the homepage also offers the separate `Historisch zoeke
 Europeana/Open Archieven source. The page maps the API aggregate state to distinct results, empty,
 partial-availability and full-source-failure states. Partial results remain visible and include a
 short message for every unavailable source; full source failure does not show a result count and
-offers the keyboard-operable `Opnieuw proberen` action. Loading, validation-error and transport
+offers the keyboard-operable `Opnieuw proberen` action. For available sources, the result status also
+includes the per-source page count and the explicitly labeled local Heemskerk indication. Loading, validation-error and transport
 error states remain separate. Pagination uses the server response offset and limit, including after
 a source fails during a later page. All states use one semantic status node, and external-link
 labels remain available. A result shows technical availability, metadata rights, object/media rights

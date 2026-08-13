@@ -86,6 +86,37 @@ void main() {
     expect(response.results.single.metadataRights, 'UNKNOWN');
   });
 
+  test('parses per-source page and Heemskerk indication counts', () {
+    final response = HistoricalSearchResponse.fromJson(const <String, dynamic>{
+      'results': [],
+      'total': 0,
+      'start': 0,
+      'limit': 100,
+      'state': 'NO_RESULTS',
+      'sources': [
+        {
+          'source': 'EUROPEANA',
+          'status': 'AVAILABLE',
+          'message': null,
+          'resultCount': 0,
+          'heemskerkCount': 0,
+        },
+        {
+          'source': 'OPEN_ARCHIEVEN',
+          'status': 'TEMPORARILY_UNAVAILABLE',
+          'message': 'Bron is tijdelijk niet beschikbaar.',
+          'resultCount': null,
+          'heemskerkCount': null,
+        },
+      ],
+    });
+
+    expect(response.sources[0].resultCount, 0);
+    expect(response.sources[0].heemskerkCount, 0);
+    expect(response.sources[1].resultCount, isNull);
+    expect(response.sources[1].heemskerkCount, isNull);
+  });
+
   testWidgets(
     'shows loading, success, fail-closed statuses and external action',
     (tester) async {
@@ -238,6 +269,61 @@ void main() {
     await tester.tap(find.byKey(const Key('historical-search-submit')));
     await tester.pumpAndSettle();
     expect(find.text('Geen historische resultaten gevonden.'), findsOneWidget);
+  });
+
+  testWidgets('shows source coverage and labels the local indication', (
+    tester,
+  ) async {
+    final response = HistoricalSearchResponse(
+      results: [
+        HistoricalSearchResult(
+          source: 'EUROPEANA',
+          sourceRecordId: 'coverage-1',
+          stableUrl: 'https://example.test/coverage-1',
+          retrievedAt: DateTime.utc(2026, 8, 12),
+          metadataRights: 'ALLOWED',
+          privacyStatus: 'CLEAR',
+          title: 'Dekkingstest',
+        ),
+      ],
+      total: 1,
+      start: 0,
+      limit: 100,
+      sources: const [
+        HistoricalSourceStatus(
+          source: 'EUROPEANA',
+          status: 'AVAILABLE',
+          resultCount: 1,
+          heemskerkCount: 1,
+        ),
+        HistoricalSourceStatus(
+          source: 'OPEN_ARCHIEVEN',
+          status: 'INVALID_RESPONSE',
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HistoricalSearchPage(
+          source: _HistoricalSource(Future.value(response)),
+        ),
+      ),
+    );
+    await tester.ensureVisible(
+      find.byKey(const Key('historical-search-submit')),
+    );
+    await tester.tap(find.byKey(const Key('historical-search-submit')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Europeana: beschikbaar, 1 resultaten. '
+        'Lokale Heemskerk-indicatie op basis van plaatsmetadata: 1 '
+        '(geen historisch bewijs).',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Open Archieven: ongeldige bronrespons.'), findsOneWidget);
   });
 
   testWidgets(
