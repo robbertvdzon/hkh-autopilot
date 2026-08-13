@@ -26,3 +26,7 @@ Developer-verificatierun 2026-08-13:
 - De huidige branch bevat de story-implementatie en de bijbehorende backend-/frontendtests; er zijn geen conflictmarkers aangetroffen.
 - Naar aanleiding van reviewcomment 3232 worden alle zes commando's uit het verplichte vangnet opnieuw uitgevoerd, inclusief `frontend-admin` analyze en tests, zodat geen stap als skipped achterblijft.
 - Resultaat: `backend-maven-verify` groen met 300 tests; `frontend-flutter-analyze`, `frontend-flutter-test` (51 tests), `frontend-flutter-build-web`, `admin-flutter-analyze` en `admin-flutter-test` (35 tests) allemaal groen, zonder failures of errors.
+
+Reviewer 2026-08-13:
+- Eerdere Unicode-bevinding gecontroleerd: de NFKC-normalisatie en gerichte Flutter-test slagen (`flutter test test/historical_context_detail_test.dart`, 3 tests).
+- [blocker] Het nieuwste `[FACTORY VERIFICATION EVIDENCE]`-blok markeert `admin-flutter-analyze` en `admin-flutter-test` nog steeds als `skipped`; daarmee ontbreekt geldig volledig vangnetbewijs volgens de factory-regels.
