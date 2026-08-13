@@ -35,7 +35,11 @@ de door de bron geleverde `source_name`, `stable_identifier` in de vorm `hee:uui
 `original_source_url`; die bronlink wordt nooit lokaal samengesteld. Ontbrekende, lege,
 ongeldige of tegenstrijdige verplichte responsvelden maken de bronrespons ongeldig. Een lege
 `docs`-lijst met `number_found: 0` blijft daarentegen een beschikbaar nulresultaat. De adapter
-behoudt de bestaande User-Agent, limiet, paginering en procesbrede rate limit.
+behoudt de bestaande User-Agent, limiet, paginering en procesbrede rate limit. De bronstatus maakt
+voor Open Archieven afzonderlijk onderscheid tussen `TIMEOUT`, `HTTP_ERROR`, `INVALID_JSON` en
+`MISSING_REQUIRED_FIELDS`; de frontend toont daarvoor vaste, veilige meldingen. Andere
+transportproblemen blijven `TEMPORARILY_UNAVAILABLE`. Geen van deze foutstatussen toont een
+resultatentelling of ruwe bron- of exceptiondetails.
 
 De rechtenvelden van elk resultaat worden uitsluitend uit expliciete rechtenmetadata van dat
 bronresultaat bepaald. Alleen `ALLOWED` en `RESTRICTED` worden herkend; ontbrekende, lege,

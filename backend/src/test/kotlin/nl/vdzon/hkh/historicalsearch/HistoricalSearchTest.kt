@@ -3,7 +3,9 @@ package nl.vdzon.hkh.historicalsearch
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
+import java.net.http.HttpClient
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import kotlin.test.Test
@@ -17,6 +19,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
+import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.web.client.RestClient
 import org.springframework.web.util.UriComponentsBuilder
 import nl.vdzon.hkh.historicalsearch.api.HistoricalSearchController
@@ -341,7 +344,7 @@ class HistoricalSearchTest {
                     rateLimiter = HistoricalSearchRateLimiter { },
                 ).search(HistoricalSearchQuery(text = "Heemskerk"))
 
-                assertEquals(HistoricalTechnicalStatus.INVALID_RESPONSE, result.status)
+                assertEquals(HistoricalTechnicalStatus.MISSING_REQUIRED_FIELDS, result.status)
                 assertTrue(result.results.isEmpty())
                 assertEquals(0, result.total)
             } finally {
@@ -371,7 +374,7 @@ class HistoricalSearchTest {
                     rateLimiter = HistoricalSearchRateLimiter { },
                 ).search(HistoricalSearchQuery(text = "Heemskerk"))
 
-                assertEquals(HistoricalTechnicalStatus.INVALID_RESPONSE, result.status)
+                assertEquals(HistoricalTechnicalStatus.MISSING_REQUIRED_FIELDS, result.status)
                 assertTrue(result.results.isEmpty())
             } finally {
                 fixture.stop()
@@ -395,7 +398,7 @@ class HistoricalSearchTest {
                     rateLimiter = HistoricalSearchRateLimiter { },
                 ).search(HistoricalSearchQuery(text = "Heemskerk"))
 
-                assertEquals(HistoricalTechnicalStatus.INVALID_RESPONSE, result.status)
+                assertEquals(HistoricalTechnicalStatus.MISSING_REQUIRED_FIELDS, result.status)
                 assertTrue(result.results.isEmpty())
             } finally {
                 fixture.stop()
@@ -412,6 +415,88 @@ class HistoricalSearchTest {
 
         assertEquals(HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE, result.status)
         assertTrue(result.results.isEmpty())
+    }
+
+    @Test
+    fun `open archieven classifies a non-2xx response without exposing its body`() {
+        val fixture = startFixture("provider-secret-and-personal-data", responseStatus = 502)
+        try {
+            val result = OpenArchievenSearchAdapter(
+                RestClient.builder().baseUrl(fixture.baseUrl).build(),
+                rateLimiter = HistoricalSearchRateLimiter { },
+            ).search(HistoricalSearchQuery(text = "Heemskerk"))
+
+            assertEquals(HistoricalTechnicalStatus.HTTP_ERROR, result.status)
+            assertEquals(0, result.total)
+            assertTrue(result.results.isEmpty())
+            assertEquals(
+                HistoricalSourceMessages.OPEN_ARCHIEVEN_HTTP_ERROR,
+                HistoricalSourceMessages.safe(result.status, result.message),
+            )
+        } finally {
+            fixture.stop()
+        }
+    }
+
+    @Test
+    fun `open archieven classifies invalid json separately from a valid incomplete contract`() {
+        val invalidJson = startFixture("{\"response\":", responseStatus = 200)
+        try {
+            val result = OpenArchievenSearchAdapter(
+                RestClient.builder().baseUrl(invalidJson.baseUrl).build(),
+                rateLimiter = HistoricalSearchRateLimiter { },
+            ).search(HistoricalSearchQuery(text = "Heemskerk"))
+
+            assertEquals(HistoricalTechnicalStatus.INVALID_JSON, result.status)
+            assertEquals(
+                HistoricalSourceMessages.OPEN_ARCHIEVEN_INVALID_JSON,
+                HistoricalSourceMessages.safe(result.status, "raw parser details"),
+            )
+        } finally {
+            invalidJson.stop()
+        }
+
+        val incomplete = startFixture("{\"response\":{}}")
+        try {
+            val result = OpenArchievenSearchAdapter(
+                RestClient.builder().baseUrl(incomplete.baseUrl).build(),
+                rateLimiter = HistoricalSearchRateLimiter { },
+            ).search(HistoricalSearchQuery(text = "Heemskerk"))
+
+            assertEquals(HistoricalTechnicalStatus.MISSING_REQUIRED_FIELDS, result.status)
+            assertEquals(
+                HistoricalSourceMessages.OPEN_ARCHIEVEN_MISSING_REQUIRED_FIELDS,
+                HistoricalSourceMessages.safe(result.status, "provider payload"),
+            )
+        } finally {
+            incomplete.stop()
+        }
+    }
+
+    @Test
+    fun `open archieven classifies a configured request timeout`() {
+        val fixture = startFixture(
+            "{\"response\":{\"number_found\":0,\"docs\":[]}}",
+            delayMillis = 500,
+        )
+        val requestFactory = JdkClientHttpRequestFactory(HttpClient.newHttpClient()).apply {
+            setReadTimeout(Duration.ofMillis(50))
+        }
+        try {
+            val result = OpenArchievenSearchAdapter(
+                RestClient.builder()
+                    .baseUrl(fixture.baseUrl)
+                    .requestFactory(requestFactory)
+                    .build(),
+                rateLimiter = HistoricalSearchRateLimiter { },
+            ).search(HistoricalSearchQuery(text = "Heemskerk"))
+
+            assertEquals(HistoricalTechnicalStatus.TIMEOUT, result.status)
+            assertEquals(HistoricalSourceMessages.OPEN_ARCHIEVEN_TIMEOUT,
+                HistoricalSourceMessages.safe(result.status, result.message))
+        } finally {
+            fixture.stop()
+        }
     }
 
     @Test
@@ -507,9 +592,9 @@ class HistoricalSearchTest {
                 rateLimiter = HistoricalSearchRateLimiter { },
             ).search(HistoricalSearchQuery(text = "geschiedenis"))
 
-            assertEquals(HistoricalTechnicalStatus.INVALID_RESPONSE, result.status)
+            assertEquals(HistoricalTechnicalStatus.MISSING_REQUIRED_FIELDS, result.status)
             assertEquals(emptyList(), result.results)
-            assertEquals("Open Archieven retourneerde een foutrespons.", result.message)
+            assertEquals(null, result.message)
         } finally {
             fixture.stop()
         }
@@ -540,7 +625,7 @@ class HistoricalSearchTest {
                 rateLimiter = HistoricalSearchRateLimiter { },
             ).search(HistoricalSearchQuery(text = "geschiedenis"))
 
-            assertEquals(HistoricalTechnicalStatus.INVALID_RESPONSE, result.status)
+            assertEquals(HistoricalTechnicalStatus.MISSING_REQUIRED_FIELDS, result.status)
             assertTrue(result.results.isEmpty())
         } finally {
             fixture.stop()
@@ -730,6 +815,40 @@ class HistoricalSearchTest {
     }
 
     @Test
+    fun `service exposes each Open Archieven failure category with a safe message`() {
+        val categories = listOf(
+            HistoricalTechnicalStatus.TIMEOUT to HistoricalSourceMessages.OPEN_ARCHIEVEN_TIMEOUT,
+            HistoricalTechnicalStatus.HTTP_ERROR to HistoricalSourceMessages.OPEN_ARCHIEVEN_HTTP_ERROR,
+            HistoricalTechnicalStatus.INVALID_JSON to HistoricalSourceMessages.OPEN_ARCHIEVEN_INVALID_JSON,
+            HistoricalTechnicalStatus.MISSING_REQUIRED_FIELDS to
+                HistoricalSourceMessages.OPEN_ARCHIEVEN_MISSING_REQUIRED_FIELDS,
+        )
+
+        categories.forEach { (status, safeMessage) ->
+            val adapter = object : HistoricalSearchAdapter {
+                override val source = HistoricalSearchSource.OPEN_ARCHIEVEN
+
+                override fun search(query: HistoricalSearchQuery) = HistoricalSearchPage(
+                    source = source,
+                    results = emptyList(),
+                    total = 0,
+                    status = status,
+                    message = "provider payload and exception details",
+                )
+            }
+            val outcome = HistoricalSearchService(listOf(adapter)).search(
+                HistoricalSearchQuery(text = "kerk", source = HistoricalSearchSource.OPEN_ARCHIEVEN),
+            )
+
+            assertEquals(status, outcome.sources.single().status)
+            assertEquals(safeMessage, outcome.sources.single().message)
+            assertEquals(HistoricalSearchState.SOURCE_FAILURE, outcome.state)
+            assertEquals(0, outcome.total)
+            assertTrue(outcome.results.isEmpty())
+        }
+    }
+
+    @Test
     fun `controller exposes the historical HTTP contract and rejects invalid periods`() {
         val adapter = object : HistoricalSearchAdapter {
             override val source = HistoricalSearchSource.OPEN_ARCHIEVEN
@@ -805,6 +924,47 @@ class HistoricalSearchTest {
                 .param("fromYear", "1900"),
         ).andExpect(status().isBadRequest)
             .andExpect(jsonPath("$.error").value(containsString("samen")))
+    }
+
+    @Test
+    fun `controller exposes categorized Open Archieven source statuses safely`() {
+        val categories = listOf(
+            HistoricalTechnicalStatus.TIMEOUT to HistoricalSourceMessages.OPEN_ARCHIEVEN_TIMEOUT,
+            HistoricalTechnicalStatus.HTTP_ERROR to HistoricalSourceMessages.OPEN_ARCHIEVEN_HTTP_ERROR,
+            HistoricalTechnicalStatus.INVALID_JSON to HistoricalSourceMessages.OPEN_ARCHIEVEN_INVALID_JSON,
+            HistoricalTechnicalStatus.MISSING_REQUIRED_FIELDS to
+                HistoricalSourceMessages.OPEN_ARCHIEVEN_MISSING_REQUIRED_FIELDS,
+        )
+
+        categories.forEach { (status, message) ->
+            val adapter = object : HistoricalSearchAdapter {
+                override val source = HistoricalSearchSource.OPEN_ARCHIEVEN
+
+                override fun search(query: HistoricalSearchQuery) = HistoricalSearchPage(
+                    source = source,
+                    results = emptyList(),
+                    total = 0,
+                    status = status,
+                    message = "raw provider response must not escape",
+                )
+            }
+            val mockMvc = MockMvcBuilders
+                .standaloneSetup(HistoricalSearchController(HistoricalSearchService(listOf(adapter))))
+                .build()
+
+            mockMvc.perform(
+                get("/api/historical-search")
+                    .param("q", "kerk")
+                    .param("source", "OPEN_ARCHIEVEN"),
+            ).andExpect(status().isOk)
+                .andExpect(jsonPath("$.sources[0].status").value(status.name))
+                .andExpect(jsonPath("$.sources[0].message").value(message))
+                .andExpect(jsonPath("$.sources[0].resultCount").doesNotExist())
+                .andExpect(jsonPath("$.sources[0].heemskerkCount").doesNotExist())
+                .andExpect(jsonPath("$.total").value(0))
+                .andExpect(jsonPath("$.results").isEmpty)
+                .andExpect(jsonPath("$.state").value("SOURCE_FAILURE"))
+        }
     }
 
     @Test
@@ -1063,15 +1223,20 @@ class HistoricalSearchTest {
         retrievedAt = fixedClock().instant(),
     )
 
-    private fun startFixture(body: String): Fixture {
+    private fun startFixture(body: String, responseStatus: Int = 200, delayMillis: Long = 0): Fixture {
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
-        val fixture = Fixture(server, body)
+        val fixture = Fixture(server, body, responseStatus, delayMillis)
         server.createContext("/") { exchange -> fixture.respond(exchange) }
         server.start()
         return fixture
     }
 
-    private class Fixture(private val server: HttpServer, private val body: String) {
+    private class Fixture(
+        private val server: HttpServer,
+        private val body: String,
+        private val responseStatus: Int,
+        private val delayMillis: Long,
+    ) {
         val baseUrl: String get() = "http://127.0.0.1:${server.address.port}"
         var lastPath: String = ""
         var lastUserAgent: String? = null
@@ -1079,8 +1244,9 @@ class HistoricalSearchTest {
         fun respond(exchange: HttpExchange) {
             lastPath = exchange.requestURI.toString()
             lastUserAgent = exchange.requestHeaders.getFirst("User-Agent")
+            if (delayMillis > 0) Thread.sleep(delayMillis)
             val bytes = body.toByteArray()
-            exchange.sendResponseHeaders(200, bytes.size.toLong())
+            exchange.sendResponseHeaders(responseStatus, bytes.size.toLong())
             exchange.responseBody.use { it.write(bytes) }
         }
 

@@ -142,6 +142,58 @@ void main() {
     expect(response.sources[1].heemskerkCount, isNull);
   });
 
+  testWidgets('shows fixed safe Open Archieven messages for each new status', (
+    tester,
+  ) async {
+    final response = HistoricalSearchResponse(
+      results: const [],
+      total: 0,
+      start: 0,
+      limit: 100,
+      state: 'SOURCE_FAILURE',
+      sources: const [
+        HistoricalSourceStatus(source: 'OPEN_ARCHIEVEN', status: 'TIMEOUT'),
+        HistoricalSourceStatus(source: 'OPEN_ARCHIEVEN', status: 'HTTP_ERROR'),
+        HistoricalSourceStatus(
+          source: 'OPEN_ARCHIEVEN',
+          status: 'INVALID_JSON',
+        ),
+        HistoricalSourceStatus(
+          source: 'OPEN_ARCHIEVEN',
+          status: 'MISSING_REQUIRED_FIELDS',
+          message: 'provider payload with personal data',
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HistoricalSearchPage(
+          source: _HistoricalSource(Future.value(response)),
+        ),
+      ),
+    );
+    await tester.ensureVisible(
+      find.byKey(const Key('historical-search-submit')),
+    );
+    await tester.tap(find.byKey(const Key('historical-search-submit')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Open Archieven reageerde niet op tijd.'), findsOneWidget);
+    expect(
+      find.text('Open Archieven gaf een fout bij het opvragen.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Open Archieven stuurde een onleesbaar antwoord.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Open Archieven stuurde een onvolledig antwoord.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('provider payload'), findsNothing);
+  });
+
   test('parses the explicit Open Archieven normalized identity fields', () {
     final result = HistoricalSearchResult.fromJson(const <String, dynamic>{
       'source': 'OPEN_ARCHIEVEN',

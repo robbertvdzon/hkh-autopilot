@@ -971,8 +971,21 @@ String _historicalSourceMessage(HistoricalSourceStatus source) {
     'DISABLED' => 'niet geconfigureerd',
     'TEMPORARILY_UNAVAILABLE' => 'tijdelijk niet beschikbaar',
     'INVALID_RESPONSE' => 'ongeldige bronrespons',
+    'TIMEOUT' => 'Open Archieven reageerde niet op tijd',
+    'HTTP_ERROR' => 'Open Archieven gaf een fout bij het opvragen',
+    'INVALID_JSON' => 'Open Archieven stuurde een onleesbaar antwoord',
+    'MISSING_REQUIRED_FIELDS' =>
+      'Open Archieven stuurde een onvolledig antwoord',
     _ => 'niet beschikbaar',
   };
+  if (const {
+    'TIMEOUT',
+    'HTTP_ERROR',
+    'INVALID_JSON',
+    'MISSING_REQUIRED_FIELDS',
+  }.contains(source.status)) {
+    return '$status.';
+  }
   return '$name: $status.';
 }
 

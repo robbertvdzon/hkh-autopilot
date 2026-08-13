@@ -125,13 +125,19 @@ when metadata/privacy fail-closed filtering removes content metadata. The query 
 without returning more than the requested page size. The response also contains `state` with one of
 `RESULTS`, `NO_RESULTS`, `PARTIAL_AVAILABILITY` or `SOURCE_FAILURE`, plus a `sources` entry for
 each selected provider. Each source entry reports `AVAILABLE`, `DISABLED`,
-`TEMPORARILY_UNAVAILABLE` or `INVALID_RESPONSE` and a short safe message where applicable.
+`TEMPORARILY_UNAVAILABLE` or `INVALID_RESPONSE`; Open Archieven additionally uses the diagnostic
+statuses `TIMEOUT`, `HTTP_ERROR`, `INVALID_JSON` and `MISSING_REQUIRED_FIELDS`. The route retains a
+short safe message where applicable; other transport problems remain `TEMPORARILY_UNAVAILABLE`.
 Available source entries also expose nullable `resultCount` and `heemskerkCount`: the former counts
 only that source's safely normalized results on the current visible response page, while the latter
 counts only results with `placeStatus == AVAILABLE` whose explicit place metadata equals `Heemskerk`
 after trim, Unicode-NFKC normalization, whitespace collapse and case-insensitive comparison. A
 successful empty source reports both values as `0`; an unavailable source reports both as `null`.
-The Heemskerk value is displayed as a place-metadata indication, never as historical proof.
+The Heemskerk value is displayed as a place-metadata indication, never as historical proof. The
+four Open Archieven diagnostic statuses have fixed frontend messages: `Open Archieven reageerde
+niet op tijd`, `Open Archieven gaf een fout bij het opvragen`, `Open Archieven stuurde een
+onleesbaar antwoord` and `Open Archieven stuurde een onvolledig antwoord`. These messages do not
+include provider bodies, HTTP details, exception text, stack traces or personal data.
 
 Each result also exposes `placeStatus`, `personStatus` and `eventStatus` with `AVAILABLE`, `MISSING`,
 `UNCERTAIN` or `UNAVAILABLE`. Context values are copied only from explicit provider fields;
@@ -176,10 +182,12 @@ Europeana is disabled independently when `HKH_EUROPEANA_WSKEY` is absent. Open A
 same descriptive user-agent and a process-wide limiter with at least 251 ms between requests.
 Its response contract requires an object `response` with an array `docs` and a non-negative numeric
 `number_found`. The count must agree with whether the page is empty and cannot be smaller than the
-page size; missing, empty, malformed or contradictory required fields make the source
-`INVALID_RESPONSE`. Every Open Archieven document must provide a non-empty safe `source_name`, a
-safe `uuid` and an absolute HTTP(S) `original_source_url` with a valid host. URLs are never
-constructed locally, and explicit rights/privacy checks suppress content metadata fail-closed. The route never
+page size. A non-2xx response is `HTTP_ERROR` regardless of its body; an empty or unreadable body
+is `INVALID_JSON`; malformed, missing, empty or contradictory required fields are
+`MISSING_REQUIRED_FIELDS`. Every Open Archieven document must provide a non-empty safe
+`source_name`, a safe `uuid` and an absolute HTTP(S) `original_source_url` with a valid host. A
+valid empty `docs` array with `number_found: 0` remains `AVAILABLE`. URLs are never constructed
+locally, and explicit rights/privacy checks suppress content metadata fail-closed. The route never
 stores searches, raw provider responses, media or external personal data.
 
 For each result, `metadataRights` and `objectMediaRights` are mapped independently from explicit

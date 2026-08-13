@@ -397,18 +397,24 @@ maximaal vier serververzoeken per seconde met minimaal 251 ms tussenruimte en ee
 User-Agent. Alleen een response-object met een array `docs`, een niet-negatieve numerieke
 `number_found` die met de lege/niet-lege pagina overeenkomt, en per document een niet-lege
 `source_name`, veilige `uuid` en absolute HTTP(S)-`original_source_url` is geldig. Ontbrekende,
-lege, onveilige of tegenstrijdige verplichte waarden maken de bron `INVALID_RESPONSE`; een lege
-`docs`-lijst met `number_found: 0` is juist `AVAILABLE` met `NO_RESULTS` wanneer alle bronnen leeg
-zijn.
+lege, onveilige of tegenstrijdige verplichte waarden zijn `MISSING_REQUIRED_FIELDS`; een niet-2xx
+antwoord is `HTTP_ERROR`, onafhankelijk van de HTTP-body, en een lege of niet als JSON leesbare
+respons is `INVALID_JSON`. Een lege `docs`-lijst met `number_found: 0` is juist `AVAILABLE` met
+`NO_RESULTS` wanneer alle bronnen leeg zijn.
 
 De route geeft per bron een technische status (`AVAILABLE`, `DISABLED`,
-`TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`) met een veilige, korte melding en de
+`TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`; voor Open Archieven daarnaast `TIMEOUT`,
+`HTTP_ERROR`, `INVALID_JSON` of `MISSING_REQUIRED_FIELDS`) met een veilige, korte melding en de
 geaggregeerde zoektoestand `RESULTS`, `NO_RESULTS`, `PARTIAL_AVAILABILITY` of `SOURCE_FAILURE`.
 Alleen bronnen die uiteindelijk `AVAILABLE` zijn dragen bij aan `results` en `total`. Als minstens
 één bron beschikbaar is, blijven diens resultaten zichtbaar wanneer een andere bron uitvalt; de
-frontend toont per falende bron de tekst "niet geconfigureerd", "tijdelijk niet beschikbaar" of
-"ongeldige bronrespons". Een volledig beschikbare maar lege zoekopdracht is `NO_RESULTS` en is dus
-geen bronfout.
+frontend toont per falende bron een vaste, veilige tekst. Voor de vier Open Archieven-categorieën
+zijn dat respectievelijk "Open Archieven reageerde niet op tijd", "Open Archieven gaf een fout bij
+het opvragen", "Open Archieven stuurde een onleesbaar antwoord" en "Open Archieven stuurde een
+onvolledig antwoord". Voor `DISABLED` en `INVALID_RESPONSE` blijven dat respectievelijk
+"niet geconfigureerd" en "ongeldige bronrespons"; andere transportproblemen blijven "tijdelijk niet
+beschikbaar". Een volledig beschikbare maar lege zoekopdracht is `NO_RESULTS` en is dus geen
+bronfout.
 
 Elke geselecteerde bron krijgt daarnaast een compacte dekkingssamenvatting. Bij een beschikbare
 bron is `resultCount` het aantal veilig genormaliseerde resultaten van die bron in de huidige
@@ -637,7 +643,7 @@ externe-verificatiedata.
 
 De publieke historische zoekroute is gedekt met `HistoricalSearchTest` en
 `historical_search_test.dart`. De backendtests controleren het responsveld `state`, alle vier de
-geaggregeerde toestanden, de vier per-bronstatussen, veilige meldingen, beschikbare-resultaten-
+geaggregeerde toestanden, de vier nieuwe Open Archieven-bronstatussen, veilige meldingen, beschikbare-resultaten-
 merging, uitsluitend beschikbare bijdragen aan `total`, uitval tijdens paginering en de effectieve
 offset, per-bron `resultCount`/`heemskerkCount` voor volledige, lege, gedeeltelijke en falende
 bronbeschikbaarheid, contextvelden en de vier contextstatussen. `HistoricalSearchTest` dekt daarnaast expliciete
