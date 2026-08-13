@@ -319,6 +319,20 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
       expect(find.text(historicalRightsExplanation), findsOneWidget);
+      final explanationSemantics = tester
+          .getSemantics(
+            find.byKey(
+              const Key('historical-rights-explanation-rights-1-text'),
+            ),
+          )
+          .getSemanticsData();
+      expect(
+        explanationSemantics.label,
+        contains(
+          'Toegestane rechten op gekoppelde digitale objecten of media '
+          'betekenen niet automatisch dat metadatarechten zijn toegestaan.',
+        ),
+      );
       await tester.sendKeyEvent(LogicalKeyboardKey.space);
       await tester.pump();
       expect(find.text(historicalRightsExplanation), findsNothing);

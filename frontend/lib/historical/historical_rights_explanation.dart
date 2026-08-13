@@ -4,7 +4,9 @@ const historicalRightsExplanation =
     'Metadatarechten en rechten op gekoppelde digitale objecten of media '
     'worden afzonderlijk beoordeeld. Toegestane metadatarechten betekenen '
     'niet automatisch dat gekoppelde digitale objecten of media zijn '
-    'toegestaan. Onbekend betekent dat de bron geen expliciete, '
+    'toegestaan. Toegestane rechten op gekoppelde digitale objecten of media '
+    'betekenen niet automatisch dat metadatarechten zijn toegestaan. Onbekend '
+    'betekent dat de bron geen expliciete, '
     'verifieerbare status levert; het betekent niet dat rechten zijn '
     'toegestaan of geweigerd.';
 

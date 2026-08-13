@@ -1,5 +1,17 @@
 # Worklog hkh-129
 
+## Herstelrun na review
+
+- [x] Reviewblocker lokaliseren in de gedeelde rechtenuitleg
+- [x] Omgekeerde onafhankelijkheid van object-/mediarechten expliciet maken
+- [x] Gerichte frontendtest uitvoeren
+- [x] Volledig factory-vangnet uitvoeren
+- [x] Zelfreview afronden
+
+De gedeelde rechtenuitleg benoemt nu beide richtingen van de onafhankelijke
+beoordeling. De semantiektest controleert de nieuwe tekst in de geopende uitleg.
+Gerichte test en het volledige factory-vangnet zijn groen uitgevoerd.
+
 ## Stappenplan
 
 - [x] Rechtencontract en bestaande historische zoekweergave inspecteren
