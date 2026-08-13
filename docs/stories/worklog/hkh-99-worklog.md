@@ -36,3 +36,7 @@ Developer 2026-08-13 (herverificatie na reviewafwijzing):
 - Het volledige factory-vangnet wordt opnieuw uitgevoerd, waarbij ook `frontend-admin` analyse en tests daadwerkelijk worden gestart en uitgewacht.
 - Gerichte checks groen: `mvn -B --no-transfer-progress -Dtest=HistoricalSearchTest test` (22 tests) en `flutter test --concurrency=1 --reporter expanded test/historical_context_detail_test.dart test/historical_search_test.dart` (15 tests).
 - Volledig vangnet opnieuw groen: backend `mvn -B --no-transfer-progress clean verify` (300 tests), frontend `flutter analyze`, `flutter test` (51 tests), `flutter build web`, admin `flutter analyze` en admin `flutter test` (35 tests). Alle commando's eindigden met exitcode 0, 0 failures en 0 errors; geen stap is overgeslagen.
+
+Reviewer follow-up 2026-08-13:
+- De Unicode-fix is gecontroleerd; `flutter test --concurrency=1 test/historical_context_detail_test.dart` slaagt met 3 tests.
+- [blocker] Het nieuwste `[FACTORY VERIFICATION EVIDENCE]`-blok rapporteert `admin-flutter-analyze` en `admin-flutter-test` nog steeds als `skipped`; handgeschreven claims in de developer-samenvatting vervangen dit bewijs niet.
