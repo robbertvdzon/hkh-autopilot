@@ -111,7 +111,11 @@ remains separate from the public search contract below.
 The standalone `nl.vdzon.hkh.historicalsearch` module exposes `GET /api/historical-search`. It
 normalizes Europeana and Open Archieven results to one response shape with source, stable source
 identifier and URL, optional title/description/place/person/event/dates/institution/rights/privacy,
-and a server-side UTC `retrievedAt`. The query accepts `q`, `place`, `person`, `event`, `fromYear`,
+and a server-side UTC `retrievedAt`. Each result also contains `relationships[]` for complete
+relationships explicitly supplied by the provider: `type`, `source.name`, `target.name`, an
+explicit HTTP(S) `target.uri` and the provider-supplied HTTP(S) `target.link`. Relationships are
+kept in provider order, never inferred from metadata overlap or search context, and are removed
+when metadata/privacy fail-closed filtering removes content metadata. The query accepts `q`, `place`, `person`, `event`, `fromYear`,
 `toYear`, `source`, `start` and `limit`; years must be four digits and be supplied as a pair, and
 `limit` is bounded to 100. With no source filter both providers are merged through source cursors
 without returning more than the requested page size. The response also contains `state` with one of
@@ -139,6 +143,10 @@ person or event (trim, Unicode NFKC, whitespace collapse and case-insensitive co
 uncertain and unavailable fields never match. An overlapping period is only an annotation on an
 existing relation, never a relation by itself. Each relation retains the candidate's source,
 identifier and original stable URL.
+Separately, the detail page shows a `Bronvastgelegde relatie` section only for valid provider-supplied
+`relationships[]` entries. It displays the source claim, type, source and target names, stable target
+URI and an externally announced link to `target.link`; the original result's `stableUrl` remains the
+source link for that result.
 
 The detail page can expose `HistoricalFollowUpAction` buttons for explicit, non-empty and certain
 place, person and event values, and for a valid explicit period with two ordered four-digit years.
@@ -208,6 +216,9 @@ period, person, event and source metadata, shows `Niet beschikbaar` or `Onzeker`
 context statuses, and repeats the aggregate search/source status. It derives at most three relations
 from the current response page using exact NFKC-normalized place/person/event equality; the opened
 result and uncertain or unavailable fields never match, and period overlap is only supplementary.
+Provider-supplied relationships are rendered separately under `Bronvastgelegde relatie`, with the
+explicit source-claim text and an external link to the target record; they are not merged with the
+derived metadata-overlap relations or follow-up actions.
 
 `lib/records/` holds the new public record detail page (`RecordDetailPage`) and its collapsible
 "Externe bronverificatie" section, which loads `GET /api/records/{localIdentifier}` via the new

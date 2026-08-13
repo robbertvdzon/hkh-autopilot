@@ -349,7 +349,10 @@ resultaten cursorgewijs samengevoegd tot maximaal de gevraagde paginagrootte.
 De adapters leveren één genormaliseerd resultaatmodel met `source`, `sourceRecordId`, `stableUrl`,
 `title`, `description`, `place`, `person`, `event`, `dateStart`, `dateEnd`, `institution`, `rights`,
 `privacy`, `retrievedAt`, `technicalStatus`, `metadataRights`, `objectMediaRights`, `privacyStatus`
-en de contextstatussen `placeStatus`, `personStatus` en `eventStatus`. Elke contextstatus is
+`relationships` en de contextstatussen `placeStatus`, `personStatus` en `eventStatus`. Iedere
+relatie bevat `type`, `source.name`, `target.name`, een door de bron geleverde stabiele HTTP(S)-URI
+in `target.uri` en een door de bron geleverde externe HTTP(S)-link in `target.link`; de lijst is
+leeg wanneer de bron geen expliciete volledige relaties levert. Elke contextstatus is
 `AVAILABLE`, `MISSING`, `UNCERTAIN` of `UNAVAILABLE`. Alleen een geldige, door de bron geleverde
 HTTP(S)-recordlink en bronidentifier worden gebruikt; links worden niet lokaal geconstrueerd.
 Plaats wordt alleen uit expliciete bronmetadata overgenomen, nooit uit zoekfilters, titels of URLs.
@@ -403,6 +406,13 @@ identifier, stabiele URI, server-side ophaaldatum, technische bronstatus, rechte
 privacystatus. Ontbrekende of onbeschikbare context wordt als `Niet beschikbaar` getoond; onzekere
 of tegenstrijdige context als `Onzeker`. De detailweergave herhaalt de geaggregeerde zoekstatus en
 de status van de bron van het geopende resultaat.
+
+Wanneer het resultaat een of meer volledige relaties uit de expliciete brondata bevat, toont de
+detailweergave daarnaast de afzonderlijke sectie `Bronvastgelegde relatie`. Iedere kaart toont het
+relatietype, de naam van de externe bron, de naam van het doelrecord, de stabiele doel-URI en een
+tekstueel aangekondigde externe link naar `target.link`. De kaart labelt dit als bronclaim en
+vermeldt dat de relatie niet door HKH is afgeleid. De sectie blijft verborgen bij een lege lijst.
+De bestaande bronvermelding en bronlink blijven naar het oorspronkelijke resultaat wijzen.
 
 Verwante resultaten worden uitsluitend bepaald uit de huidige zichtbare `results`-lijst. Het
 geopende resultaat wordt uitgesloten en er worden maximaal drie relaties getoond, in zichtbare
@@ -604,7 +614,9 @@ Flutter-tests controleren de zichtbaarheid van partiële resultaten, het ondersc
 resultaten en volledige bronuitval, de bronmeldingen, één status/live-regio, de
 toetsenbordbedienbare retryactie, paginering met een korte pagina en behoud van bronmetadata. De
 contextdetailtests controleren de actie `Context bekijken`, detailvelden, expliciete
-`Niet beschikbaar`/`Onzeker`-meldingen, bronlinks, bronstatussen, relaties en toetsenbordbediening.
+`Niet beschikbaar`/`Onzeker`-meldingen, bronlinks, bronstatussen, de afzonderlijke
+`Bronvastgelegde relatie`-sectie met bronclaim- en externe-linktekst, het verbergen van ongeldige
+relaties, metadata-overlap en toetsenbordbediening.
 De aanvullende `historical_follow_up_test.dart` controleert de vier exacte vervolgquery’s, fail-closed
 gating van onzekere/afgeleide of niet-toegestane waarden, de waarschuwing en beide
 terugnavigatiestappen; de gerichte suite bevat zes tests.

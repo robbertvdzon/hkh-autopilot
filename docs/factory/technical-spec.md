@@ -443,11 +443,13 @@ privacyclassificatie.
 - `HistoricalSearchContract.kt` bevat de brononafhankelijke `HistoricalSearchQuery`,
   `HistoricalSearchResult`, `HistoricalSearchPage`, bron- en statusenums en
   `HistoricalSearchValidation`. `HistoricalSearchResult` bevat naast de bestaande metadata ook
-  `place` en de drie contextstatussen `placeStatus`, `personStatus` en `eventStatus`, elk
+  `place`, `relationships` en de drie contextstatussen `placeStatus`, `personStatus` en `eventStatus`, elk
   `AVAILABLE`, `MISSING`, `UNCERTAIN` of `UNAVAILABLE`. De normalisatie trimt lege waarden weg,
   vereist twee viercijferige jaren in een geldige volgorde, valideert `start >= 0` en begrenst
   `limit` op 1..100. De veilige tekst- en URLhelpers weigeren controletekens, te lange waarden en
-  niet-HTTP(S)-URL's.
+  niet-HTTP(S)-URL's. Iedere relatie bevat `type`, `source.name`, `target.name`, een expliciet
+  geleverde HTTP(S)-`target.uri` en een expliciet geleverde HTTP(S)-`target.link`; de lijst is
+  standaard leeg.
 - `HistoricalSearchController` registreert uitsluitend `GET /api/historical-search` met `q`,
   `place`, `person`, `event`, `fromYear`, `toYear`, `source`, `start` en `limit`. Een ongeldige
   query geeft HTTP 400 met `{ "error": "..." }`; een geldig verzoek geeft `{ results, total, start,
@@ -460,7 +462,9 @@ privacyclassificatie.
   de server-side UTC `retrievedAt`, de
   contextvelden/statussen en afzonderlijke technische, metadatarechten-, object-/mediarechten- en
   privacystatussen. De API-controller exposeert deze velden als `place`, `placeStatus`,
-  `personStatus` en `eventStatus`.
+  `personStatus`, `eventStatus` en `relationships`, waarbij iedere relatie de velden `type`,
+  `source.name`, `target.name`, `target.uri` en `target.link` behoudt. `stableUrl` blijft de link
+  naar het oorspronkelijke zoekresultaat.
 - `HistoricalSearchService` kiest één bron of beide bronnen, haalt providerpagina's op met een
   maximum van 100 records, en merge't beide bronstromen via cursors. De cursor telt ook provider-
   records zonder geldige URL mee, zodat volgende pagina's geen duplicaten of gaten krijgen. Een
@@ -484,8 +488,12 @@ privacyclassificatie.
   `GET /records/search.json` met `name`, optioneel `eventplace`, `number_show` en `start`. Een
   gebeurtenis wordt in Open Archieven met een `~` als lage zoekzekerheid toegevoegd; jaren volgen
   de provider-syntaxis. Beide adapters lezen plaats, persoon en gebeurtenis uitsluitend uit
-  expliciete, scalar bronvelden. Ontbrekende velden worden `MISSING`; conflicterende, te lange of
-  onveilige waarden `UNCERTAIN`. Beide adapters sturen `HKH-Autopilot-HistoricalSearch/1.0`.
+  expliciete, scalar bronvelden. Daarnaast lezen ze uitsluitend een expliciete provider-array
+  `relationships`; complete relaties worden in bronvolgorde gemapt. Een ontbrekend type, bronnaam,
+  doelnaam, stabiele doel-URI of externe doel-link laat de volledige relatie weg. Relaties worden
+  nooit uit contextvelden, titels, zoekfilters, URL's of periode-overlap afgeleid. Ontbrekende velden
+  worden `MISSING`; conflicterende, te lange of onveilige waarden `UNCERTAIN`. Beide adapters sturen
+  `HKH-Autopilot-HistoricalSearch/1.0`.
 - De Europeana-wskey komt uit `hkh.historical.europeana-wskey` / `HKH_EUROPEANA_WSKEY`. Een lege
   waarde markeert alleen Europeana als `DISABLED`; Open Archieven blijft onafhankelijk beschikbaar.
   De providerbasis-URL's zijn overschrijfbaar via `HKH_HISTORICAL_EUROPEANA_BASE_URL` en
@@ -500,13 +508,15 @@ privacyclassificatie.
 - `failClosedMetadata()` behoudt de veilige bronidentifier, bronlink, ophaaltijd en afzonderlijke
   statusvelden, maar wist inhoudelijke metadata tenzij `metadataRights == ALLOWED` én
   `privacyStatus == CLEAR`. Bij zo'n blokkade worden de drie contextstatussen `UNAVAILABLE` en
-  worden contextwaarden niet gebruikt voor relaties. Onbekende object-/mediarechten blokkeren de
+  worden contextwaarden en `relationships` gewist. Onbekende object-/mediarechten blokkeren de
   metadataweergave niet op zichzelf, maar geven geen toestemming om media te tonen.
-- `HistoricalSearchRelations.kt` bepaalt relaties zonder nieuwe bronaanvraag. Het geopende resultaat
+- `HistoricalSearchRelations.kt` bepaalt de afzonderlijke, afgeleide sectie `Verwante resultaten`
+  zonder nieuwe bronaanvraag. Het geopende resultaat
   wordt uitgesloten en alleen beschikbare plaats-, persoons- en gebeurtenisvelden worden vergeleken
   na trimmen, Unicode-NFKC-normalisatie, witruimte-normalisatie en hoofdletterongevoelige
   vergelijking. Eén gedeeld veld volstaat; de uitkomst is maximaal drie kandidaten in zichtbare
-  volgorde. Periode-overlap is uitsluitend een annotatie op een bestaande relatie.
+  volgorde. Periode-overlap is uitsluitend een annotatie op een bestaande relatie. Deze uitkomst
+  staat los van de providerrelaties in `HistoricalSearchResult.relationships`.
 
 ## Publieke historische zoekfrontend
 
@@ -537,8 +547,10 @@ privacystatussen. Een beschikbare kaart bevat de actie `Context bekijken`, die o
 `historical_context_detail.dart`. De detailweergave toont de context- en bronvelden, herhaalt de
 zoek- en bronstatus, gebruikt `Niet beschikbaar`/`Onzeker` volgens de contextstatus en toont
 maximaal drie relaties uit de huidige responsepagina. Elke relatielink gebruikt uitsluitend de door
-de backend geleverde stabiele URL. De frontend gebruikt `unorm_dart` voor dezelfde NFKC-normalisatie
-als de backend.
+de backend geleverde stabiele URL. Providerrelaties worden daarnaast alleen bij een niet-lege,
+geldige lijst getoond in `Bronvastgelegde relatie`, met expliciete bronclaimtekst, target-URI en
+een tekstueel aangekondigde externe link naar `target.link`. De frontend gebruikt `unorm_dart`
+voor dezelfde NFKC-normalisatie als de backend.
 
 De detailweergave bevat ook `historicalFollowUpActions`, die alleen acties teruggeeft wanneer het
 resultaat technisch `AVAILABLE` is, metadatarechten `ALLOWED` zijn en privacy `CLEAR` is. Voor plaats,
