@@ -250,6 +250,7 @@ class HistoricalContextDetailPage extends StatelessWidget {
       Semantics(
         container: true,
         explicitChildNodes: true,
+        excludeSemantics: true,
         label: historicalFollowUpWarning,
         child: const Text(historicalFollowUpWarning),
       ),

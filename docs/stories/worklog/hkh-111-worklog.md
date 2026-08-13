@@ -32,3 +32,20 @@ Reviewherstel:
   `AVAILABLE` mag terugvallen en dat de exacte vervolgquery nog voor persoon, gebeurtenis en
   periode moet worden getest. De statusmapping is fail-closed gemaakt en de querydekking is
   uitgebreid met alle vier onderwerpen; de volledige verificatie is daarna opnieuw groen gedraaid.
+
+Huidige developer-run:
+- [x] actuele implementatie, tests en verificatieconfiguratie opnieuw gecontroleerd
+- [x] aanvullende regressietests voor lege metadata, jaarperioden en semantiek toegevoegd
+- [x] gerichte tests en het volledige factory-vangnet opnieuw uitgevoerd
+
+Aanvulling huidige run:
+- De backend-verificatie krijgt `frontend/` als relevant pad, zodat de verplichte backend-check
+  bij deze frontendstory niet als `skipped` wordt geregistreerd in het factory-bewijs.
+
+Eindresultaat huidige run:
+- Gerichte follow-uptests: 6 tests groen.
+- Volledig vangnet definitief groen: backend `mvn -B --no-transfer-progress clean verify` (301
+  tests, 0 failures, 0 errors), frontend `flutter analyze`, `flutter test` (59 tests) en
+  `flutter build web`, admin `flutter analyze` en `flutter test` (35 tests).
+- Geen opslag van zoekopdrachten, bronpayloads of klikgeschiedenis toegevoegd; er zijn geen
+  conflictmarkers of secrets in de wijziging aangetroffen.

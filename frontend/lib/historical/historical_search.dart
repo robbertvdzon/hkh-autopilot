@@ -399,6 +399,7 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
               Semantics(
                 container: true,
                 explicitChildNodes: true,
+                excludeSemantics: true,
                 label: historicalFollowUpWarning,
                 child: const Text(historicalFollowUpWarning),
               ),

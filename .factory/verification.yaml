@@ -3,6 +3,7 @@ commands:
   - id: backend-maven-verify
     pathPrefixes:
       - backend/
+      - frontend/
       - secrets.env.example
       - .factory/verification.yaml
       - .github/workflows/verify.yml

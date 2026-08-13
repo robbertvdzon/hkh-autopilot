@@ -124,6 +124,51 @@ void main() {
     },
   );
 
+  test('does not offer actions for empty metadata or invalid year periods', () {
+    expect(
+      historicalFollowUpActions(
+        _result(
+          place: '  ',
+          person: '',
+          event: '\n\t',
+          dateStart: '1900-01-01',
+          dateEnd: '1910-01-01',
+        ),
+      ),
+      isEmpty,
+    );
+    expect(
+      historicalFollowUpActions(
+        _result(
+          place: null,
+          person: null,
+          event: null,
+          dateStart: '1910',
+          dateEnd: '1900',
+        ),
+      ),
+      isEmpty,
+    );
+    expect(
+      historicalFollowUpActions(_result(dateStart: '1900', dateEnd: null)),
+      hasLength(3),
+    );
+  });
+
+  test('keeps exact explicit metadata values in follow-up query fields', () {
+    final actions = historicalFollowUpActions(
+      _result(
+        place: '  Heemskerk  ',
+        person: ' Jan de Vries ',
+        event: ' Huwelijk ',
+      ),
+    );
+
+    expect(actions[0].place, '  Heemskerk  ');
+    expect(actions[1].person, ' Jan de Vries ');
+    expect(actions[2].event, ' Huwelijk ');
+  });
+
   test('does not promote missing or unknown API context statuses', () {
     final missing = HistoricalSearchResult.fromJson({
       'source': 'OPEN_ARCHIEVEN',
@@ -191,6 +236,11 @@ void main() {
 
       await tester.tap(find.byKey(const Key('historical-results-list')));
       await tester.pumpAndSettle();
+      expect(find.text('Stabiele bronidentifier: follow-up-1'), findsOneWidget);
+      expect(
+        find.text('Stabiele bron-URI: https://example.test/follow-up-1'),
+        findsOneWidget,
+      );
       for (var index = 0; index < 5; index++) {
         await tester.drag(find.byType(ListView), const Offset(0, -500));
         await tester.pump();
@@ -207,6 +257,7 @@ void main() {
             .hasAction(SemanticsAction.tap),
         isTrue,
       );
+      expect(find.bySemanticsLabel(historicalFollowUpWarning), findsOneWidget);
       await tester.tap(
         find.byKey(const Key('historical-follow-up-place-follow-up-1')),
       );
