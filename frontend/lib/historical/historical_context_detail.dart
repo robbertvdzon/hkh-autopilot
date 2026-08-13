@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:unorm_dart/unorm_dart.dart' as unorm;
 
 import '../records/external_link_launcher.dart';
 import 'historical_search.dart';
@@ -77,7 +78,7 @@ bool _sameCertainContext(
 }
 
 String _normalizeContext(String value) =>
-    value.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+    unorm.nfkc(value.trim()).replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
 
 bool _sameHistoricalResult(
   HistoricalSearchResult left,

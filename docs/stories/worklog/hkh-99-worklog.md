@@ -17,3 +17,7 @@ Done / rationale:
 - De Flutter-resultaatkaart heeft de actie `Context bekijken`; de detailpagina toont context-, bron-, status-, rechten- en privacymetadata met expliciete `Niet beschikbaar`-/`Onzeker`-labels en links naar uitsluitend de aangeleverde stabiele bron-URI.
 - Eigen backendcontracttests en Flutter-widget-/relationtests dekken de contextstatussen, exacte relaties, periode-overlap, maximum drie, detailactie, bronstatussen en toetsenbord-/semantiekgedrag.
 - Volledig vangnet groen: `mvn -B --no-transfer-progress clean verify` (300 tests), frontend analyze/tests/webbuild (51 tests) en frontend-admin analyze/tests (35 tests), alle exitcode 0.
+
+Aanvulling reviewherstel:
+- De Flutter-relatiematching normaliseert contextwaarden nu eerst Unicode-compatibel (NFKC), gelijk aan de backend, zodat canoniek equivalente schrijfwijzen zoals `Café` en `Cafe\u0301` exact gelijk matchen.
+- Een gerichte frontendtest dekt deze decomposed/composed Unicode-case.

@@ -70,6 +70,19 @@ void main() {
     expect(relations.first.periodOverlaps, isFalse);
   });
 
+  test('matches canonically equivalent Unicode context values', () {
+    final opened = _result('opened', place: 'Café');
+    final decomposed = _result('decomposed', place: 'Cafe\u0301');
+
+    final relations = findHistoricalContextRelations(opened, [
+      opened,
+      decomposed,
+    ]);
+
+    expect(relations, hasLength(1));
+    expect(relations.single.sharedFields, ['Plaats']);
+  });
+
   test('a period overlap is only an annotation on an existing relation', () {
     final opened = _result(
       'opened',
