@@ -122,6 +122,7 @@ class HistoricalContextDetailPage extends StatelessWidget {
     required this.visibleResults,
     required this.searchState,
     required this.sourceStatuses,
+    this.source,
     super.key,
   });
 
@@ -129,6 +130,7 @@ class HistoricalContextDetailPage extends StatelessWidget {
   final List<HistoricalSearchResult> visibleResults;
   final String searchState;
   final List<HistoricalSourceStatus> sourceStatuses;
+  final HistoricalSearchSource? source;
 
   @override
   Widget build(BuildContext context) {
@@ -201,6 +203,7 @@ class HistoricalContextDetailPage extends StatelessWidget {
               icon: const Icon(Icons.open_in_new),
               label: const Text('Externe bron openen in nieuw tabblad'),
             ),
+            ..._followUpSection(context),
             const Divider(height: 32),
             Semantics(
               header: true,
@@ -233,6 +236,43 @@ class HistoricalContextDetailPage extends StatelessWidget {
   String? _periodLabel(HistoricalSearchResult value) {
     if (value.dateStart == null && value.dateEnd == null) return null;
     return '${value.dateStart ?? 'Niet beschikbaar'}${value.dateEnd == null ? '' : '–${value.dateEnd}'}';
+  }
+
+  List<Widget> _followUpSection(BuildContext context) {
+    final source = this.source;
+    if (source == null) return const [];
+    final actions = historicalFollowUpActions(result);
+    if (actions.isEmpty) return const [];
+    return [
+      const Divider(height: 32),
+      Semantics(header: true, child: const Text('Nieuwe zoekingangen')),
+      const SizedBox(height: 8),
+      Semantics(
+        container: true,
+        explicitChildNodes: true,
+        excludeSemantics: true,
+        label: historicalFollowUpWarning,
+        child: const Text(historicalFollowUpWarning),
+      ),
+      const SizedBox(height: 8),
+      ...actions.map(
+        (action) => Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            key: Key(
+              'historical-follow-up-${action.topic.name}-${result.sourceRecordId}',
+            ),
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute<void>(
+                builder: (_) =>
+                    HistoricalSearchPage(source: source, followUp: action),
+              ),
+            ),
+            child: Text(action.label),
+          ),
+        ),
+      ),
+    ];
   }
 }
 

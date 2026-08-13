@@ -32,6 +32,14 @@ en gebeurtenis. Ontbrekende of onbeschikbare context wordt als `Niet beschikbaar
 tegenstrijdige context als `Onzeker` getoond. Verwante resultaten komen uitsluitend uit de huidige
 zichtbare resultatenpagina, worden op exact genormaliseerde plaats-, persoons- of gebeurtenisvelden
 gevonden en zijn begrensd op drie; een periode-overlap maakt op zichzelf geen relatie.
+Vanuit de detailweergave zijn daarnaast nieuwe zoekingangen beschikbaar voor expliciet aanwezige,
+zekere plaats-, persoons- en gebeurtenismetadata en voor een geldige expliciete periode. Deze acties
+zijn fail-closed begrensd tot beschikbare resultaten met toegestane metadatarechten en een duidelijke
+privacystatus, gebruiken exact de oorspronkelijke bronwaarde en starten de bestaande zoekroute zonder
+bronfilter, zodat Europeana en Open Archieven volgens de standaardkeuze worden bevraagd. De nieuwe
+zoekweergave toont de gebruikte vervolgwaarde en de waarschuwing dat dit geen bewezen relatie tussen
+bronnen is; de detailweergave en beide terugnavigatiestappen blijven behouden. Er wordt geen zoekopdracht,
+bronpayload of klikgeschiedenis lokaal opgeslagen.
 
 ## Backend lokaal starten
 

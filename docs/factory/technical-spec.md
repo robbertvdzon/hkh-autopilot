@@ -540,6 +540,21 @@ maximaal drie relaties uit de huidige responsepagina. Elke relatielink gebruikt 
 de backend geleverde stabiele URL. De frontend gebruikt `unorm_dart` voor dezelfde NFKC-normalisatie
 als de backend.
 
+De detailweergave bevat ook `historicalFollowUpActions`, die alleen acties teruggeeft wanneer het
+resultaat technisch `AVAILABLE` is, metadatarechten `ALLOWED` zijn en privacy `CLEAR` is. Voor plaats,
+persoon en gebeurtenis zijn de contextstatus `AVAILABLE` en een niet-lege expliciete bronwaarde vereist;
+de fail-closed JSON-mapping promoveert een ontbrekende of onbekende status nooit op basis van aanwezige
+tekst. Een periodeactie vereist beide expliciete datumwaarden als viercijferige jaren in oplopende
+volgorde. `HistoricalFollowUpAction` bewaart de oorspronkelijke waarde voor precies één filterveld.
+
+Elke actie is een semantische Material `TextButton` met een onderwerp in het label. De actie pusht een
+nieuwe `HistoricalSearchPage` met dezelfde `HistoricalSearchSource` en een `followUp`-actie; de pagina
+vult de betreffende controllers, laat de bronkeuze leeg en roept daarna automatisch
+`loadHistoricalSearch` aan. Lege filters worden als afwezige queryparameters doorgegeven, zodat de
+standaardselectie beide bronnen bevraagt. De vervolgpagina toont de gekozen waarde en de vaste
+`historicalFollowUpWarning`-tekst in een programmatisch beschikbare regio. De Navigator-stack bewaart
+de oorspronkelijke detailpagina en resultatenlijst. Er is geen opslagmechanisme toegevoegd.
+
 ## Publieke recorddetailpagina (gebruikersfrontend)
 
 `frontend/lib/records/` bevat de publieke recorddetailpagina en de sectie "Externe

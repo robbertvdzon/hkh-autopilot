@@ -37,6 +37,17 @@ trim, Unicode-NFKC, whitespace and case normalization; missing, uncertain and un
 never match. An overlapping period is displayed only as additional information on an existing
 relation. Relation cards retain the candidate source label, identifier and original stable URL.
 
+The context detail page can also offer new search-entry buttons for an explicit, non-empty and certain
+place, person or event, plus an explicit period whose start and end values are valid four-digit years
+in order. Actions are shown only when the result is technically available, metadata rights are
+`ALLOWED` and privacy is `CLEAR`; missing, uncertain, contradictory, restricted or derived values
+never create an action. Each action passes the original value unchanged to the existing
+`HistoricalSearchPage`, omits the source filter so the default Europeana/Open Archieven selection is
+used, and starts the search automatically. The follow-up page displays the chosen value and the
+warning `Dit is een nieuwe zoekingang en bewijst geen relatie tussen bronnen.` The pushed route keeps
+the detail page and then the original results list available through back navigation. No search,
+provider payload or click history is stored locally.
+
 ## Run and verify
 
 Use Flutter stable 3.44.7 with Dart 3.12.2. The backend defaults to `http://localhost:8080`; set a

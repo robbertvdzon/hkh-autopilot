@@ -140,6 +140,18 @@ uncertain and unavailable fields never match. An overlapping period is only an a
 existing relation, never a relation by itself. Each relation retains the candidate's source,
 identifier and original stable URL.
 
+The detail page can expose `HistoricalFollowUpAction` buttons for explicit, non-empty and certain
+place, person and event values, and for a valid explicit period with two ordered four-digit years.
+The fail-closed gate requires result technical status `AVAILABLE`, metadata rights `ALLOWED` and
+privacy status `CLEAR`; values missing from the explicit provider fields, uncertain, contradictory,
+restricted or derived from title, query or URL do not qualify. Actions retain the original metadata
+value, push `HistoricalSearchPage` with the existing `HistoricalSearchSource`, omit the source filter
+to use the default Europeana/Open Archieven selection, and trigger the search after the follow-up
+fields are populated. The page shows the selected value and the warning `Dit is een nieuwe zoekingang
+en bewijst geen relatie tussen bronnen.` Standard semantic buttons retain keyboard focus and the
+navigation stack returns first to the detail page and then to the original results list. The feature
+does not add local storage for searches, provider payloads or click history.
+
 Only sources that remain `AVAILABLE` contribute results and `total`. If a provider fails while a
 later cursor page is being fetched, its status and contribution are removed and the merged offset
 is rebased so remaining available results stay reachable. When every selected source is unavailable,
