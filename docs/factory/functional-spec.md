@@ -14,13 +14,30 @@ De beleefde statusmeldingen zijn:
 - nieuws: ‘Laatste nieuws wordt geladen.’, ‘Het laatste nieuws kon niet worden geladen.’,
   ‘Laatste nieuws geladen.’ bij berichten en ‘Er zijn nog geen nieuwsberichten.’ bij een lege lijst.
 
-Elke statusovergang levert exact één statusnode en verplaatst toetsenbord- of
+Elke automatische statusovergang levert exact één statusnode en verplaatst toetsenbord- of
 toegankelijkheidsfocus niet. De zichtbare laadindicatoren, iconen en tekstkopieën zijn geen extra
-statusnodes. Een nieuwsresultaat zonder items is een succesvolle, afzonderlijke uitkomst.
+statusnodes. Een nieuwsresultaat zonder items is een succesvolle, afzonderlijke uitkomst. Een
+bewuste actie mag focus doelgericht verplaatsen wanneer de gebruikersflow dat expliciet vereist;
+bij historische bronuitval doet alleen ‘Zoekopdracht aanpassen’ dat naar het bestaande zoekveld.
 
 De actie ‘Opnieuw proberen’ volgt de bijbehorende foutmelding in lees- en focusvolgorde, is met Tab
 bereikbaar, toont bij focus een contrasterende rand van drie pixels en werkt met Enter en spatie.
 Een retry toont eerst opnieuw de passende laadstatus en daarna één uitkomst.
+
+De publieke historische zoekroute gebruikt voor laden, beschikbare resultaten, nul resultaten,
+gedeeltelijke beschikbaarheid en volledige bronuitval precies één `SemanticsRole.status`-node.
+De zichtbare tekst en de laadindicator zijn geen extra statusnodes; de indicator is decoratief
+uitgesloten van de toegankelijkheidsboom. Bij gedeeltelijke beschikbaarheid blijft de beschikbare
+resultatenlijst zichtbaar en bevat de status de beschikbare bron, iedere uitgevallen bron, de vaste
+veilige foutreden en de telling op de huidige zichtbare pagina. Bij volledige bronuitval meldt de
+status dat geen bronnen konden worden geraadpleegd, zonder nulresultaat- of resultatentelling, en
+volgen de toetsenbordbedienbare acties ‘Opnieuw proberen’ en ‘Zoekopdracht aanpassen’.
+
+‘Opnieuw proberen’ start opnieuw met de laadstatus en kondigt daarna de nieuwe uitkomst aan.
+‘Zoekopdracht aanpassen’ blijft op dezelfde route, focust doelgericht het bestaande vrije-tekstveld
+en laat de bestaande zoekwaarden staan totdat de gebruiker ze wijzigt. Automatische statusupdates
+verplaatsen de focus niet. De Heemskerk-telling blijft expliciet een metadata-indicatie en geen
+bewijs van historische waarheid.
 
 ## Nieuwsentiteiten en zoekfilter (backend)
 
@@ -390,7 +407,7 @@ bestaande rechten- en privacyregels.
 
 Een foutieve zoekopdracht geeft HTTP 400 met een leesbare validatiefout. Volledige bronuitval geeft
 `SOURCE_FAILURE`, geen resultaatcount en een programmatisch uitleesbare bronprobleemstatus met de
-toetsenbordbedienbare actie `Opnieuw proberen`. Transportfouten blijven een afzonderlijke
+toetsenbordbedienbare acties `Opnieuw proberen` en `Zoekopdracht aanpassen`. Transportfouten blijven een afzonderlijke
 retrybare technische status. Bij uitval tijdens paginering wordt de bronstatus bijgewerkt, telt de
 bron niet meer mee en wordt de effectieve offset aangepast zodat beschikbare resultaten bereikbaar
 blijven. De gebruikerspagina communiceert laden, resultaten, nul resultaten, gedeeltelijke
@@ -612,7 +629,8 @@ plaatsmetadata, ontbrekende/onzekere context, exacte genormaliseerde relaties, p
 zelfstandige relatie, uitsluiting van het geopende resultaat en de limiet van drie relaties. De
 Flutter-tests controleren de zichtbaarheid van partiële resultaten, het onderscheid tussen nul
 resultaten en volledige bronuitval, de bronmeldingen, één status/live-regio, de
-toetsenbordbedienbare retryactie, paginering met een korte pagina en behoud van bronmetadata. De
+toetsenbordbedienbare retry- en aanpasacties, de laadstatus na retry, focusbehoud en behoud van
+ingevoerde zoekwaarden, paginering met een korte pagina en behoud van bronmetadata. De
 contextdetailtests controleren de actie `Context bekijken`, detailvelden, expliciete
 `Niet beschikbaar`/`Onzeker`-meldingen, bronlinks, bronstatussen, de afzonderlijke
 `Bronvastgelegde relatie`-sectie met bronclaim- en externe-linktekst, het verbergen van ongeldige

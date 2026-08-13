@@ -49,6 +49,30 @@ class _HistoricalSource implements HistoricalSearchSource {
   }
 }
 
+class _SequencedHistoricalSource implements HistoricalSearchSource {
+  _SequencedHistoricalSource(this.responses);
+
+  final List<Future<HistoricalSearchResponse>> responses;
+  int calls = 0;
+
+  @override
+  Future<HistoricalSearchResponse> loadHistoricalSearch({
+    String? text,
+    String? place,
+    String? person,
+    String? event,
+    String? fromYear,
+    String? toYear,
+    HistoricalSourceChoice? source,
+    int start = 0,
+    int limit = 100,
+  }) {
+    final response = responses[calls];
+    calls++;
+    return response;
+  }
+}
+
 void main() {
   test('sends normalized historical filters and pagination', () async {
     final client = BackendClient(
@@ -250,7 +274,7 @@ void main() {
     error.completeError(StateError('offline'));
     await tester.pumpAndSettle();
     expect(
-      find.text('Historisch zoeken is tijdelijk niet beschikbaar.'),
+      find.text('Geen historische bronnen konden worden geraadpleegd.'),
       findsOneWidget,
     );
     expect(find.byKey(const Key('historical-search-retry')), findsOneWidget);
@@ -268,7 +292,10 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('historical-search-submit')));
     await tester.pumpAndSettle();
-    expect(find.text('Geen historische resultaten gevonden.'), findsOneWidget);
+    expect(
+      find.text('Geen historische resultaten gevonden.', skipOffstage: false),
+      findsOneWidget,
+    );
   });
 
   testWidgets('shows source coverage and labels the local indication', (
@@ -468,7 +495,12 @@ void main() {
         state: 'PARTIAL_AVAILABILITY',
         sources: [
           HistoricalSourceStatus(source: 'EUROPEANA', status: 'DISABLED'),
-          HistoricalSourceStatus(source: 'OPEN_ARCHIEVEN', status: 'AVAILABLE'),
+          HistoricalSourceStatus(
+            source: 'OPEN_ARCHIEVEN',
+            status: 'AVAILABLE',
+            resultCount: 1,
+            heemskerkCount: 0,
+          ),
         ],
       );
       await tester.pumpWidget(
@@ -489,6 +521,220 @@ void main() {
       expect(find.text('Europeana: niet geconfigureerd.'), findsOneWidget);
       expect(find.byKey(const Key('historical-search-retry')), findsNothing);
       expect(find.text('1 historische resultaten'), findsOneWidget);
+      final statusNodes = find.semantics
+          .byPredicate(
+            (node) => node.getSemanticsData().role == SemanticsRole.status,
+          )
+          .evaluate()
+          .toList();
+      expect(statusNodes, hasLength(1));
+      expect(
+        statusNodes.single.getSemanticsData().label,
+        allOf(
+          contains('Europeana: niet geconfigureerd.'),
+          contains('Open Archieven: beschikbaar, 1 resultaten.'),
+        ),
+      );
+    },
+  );
+
+  testWidgets(
+    'reports complete source failure safely and focuses the unchanged search form',
+    (tester) async {
+      final source = _HistoricalSource(
+        Future.value(
+          const HistoricalSearchResponse(
+            results: [],
+            total: 0,
+            start: 0,
+            limit: 100,
+            state: 'SOURCE_FAILURE',
+            sources: [
+              HistoricalSourceStatus(
+                source: 'EUROPEANA',
+                status: 'TEMPORARILY_UNAVAILABLE',
+                message: 'provider-payload-must-not-appear',
+              ),
+              HistoricalSourceStatus(
+                source: 'OPEN_ARCHIEVEN',
+                status: 'INVALID_RESPONSE',
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(home: HistoricalSearchPage(source: source)),
+      );
+      await tester.enterText(find.bySemanticsLabel('Vrije tekst'), 'kasteel');
+      await tester.enterText(
+        find.bySemanticsLabel('Plek (optioneel)'),
+        'Heemskerk',
+      );
+      await tester.tap(find.byKey(const Key('historical-search-submit')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Geen historische bronnen konden worden geraadpleegd.',
+          skipOffstage: false,
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Europeana: tijdelijk niet beschikbaar.',
+          skipOffstage: false,
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Open Archieven: ongeldige bronrespons.',
+          skipOffstage: false,
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.text('provider-payload-must-not-appear', skipOffstage: false),
+        findsNothing,
+      );
+      expect(
+        find.text('Geen historische resultaten gevonden.', skipOffstage: false),
+        findsNothing,
+      );
+      expect(
+        find.text('historische resultaten geladen.', skipOffstage: false),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('historical-search-retry'), skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('historical-search-adjust'), skipOffstage: false),
+        findsOneWidget,
+      );
+      final retrySemantics = tester.getSemantics(
+        find.byKey(const Key('historical-search-retry'), skipOffstage: false).last,
+      );
+      final adjustSemantics = tester.getSemantics(
+        find.byKey(const Key('historical-search-adjust'), skipOffstage: false).last,
+      );
+      expect(
+        retrySemantics.getSemanticsData().hasAction(SemanticsAction.tap),
+        isTrue,
+      );
+      expect(
+        adjustSemantics.getSemanticsData().hasAction(SemanticsAction.tap),
+        isTrue,
+      );
+
+      final statusNodes = find.semantics
+          .byPredicate(
+            (node) => node.getSemanticsData().role == SemanticsRole.status,
+          )
+          .evaluate()
+          .toList();
+      expect(statusNodes, hasLength(1));
+      expect(
+        statusNodes.single.getSemanticsData().label,
+        allOf(
+          contains('Europeana: tijdelijk niet beschikbaar.'),
+          contains('Open Archieven: ongeldige bronrespons.'),
+        ),
+      );
+
+      final adjustButton = find
+          .byKey(const Key('historical-search-adjust'), skipOffstage: false)
+          .last;
+      tester.widget<OutlinedButton>(adjustButton).onPressed!.call();
+      await tester.pump();
+      expect(
+        _hasPrimaryFocusWithin(find.bySemanticsLabel('Vrije tekst')),
+        isTrue,
+      );
+      expect(find.text('kasteel', skipOffstage: false), findsOneWidget);
+      expect(find.text('Heemskerk', skipOffstage: false), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'retry announces loading and then the new result without extra status nodes',
+    (tester) async {
+      final nextResponse = Completer<HistoricalSearchResponse>();
+      final source = _SequencedHistoricalSource([
+        Future.value(
+          const HistoricalSearchResponse(
+            results: [],
+            total: 0,
+            start: 0,
+            limit: 100,
+            state: 'SOURCE_FAILURE',
+            sources: [
+              HistoricalSourceStatus(
+                source: 'OPEN_ARCHIEVEN',
+                status: 'TEMPORARILY_UNAVAILABLE',
+              ),
+            ],
+          ),
+        ),
+        nextResponse.future,
+      ]);
+      await tester.pumpWidget(
+        MaterialApp(home: HistoricalSearchPage(source: source)),
+      );
+      await tester.tap(find.byKey(const Key('historical-search-submit')));
+      await tester.pumpAndSettle();
+      final retryButton = find
+          .byKey(const Key('historical-search-retry'), skipOffstage: false)
+          .last;
+      tester.widget<OutlinedButton>(retryButton).onPressed!.call();
+      await tester.pump();
+
+      expect(
+        find.bySemanticsLabel(
+          'Historische zoekresultaten worden geladen.',
+          skipOffstage: false,
+        ),
+        findsOneWidget,
+      );
+      var statusNodes = find.semantics
+          .byPredicate(
+            (node) => node.getSemanticsData().role == SemanticsRole.status,
+          )
+          .evaluate()
+          .toList();
+      expect(statusNodes, hasLength(1));
+      expect(source.calls, 2);
+
+      nextResponse.complete(
+        const HistoricalSearchResponse(
+          results: [],
+          total: 0,
+          start: 0,
+          limit: 100,
+          state: 'NO_RESULTS',
+          sources: [
+            HistoricalSourceStatus(
+              source: 'OPEN_ARCHIEVEN',
+              status: 'AVAILABLE',
+              resultCount: 0,
+              heemskerkCount: 0,
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+      statusNodes = find.semantics
+          .byPredicate(
+            (node) =>
+                node.getSemanticsData().role == SemanticsRole.status &&
+                node.getSemanticsData().label.contains('geen resultaten'),
+          )
+          .evaluate()
+          .toList();
+      expect(statusNodes, hasLength(1));
     },
   );
 

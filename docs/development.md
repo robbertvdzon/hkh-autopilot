@@ -204,13 +204,17 @@ After the service check, the homepage also offers the separate `Historisch zoeke
 Europeana/Open Archieven source. The page maps the API aggregate state to distinct results, empty,
 partial-availability and full-source-failure states. Partial results remain visible and include a
 short message for every unavailable source; full source failure does not show a result count and
-offers the keyboard-operable `Opnieuw proberen` action. For available sources, the result status also
-includes the per-source page count and the explicitly labeled local Heemskerk indication. Loading, validation-error and transport
+offers the keyboard-operable actions `Opnieuw proberen` and `Zoekopdracht aanpassen`. Retry returns
+through the loading state before announcing the new outcome. Adjusting the search keeps the same
+route, deliberately focuses the existing free-text field and preserves all search values until the
+user changes them. For available sources, the result status also includes the per-source page count
+and the explicitly labeled local Heemskerk indication. Loading, validation-error and transport
 error states remain separate. Pagination uses the server response offset and limit, including after
-a source fails during a later page. All states use one semantic status node, and external-link
-labels remain available. A result shows technical availability, metadata rights, object/media rights
-and privacy separately; content metadata is rendered only when the backend explicitly marks metadata
-rights as allowed and privacy as clear. Available results expose `Context bekijken`, opening the
+a source fails during a later page. All states use one `SemanticsRole.status` node; the visible
+copy and loading spinner do not create additional status nodes, and automatic status updates do not
+move focus. External-link labels remain available. A result shows technical availability, metadata
+rights, object/media rights and privacy separately; content metadata is rendered only when the backend
+explicitly marks metadata rights as allowed and privacy as clear. Available results expose `Context bekijken`, opening the
 context detail page in `lib/historical/historical_context_detail.dart`. That page renders place,
 period, person, event and source metadata, shows `Niet beschikbaar` or `Onzeker` from the explicit
 context statuses, and repeats the aggregate search/source status. It derives at most three relations

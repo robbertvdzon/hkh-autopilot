@@ -537,7 +537,11 @@ bronstatussen wanneer de state ontbreekt. Gedeeltelijke beschikbaarheid toont be
 en per falende bron een veilige tekstuele melding. Bij beschikbare bronnen toont de status/live-regio
 per bron de resultatentelling en de tekst `Lokale Heemskerk-indicatie op basis van plaatsmetadata:
 <aantal> (geen historisch bewijs)`. Volledige bronuitval toont geen resultaatcount of andere
-numerieke brondekking, maar wel een retryactie. Statussen gebruiken één `SemanticsRole.status`-node;
+numerieke brondekking, maar wel de acties `Opnieuw proberen` en `Zoekopdracht aanpassen`. De laatste
+actie focust het bestaande vrije-tekstveld zonder de ingevoerde zoekwaarden te wissen. Retry gaat
+opnieuw via de laadstatus. Statussen gebruiken één `SemanticsRole.status`-node; de zichtbare tekst
+en laadindicatoren voegen geen extra statusknoop toe en de spinner is semantisch uitgesloten;
+automatische statusupdates verplaatsen de focus niet. De bewuste aanpasactie is de enige focusverplaatsing;
 externe bronknoppen
 hebben een tekstueel label dat het openen van een externe bron in een nieuw tabblad aankondigt.
 
@@ -622,8 +626,11 @@ bronverificatie", als nieuwe module naast `frontend/lib/news/`.
 
 Statussen gebruiken een eigen `Semantics`-container met `SemanticsRole.status` en exact één
 betekenisvol label. Op Flutter web wordt dit de ARIA-statusrol. Die rol is volgens WAI-ARIA een
-beleefde, atomische live region en hoort bij een statuswijziging geen focus te krijgen. Daarom wordt
-geen aanvullende `liveRegion`-vlag, focuscallback of programmatische focus gebruikt.
+beleefde, atomische live region en hoort bij een statuswijziging geen focus te krijgen. Voor passieve
+statusupdates wordt daarom geen aanvullende `liveRegion`-vlag, focuscallback of programmatische focus
+gebruikt. De historische zoekroute heeft één bewuste uitzondering buiten de statusnode: de actie
+`Zoekopdracht aanpassen` focust na volledige bronuitval het bestaande zoekveld; automatische
+statusupdates behouden ook daar de focus.
 
 Bij een zichtbare kopie vervangt `excludeSemantics: true` alleen de semantiek van die kopie; gewone
 uitleg, versiegegevens, nieuwsinhoud en retryknoppen blijven afzonderlijk leesbaar. De geladen

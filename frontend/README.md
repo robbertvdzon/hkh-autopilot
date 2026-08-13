@@ -17,8 +17,11 @@ filters. The response exposes an aggregate `state` (`RESULTS`, `NO_RESULTS`,
 `PARTIAL_AVAILABILITY` or `SOURCE_FAILURE`) and one technical status per selected source
 (`AVAILABLE`, `DISABLED`, `TEMPORARILY_UNAVAILABLE` or `INVALID_RESPONSE`). With partial
 availability the page keeps results from available sources visible and adds short, source-specific
-messages. Full source failure shows a semantic source-problem status and the keyboard-operable
-`Opnieuw proberen` action without presenting a misleading result count. Results show the source
+messages. Full source failure shows one semantic source-problem status, the safe message for every
+failed source and the keyboard-operable actions `Opnieuw proberen` and `Zoekopdracht aanpassen`,
+without presenting a misleading result count. `Zoekopdracht aanpassen` keeps the user on the same
+route, moves focus deliberately to the existing free-text field and preserves all entered values
+until the user edits them. Results show the source
 identifier, retrieval time, technical availability, metadata rights, object/media rights, privacy
 status and a clearly labeled external source link; source metadata is shown only when the backend
 has explicit safe rights and privacy statuses. Each selected source also shows its available result
@@ -65,17 +68,23 @@ The web build is written to `build/web/`. `API_BASE_URL` is configuration, not a
 ## Accessible homepage statuses
 
 The service and latest-news flows expose one polite `SemanticsRole.status` node for each current
-state. Their labels are:
+state. The historical search route uses the same single status node for loading, results, no
+results, partial availability and complete source failure. Its labels include safe source messages,
+the available-source count for the current visible page and the explicitly labeled Heemskerk
+place-metadata indication where applicable. Their labels are:
 
 - service: `De historische omgeving wordt voorbereid.`, `De HKH-service is niet bereikbaar.` and
   `Service beschikbaar.`;
 - latest news: `Laatste nieuws wordt geladen.`, `Het laatste nieuws kon niet worden geladen.`,
   `Laatste nieuws geladen.` and `Er zijn nog geen nieuwsberichten.`.
 
-Visible copies, progress indicators and decorative icons do not create duplicate status nodes.
-Status changes do not receive or move focus. Each error's `Opnieuw proberen` action follows its
-message in natural reading and Tab order, displays a three-pixel focus border and supports Enter
-and Space. Widget tests cover these semantics and keyboard behaviors. A release check should also
+Visible copies, progress indicators and decorative icons do not create duplicate status nodes; the
+historical-search spinner is excluded from semantics for this reason. Status changes do not receive
+or move focus. Each error's `Opnieuw proberen` action follows its message in natural reading and Tab
+order, displays a three-pixel focus border and supports Enter and Space. On complete historical
+source failure, `Zoekopdracht aanpassen` follows the source messages and retry action, is also
+keyboard-operable, and is the only intentional focus move. Widget tests cover these semantics,
+focus and keyboard behaviors. A release check should also
 use the repeatable browser and screen-reader scenarios in the active story worklog; DOM/ARIA
 inspection does not by itself confirm the announcements a screen reader produces.
 
