@@ -122,8 +122,41 @@ bool _isHttpUrl(Object? value) {
   final uri = Uri.tryParse(value);
   return uri != null &&
       uri.hasScheme &&
-      (uri.scheme == 'http' || uri.scheme == 'https') &&
+      (uri.scheme.toLowerCase() == 'http' ||
+          uri.scheme.toLowerCase() == 'https') &&
       uri.host.isNotEmpty;
+}
+
+String? _nonEmptyText(String? value) {
+  final trimmed = value?.trim();
+  return trimmed == null || trimmed.isEmpty ? null : trimmed;
+}
+
+String? _stringValue(Object? value) => value is String ? value : null;
+
+bool _isOpenArchievenContractValid({
+  required String? sourceName,
+  required String? stableIdentifier,
+  required String? originalSourceUrl,
+  required String? legacyIdentifier,
+  required String? legacySourceUrl,
+}) {
+  final hasRequiredValues =
+      _nonEmptyText(sourceName) != null &&
+      _nonEmptyText(stableIdentifier) != null &&
+      _isHttpUrl(originalSourceUrl);
+  if (!hasRequiredValues) return false;
+
+  // When both the normalized legacy fields and the explicit Open Archieven
+  // fields are present, they must identify the same source record. A mismatch
+  // is not repaired locally and therefore makes the result undisplayable.
+  final identifiersMatch =
+      _nonEmptyText(legacyIdentifier) == null ||
+      legacyIdentifier!.trim() == stableIdentifier!.trim();
+  final urlsMatch =
+      _nonEmptyText(legacySourceUrl) == null ||
+      legacySourceUrl!.trim() == originalSourceUrl!.trim();
+  return identifiersMatch && urlsMatch;
 }
 
 class HistoricalSearchResult {
@@ -153,6 +186,7 @@ class HistoricalSearchResult {
     this.sourceName,
     this.stableIdentifier,
     this.originalSourceUrl,
+    this.openArchievenContractValid,
   }) : placeStatus =
            placeStatus ??
            (place == null
@@ -169,51 +203,62 @@ class HistoricalSearchResult {
                ? HistoricalContextStatus.missing
                : HistoricalContextStatus.available);
 
-  factory HistoricalSearchResult.fromJson(
-    Map<String, dynamic> json,
-  ) => HistoricalSearchResult(
-    source: json['source'] as String,
-    sourceRecordId:
-        json['sourceRecordId'] as String? ??
-        json['stable_identifier'] as String? ??
-        (throw const FormatException('Ontbrekende stabiele bronidentifier.')),
-    stableUrl:
-        json['stableUrl'] as String? ??
-        json['original_source_url'] as String? ??
-        (throw const FormatException('Ontbrekende oorspronkelijke bron-URL.')),
-    title: json['title'] as String?,
-    description: json['description'] as String?,
-    place: json['place'] as String?,
-    person: json['person'] as String?,
-    event: json['event'] as String?,
-    dateStart: json['dateStart'] as String?,
-    dateEnd: json['dateEnd'] as String?,
-    institution: json['institution'] as String?,
-    rights: json['rights'] as String?,
-    privacy: json['privacy'] as String?,
-    retrievedAt: DateTime.parse(json['retrievedAt'] as String),
-    technicalStatus: json['technicalStatus'] as String? ?? 'UNKNOWN',
-    metadataRights: json['metadataRights'] as String? ?? 'UNKNOWN',
-    objectMediaRights: json['objectMediaRights'] as String? ?? 'UNKNOWN',
-    privacyStatus: json['privacyStatus'] as String? ?? 'UNKNOWN',
-    placeStatus: _contextStatusFromJson(json['placeStatus']),
-    personStatus: _contextStatusFromJson(json['personStatus']),
-    eventStatus: _contextStatusFromJson(json['eventStatus']),
-    relationships:
-        (json['relationships'] is List
-                ? (json['relationships'] as List)
-                : const <Object?>[])
-            .map(HistoricalSearchRelationship.tryParse)
-            .whereType<HistoricalSearchRelationship>()
-            .toList(growable: false),
-    sourceName: json['source_name'] as String? ?? json['sourceName'] as String?,
-    stableIdentifier:
-        json['stable_identifier'] as String? ??
-        json['stableIdentifier'] as String?,
-    originalSourceUrl:
-        json['original_source_url'] as String? ??
-        json['originalSourceUrl'] as String?,
-  );
+  factory HistoricalSearchResult.fromJson(Map<String, dynamic> json) {
+    final source = _stringValue(json['source']) ?? '';
+    final sourceRecordId = _stringValue(json['sourceRecordId']);
+    final stableIdentifier =
+        _stringValue(json['stable_identifier']) ??
+        _stringValue(json['stableIdentifier']);
+    final stableUrl = _stringValue(json['stableUrl']);
+    final originalSourceUrl =
+        _stringValue(json['original_source_url']) ??
+        _stringValue(json['originalSourceUrl']);
+    final sourceName =
+        _stringValue(json['source_name']) ?? _stringValue(json['sourceName']);
+
+    return HistoricalSearchResult(
+      source: source,
+      sourceRecordId: sourceRecordId ?? stableIdentifier ?? '',
+      stableUrl: stableUrl ?? originalSourceUrl ?? '',
+      title: _stringValue(json['title']),
+      description: _stringValue(json['description']),
+      place: _stringValue(json['place']),
+      person: _stringValue(json['person']),
+      event: _stringValue(json['event']),
+      dateStart: _stringValue(json['dateStart']),
+      dateEnd: _stringValue(json['dateEnd']),
+      institution: _stringValue(json['institution']),
+      rights: _stringValue(json['rights']),
+      privacy: _stringValue(json['privacy']),
+      retrievedAt: DateTime.parse(json['retrievedAt'] as String),
+      technicalStatus: _stringValue(json['technicalStatus']) ?? 'UNKNOWN',
+      metadataRights: _stringValue(json['metadataRights']) ?? 'UNKNOWN',
+      objectMediaRights: _stringValue(json['objectMediaRights']) ?? 'UNKNOWN',
+      privacyStatus: _stringValue(json['privacyStatus']) ?? 'UNKNOWN',
+      placeStatus: _contextStatusFromJson(json['placeStatus']),
+      personStatus: _contextStatusFromJson(json['personStatus']),
+      eventStatus: _contextStatusFromJson(json['eventStatus']),
+      relationships:
+          (json['relationships'] is List
+                  ? (json['relationships'] as List)
+                  : const <Object?>[])
+              .map(HistoricalSearchRelationship.tryParse)
+              .whereType<HistoricalSearchRelationship>()
+              .toList(growable: false),
+      sourceName: sourceName,
+      stableIdentifier: stableIdentifier,
+      originalSourceUrl: originalSourceUrl,
+      openArchievenContractValid: source == 'OPEN_ARCHIEVEN'
+          ? _isOpenArchievenContractValid(
+              sourceName: sourceName,
+              stableIdentifier: stableIdentifier,
+              originalSourceUrl: originalSourceUrl,
+              legacyIdentifier: sourceRecordId,
+              legacySourceUrl: stableUrl,
+            )
+          : null,
+    );
+  }
 
   final String source;
   final String sourceRecordId;
@@ -241,6 +286,10 @@ class HistoricalSearchResult {
   final String? stableIdentifier;
   final String? originalSourceUrl;
 
+  /// Set by JSON contract mapping for Open Archieven. A null value denotes a
+  /// normalized in-memory result constructed by existing callers.
+  final bool? openArchievenContractValid;
+
   String get normalizedSourceName =>
       sourceName ??
       switch (source) {
@@ -252,6 +301,14 @@ class HistoricalSearchResult {
   String get normalizedStableIdentifier => stableIdentifier ?? sourceRecordId;
 
   String get normalizedOriginalSourceUrl => originalSourceUrl ?? stableUrl;
+
+  bool get isPubliclyDisplayable {
+    if (source == 'OPEN_ARCHIEVEN' && openArchievenContractValid == false) {
+      return false;
+    }
+    return _nonEmptyText(normalizedStableIdentifier) != null &&
+        _isHttpUrl(normalizedOriginalSourceUrl);
+  }
 }
 
 List<HistoricalFollowUpAction> historicalFollowUpActions(
@@ -978,13 +1035,15 @@ class _HistoricalResults extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        ...response.results.map(
-          (result) => _HistoricalResultCard(
-            result: result,
-            response: response,
-            source: source,
-          ),
-        ),
+        ...response.results
+            .where((result) => result.isPubliclyDisplayable)
+            .map(
+              (result) => _HistoricalResultCard(
+                result: result,
+                response: response,
+                source: source,
+              ),
+            ),
         if (canRetry) ...[const SizedBox(height: 4), _retryButton(onRetry!)],
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1026,46 +1085,59 @@ class _HistoricalResultCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final metadataAvailable =
         result.metadataRights == 'ALLOWED' && result.privacyStatus == 'CLEAR';
-    final heading = metadataAvailable
-        ? result.title ?? result.description ?? 'Historisch bronresultaat'
-        : 'Historisch bronresultaat';
+    final title = metadataAvailable ? _nonEmptyText(result.title) : null;
+    final description = metadataAvailable
+        ? _nonEmptyText(result.description)
+        : null;
+    final heading = title ?? description;
+    final dateStart = metadataAvailable
+        ? _nonEmptyText(result.dateStart)
+        : null;
+    final dateEnd = metadataAvailable ? _nonEmptyText(result.dateEnd) : null;
     return Card(
+      key: Key('historical-result-card-${result.sourceRecordId}'),
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(heading, style: Theme.of(context).textTheme.titleMedium),
-            if (metadataAvailable && result.description != null)
-              Text(result.description!),
-            if (metadataAvailable && result.institution != null)
-              Text('Bronhouder: ${result.institution}'),
-            if (metadataAvailable && result.person != null)
-              Text('Persoon: ${result.person}'),
-            if (metadataAvailable && result.event != null)
-              Text('Gebeurtenis: ${result.event}'),
-            if (metadataAvailable)
+            if (heading != null)
+              Text(heading, style: Theme.of(context).textTheme.titleMedium),
+            if (title != null && description != null) Text(description),
+            if (metadataAvailable && _nonEmptyText(result.place) != null)
+              Text('Plaats: ${_nonEmptyText(result.place)}'),
+            if (metadataAvailable && _nonEmptyText(result.institution) != null)
+              Text('Bronhouder: ${_nonEmptyText(result.institution)}'),
+            if (metadataAvailable && _nonEmptyText(result.person) != null)
+              Text('Persoon: ${_nonEmptyText(result.person)}'),
+            if (metadataAvailable && _nonEmptyText(result.event) != null)
+              Text('Gebeurtenis: ${_nonEmptyText(result.event)}'),
+            if (dateStart != null || dateEnd != null)
               Text(
-                'Datering: ${result.dateStart ?? 'Onbekend'}${result.dateEnd == null ? '' : '–${result.dateEnd}'}',
+                'Datering: ${dateStart ?? dateEnd}${dateStart != null && dateEnd != null ? '–$dateEnd' : ''}',
               ),
             Text('Bronnaam: ${result.normalizedSourceName}'),
             Text('Bronidentifier: ${result.normalizedStableIdentifier}'),
-            Text('Opgehaald: ${result.retrievedAt.toLocal()}'),
+            Text('Opgehaald: ${result.retrievedAt.toUtc().toIso8601String()}'),
             Text(
               'Technische beschikbaarheid: ${_status(result.technicalStatus)}',
             ),
-            Text('Metadatarechten: ${_status(result.metadataRights)}'),
-            Text('Object-/mediarechten: ${_status(result.objectMediaRights)}'),
+            Text(
+              'Metadatarechten: ${_metadataRightsStatus(result.metadataRights)}',
+            ),
+            Text(
+              'Object-/mediarechten: ${_objectMediaRightsStatus(result.objectMediaRights)}',
+            ),
             HistoricalRightsExplanation(
               keyPrefix:
                   'historical-rights-explanation-${result.sourceRecordId}',
             ),
-            Text('Privacy: ${_status(result.privacyStatus)}'),
-            if (metadataAvailable && result.rights != null)
-              Text('Rechten: ${result.rights}'),
-            if (metadataAvailable && result.privacy != null)
-              Text('Privacybron: ${result.privacy}'),
+            Text('Privacy: ${_privacyStatus(result.privacyStatus)}'),
+            if (metadataAvailable && _nonEmptyText(result.rights) != null)
+              Text('Rechten: ${_nonEmptyText(result.rights)}'),
+            if (metadataAvailable && _nonEmptyText(result.privacy) != null)
+              Text('Privacybron: ${_nonEmptyText(result.privacy)}'),
             if (result.technicalStatus == 'AVAILABLE')
               Align(
                 alignment: Alignment.centerLeft,
@@ -1089,12 +1161,16 @@ class _HistoricalResultCard extends StatelessWidget {
               ),
             Align(
               alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                key: const Key('historical-external-link'),
-                onPressed: () =>
-                    openExternalLink(result.normalizedOriginalSourceUrl),
-                icon: const Icon(Icons.open_in_new),
-                label: const Text('Externe bron openen in nieuw tabblad'),
+              child: Semantics(
+                link: true,
+                label: historicalExternalLinkSemanticLabel,
+                child: TextButton.icon(
+                  key: const Key('historical-external-link'),
+                  onPressed: () =>
+                      openExternalLink(result.normalizedOriginalSourceUrl),
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text(historicalExternalLinkLabel),
+                ),
               ),
             ),
           ],
@@ -1104,12 +1180,35 @@ class _HistoricalResultCard extends StatelessWidget {
   }
 
   String _status(String value) => switch (value) {
-    'ALLOWED' || 'CLEAR' || 'AVAILABLE' => 'Toegestaan',
-    'RESTRICTED' || 'BLOCKED' => 'Beperkt',
+    'AVAILABLE' => 'Toegestaan',
     'DISABLED' => 'Niet beschikbaar',
     _ => 'Onbekend',
   };
 }
+
+const historicalExternalLinkLabel = 'Externe bron openen in nieuw tabblad';
+// The visible label already announces the new-tab behavior and is reused as
+// the semantic label so keyboard and screen-reader users receive one clear
+// action name.
+const historicalExternalLinkSemanticLabel = historicalExternalLinkLabel;
+
+String _metadataRightsStatus(String value) => switch (value) {
+  'ALLOWED' => 'Toegestaan',
+  'RESTRICTED' => 'Beperkt',
+  _ => 'Onbekend',
+};
+
+String _objectMediaRightsStatus(String value) => switch (value) {
+  'ALLOWED' => 'Toegestaan',
+  'RESTRICTED' => 'Beperkt',
+  _ => 'Onbekend',
+};
+
+String _privacyStatus(String value) => switch (value) {
+  'CLEAR' => 'Toegestaan',
+  'BLOCKED' => 'Beperkt',
+  _ => 'Onbekend',
+};
 
 class _HistoricalError extends StatelessWidget {
   const _HistoricalError({
