@@ -2,7 +2,9 @@
 
 De fase-1-baseline wordt via ArgoCD uit `deploy/overlays/openshift` naar namespace `hkh-autopilot`
 gesynchroniseerd. De set bevat de Kotlin-backend, beide Flutter-webapps en PostgreSQL 16.
-OpenShift maakt voor de drie HTTP-services automatisch TLS-routes aan.
+OpenShift maakt voor de frontend en beheerfrontend twee TLS-routes aan. De Android-release gebruikt
+de frontend-route als veilige API-ingang: de nginx-proxy stuurt `/api` en `/actuator` door naar de
+private backendservice.
 
 De productiedatabase gebruikt een 5Gi `local-path`-PVC op de SSD. Om 02:30 (Europe/Amsterdam)
 maakt `postgres-backup` een gecontroleerde custom-format dump plus SHA-256-checksum op de externe

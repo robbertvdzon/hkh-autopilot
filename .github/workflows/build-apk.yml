@@ -50,9 +50,11 @@ jobs:
         working-directory: frontend
         run: |
           flutter pub get
+          # Android has no same-origin nginx proxy; use the public frontend route,
+          # whose nginx forwards /api and /actuator to the private backend service.
           flutter build apk --release \
             --build-number=${{ github.run_number }} \
-            --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }} \
+            --dart-define=API_BASE_URL=https://hkh-autopilot.vdzonsoftware.nl \
             --dart-define=UPDATE_REPOSITORY=robbertvdzon/hkh-autopilot \
             --dart-define=UPDATE_RELEASE_TAG=hkh-autopilot-latest \
             --dart-define=UPDATE_LABEL="HKH Autopilot"

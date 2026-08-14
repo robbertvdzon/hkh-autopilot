@@ -99,3 +99,15 @@ Vervolgreview na de laatste developerfix:
   veilig API-ingangspunt blijven bestaan.
 - [suggestie] `deploy/README.md` zegt nog dat OpenShift voor drie HTTP-services TLS-routes maakt,
   terwijl de backend-Route inmiddels bewust ontbreekt; werk deze documentatiezin bij.
+
+Nieuwe developer-run:
+- De Android-releaseworkflow gebruikt nu de publieke frontend-Route als `API_BASE_URL`, zodat de
+  APK via de nginx-proxy de private backend bereikt nadat de directe backend-Route is verwijderd.
+- `deploy/README.md` beschrijft nu twee TLS-routes en de mobiele API-ingang via de frontend-proxy.
+- `DeploymentTrustBoundaryTest` bewaakt dat de APK niet terugvalt op de oude backend-URLvariabele
+  en dat de documentatie het actuele routetal beschrijft.
+- Gerichte test: `mvn -B --no-transfer-progress -Dtest=DeploymentTrustBoundaryTest test` slaagde
+  met 4 tests, 0 failures en 0 errors.
+- Volledig vangnet: Maven 334 tests, frontend 72 tests en frontend-admin 36 tests, plus beide
+  analyzes en `flutter build web`; alles slaagde met exitcode 0. De OpenShift-overlay renderde
+  succesvol en `git diff --check` is groen.

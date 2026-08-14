@@ -37,5 +37,19 @@ class DeploymentTrustBoundaryTest {
         }
     }
 
+    @Test
+    fun `android release uses the public frontend proxy instead of the removed backend route`() {
+        val workflow = read(".github/workflows/build-apk.yml")
+        val deploymentReadme = read("deploy/README.md")
+
+        assertTrue(
+            workflow.contains(
+                "--dart-define=API_BASE_URL=https://hkh-autopilot.vdzonsoftware.nl \\",
+            ),
+        )
+        assertFalse(workflow.contains("--dart-define=API_BASE_URL=${'$'}{{ vars.API_BASE_URL }}"))
+        assertTrue(deploymentReadme.contains("twee TLS-routes"))
+    }
+
     private fun read(relativePath: String): String = Files.readString(repositoryRoot.resolve(relativePath))
 }
