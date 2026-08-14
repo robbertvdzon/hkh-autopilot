@@ -10,6 +10,15 @@
 
 ## Uitvoering
 
+- Actuele developer-run uitgevoerd op de bestaande implementatie na de eerdere
+  reviewafwijzing. De gerichte `HistoricalSearchTest`-run slaagde met 42 tests;
+  de response-charsetfix en privacy-allowlisttests zijn aanwezig en groen.
+- Het volledige factory-vangnet is deze run daadwerkelijk uitgevoerd zonder
+  overgeslagen checks: backend `mvn -B --no-transfer-progress clean verify`
+  (320 tests, 0 failures/errors/skips), `frontend` analyze, test (68 tests) en
+  webbuild, plus `frontend-admin` analyze en test (35 tests). Alle zes
+  commando's eindigden met exitcode 0.
+
 - Nieuwe developer-run gestart op de huidige checkout. De eerdere implementatie en
   reviewfix zijn aanwezig; ik verifieer de story opnieuw tegen de actuele branch en
   voer het volledige vangnet uit, inclusief de drie eerder door de harness als
