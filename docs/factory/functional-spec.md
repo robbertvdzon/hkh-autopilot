@@ -717,6 +717,16 @@ De aanvullende `historical_follow_up_test.dart` controleert de vier exacte vervo
 gating van onzekere/afgeleide of niet-toegestane waarden, de waarschuwing en beide
 terugnavigatiestappen; de gerichte suite bevat zes tests.
 
+De story-brede smoke-contractset staat in
+`backend/src/test/kotlin/nl/vdzon/hkh/historicalsearch/Hkh165HistoricalSearchSmokeContractTest.kt`
+en `frontend/test/hkh165_historical_search_smoke_contract_test.dart`. Deze set voert de publieke
+Heemskerk-route en de bestaande Flutter-zoekpagina door synthetische fixtures en lokale mocks en
+controleert aanvullend de door de bron geleverde naam, `hee:uuid`-identifier en permanente URL,
+Europeana zonder configuratie, nulresultaat, gedeeltelijke en volledige bronuitval, veldgerichte
+contractfouten en single-flight/verzoekbudget bij identieke gelijktijdige zoekacties. De tests
+wijzigen geen gebruikersfunctionaliteit en vereisen geen echte bron, account, token of handmatige
+configuratie; de bestaande testpipeline voert ze automatisch uit.
+
 De publieke recorddetailpagina en externe bronverificatie zijn gedekt met backend unit-,
 integratie- en Flutter widget-/semantiektests: `RecordPublicStatusResolverTest` dekt alle
 statusovergangen (inclusief het zelfherstellende gedrag), `RecordPublicApiIntegrationTest`

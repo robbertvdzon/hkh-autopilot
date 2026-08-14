@@ -184,4 +184,15 @@ build met een expliciete testbackend, bijvoorbeeld
   Modulith-structuur. Een nieuwe module krijgt een `package-info.java` met expliciete
   `allowedDependencies` (geen wildcard) en wordt opgenomen in de moduleset van
   `ModulithArchitectureTest`.
+- De reproduceerbare smoke-contractset voor de publieke Heemskerk-zoekketen staat in
+  `backend/src/test/kotlin/nl/vdzon/hkh/historicalsearch/Hkh165HistoricalSearchSmokeContractTest.kt`
+  en `frontend/test/hkh165_historical_search_smoke_contract_test.dart`. De backendtest gebruikt
+  een lokale `HttpServer` en de Fluttertest gebruikt een synthetische route-respons; beide spreken
+  geen echte externe bron aan. De set controleert geldige Open Archieven-metadata en bronlink,
+  nulresultaat, gedeeltelijke/volledige bronuitval, uitgeschakelde Europeana, veldgerichte
+  fail-closed assertions en single-flight/verzoekbudget bij identieke gelijktijdige zoekacties.
+  De bestaande `verify`-/`flutter test`-commando's nemen deze bestanden automatisch mee. Gericht
+  uitvoeren kan met `mvn -B --no-transfer-progress -f backend/pom.xml
+  -Dtest=Hkh165HistoricalSearchSmokeContractTest test` en `flutter test
+  test/hkh165_historical_search_smoke_contract_test.dart`.
 - Geen echte secrets, persoonsgegevens, buildoutput of lokale overrides versioneren.
