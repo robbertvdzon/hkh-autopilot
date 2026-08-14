@@ -502,6 +502,18 @@ privacyclassificatie.
   `objectRights`/`mediaRights`/`objectMediaRightsStatus`: exact `ALLOWED` wordt `ALLOWED`, exact
   `RESTRICTED` wordt `RESTRICTED` en alles wat ontbreekt, leeg, niet-herkend of tegenstrijdig is
   wordt `UNKNOWN`. Het vrije `rights`- of `license`-veld wordt niet voor deze mapping gebruikt.
+- `OpenArchievenSearchAdapter` schrijft in een `finally`-pad precies één operationeel logevent per
+  externe paginabevraging. De logregel heeft uitsluitend de velden `event=OPEN_ARCHIEVEN_SEARCH`,
+  `source=OPEN_ARCHIEVEN`, `outcome`, `durationMs`, `httpStatusClass` en `processedResultCount`.
+  `outcome` gebruikt dezelfde technische status als de zoekpagina (`AVAILABLE`, `TIMEOUT`,
+  `HTTP_ERROR`, `INVALID_JSON`, `MISSING_REQUIRED_FIELDS`, `DISABLED` of een andere veilige
+  transportstatus). `durationMs` is niet-negatief; `httpStatusClass` is `1xx` t/m `5xx` zodra
+  een HTTP-respons beschikbaar is en blijft anders leeg. `processedResultCount` bevat alleen het aantal
+  veilig genormaliseerde resultaten van een beschikbare pagina en is dus `0` voor een geldig
+  nulresultaat; bij iedere fout of niet-beschikbare pagina blijft het leeg. Querywaarden, namen,
+  volledige queryparameters, URLs, response-body's, bronrecordgegevens, identifiers, exceptiontekst
+  en stacktraces worden niet als loggerargument of fallbackinhoud gebruikt. De logging is uitsluitend
+  operationeel en voegt geen zoekgeschiedenis, gebruikersprofiel, cache of persistente opslag toe.
 - De Europeana-wskey komt uit `hkh.historical.europeana-wskey` / `HKH_EUROPEANA_WSKEY`. Een lege
   waarde markeert alleen Europeana als `DISABLED`; Open Archieven blijft onafhankelijk beschikbaar.
   De providerbasis-URL's zijn overschrijfbaar via `HKH_HISTORICAL_EUROPEANA_BASE_URL` en

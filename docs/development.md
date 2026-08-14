@@ -139,6 +139,14 @@ niet op tijd`, `Open Archieven gaf een fout bij het opvragen`, `Open Archieven s
 onleesbaar antwoord` and `Open Archieven stuurde een onvolledig antwoord`. These messages do not
 include provider bodies, HTTP details, exception text, stack traces or personal data.
 
+Each external Open Archieven page request also writes exactly one operational diagnostic event. The
+allowlist is fixed to `event=OPEN_ARCHIEVEN_SEARCH`, `source=OPEN_ARCHIEVEN`, the technical `outcome`,
+non-negative `durationMs`, `httpStatusClass` (`1xx` through `5xx`) when an HTTP response exists, and
+`processedResultCount` for an available page, including `0` for a valid empty page. The HTTP status
+class stays empty when no response exists, and the processed-result count stays empty for unavailable
+pages. Query values, names, query parameters, URLs, provider payloads, identifiers, exception text and
+stack traces are never passed to this logger; no search history or persistent log store is introduced.
+
 Each result also exposes `placeStatus`, `personStatus` and `eventStatus` with `AVAILABLE`, `MISSING`,
 `UNCERTAIN` or `UNAVAILABLE`. Context values are copied only from explicit provider fields;
 conflicting or unsafe values are withheld and marked accordingly. The Flutter result card offers

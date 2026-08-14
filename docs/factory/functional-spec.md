@@ -427,6 +427,17 @@ tellingen `null`, zodat bronuitval niet als nulresultaat wordt gepresenteerd. De
 plaatswaarde en alle bestaande resultaatmetadata blijven ongewijzigd beschikbaar volgens de
 bestaande rechten- en privacyregels.
 
+Iedere externe Open Archieven-paginabevraging legt precies één operationeel logevent vast. Dit event
+heeft een vaste allowlist met `event=OPEN_ARCHIEVEN_SEARCH`, `source=OPEN_ARCHIEVEN`, de technische
+`outcome`, de niet-negatieve duur `durationMs`, `httpStatusClass` als klasse (`1xx` t/m `5xx`)
+wanneer een HTTP-respons beschikbaar is, en `processedResultCount` wanneer de pagina beschikbaar is.
+Een geldig nulresultaat krijgt `outcome=AVAILABLE` en `processedResultCount=0`; bij een niet-beschikbare
+pagina blijft die telling leeg. Bij timeouts en andere fouten zonder HTTP-respons blijft ook
+`httpStatusClass` leeg; bij een HTTP-fout wordt alleen de statusklasse vastgelegd. Zoekwaarden,
+persoonsnamen, queryparameters, URLs met queryparameters, bronpayloads, stabiele identifiers,
+exceptiondetails en stacktraces maken geen deel uit van dit event. De logging introduceert geen
+zoekgeschiedenis, gebruikersprofiel of nieuwe persistente opslag.
+
 Een foutieve zoekopdracht geeft HTTP 400 met een leesbare validatiefout. Volledige bronuitval geeft
 `SOURCE_FAILURE`, geen resultaatcount en een programmatisch uitleesbare bronprobleemstatus met de
 toetsenbordbedienbare acties `Opnieuw proberen` en `Zoekopdracht aanpassen`. Transportfouten blijven een afzonderlijke
@@ -646,8 +657,10 @@ De publieke historische zoekroute is gedekt met `HistoricalSearchTest` en
 geaggregeerde toestanden, de vier nieuwe Open Archieven-bronstatussen, veilige meldingen, beschikbare-resultaten-
 merging, uitsluitend beschikbare bijdragen aan `total`, uitval tijdens paginering en de effectieve
 offset, per-bron `resultCount`/`heemskerkCount` voor volledige, lege, gedeeltelijke en falende
-bronbeschikbaarheid, contextvelden en de vier contextstatussen. `HistoricalSearchTest` dekt daarnaast expliciete
-plaatsmetadata, ontbrekende/onzekere context, exacte genormaliseerde relaties, periode-overlap zonder
+bronbeschikbaarheid, contextvelden en de vier contextstatussen. `HistoricalSearchTest` dekt daarnaast
+de één-event-allowlist, de afwezigheid van zoektermen, persoonsnamen, queryparameters, bronpayloads,
+identifiers en foutdetails in de applicatieloguitvoer, expliciete plaatsmetadata, ontbrekende/onzekere
+context, exacte genormaliseerde relaties, periode-overlap zonder
 zelfstandige relatie, uitsluiting van het geopende resultaat en de limiet van drie relaties. De
 Flutter-tests controleren de zichtbaarheid van partiële resultaten, het onderscheid tussen nul
 resultaten en volledige bronuitval, de bronmeldingen, één status/live-regio, de
