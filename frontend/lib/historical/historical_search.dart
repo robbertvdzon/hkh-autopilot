@@ -421,6 +421,40 @@ abstract interface class HistoricalSearchSource {
   });
 }
 
+class _HistoricalSearchContext {
+  const _HistoricalSearchContext({
+    required this.text,
+    required this.place,
+    required this.person,
+    required this.event,
+    required this.fromYear,
+    required this.toYear,
+    required this.source,
+    required this.start,
+    required this.limit,
+  });
+
+  final String? text;
+  final String? place;
+  final String? person;
+  final String? event;
+  final String? fromYear;
+  final String? toYear;
+  final HistoricalSourceChoice? source;
+  final int start;
+  final int limit;
+}
+
+class _CompletedHistoricalSearch {
+  const _CompletedHistoricalSearch({
+    required this.context,
+    required this.response,
+  });
+
+  final _HistoricalSearchContext context;
+  final HistoricalSearchResponse response;
+}
+
 class HistoricalSearchValidationException implements Exception {
   const HistoricalSearchValidationException(this.message);
 
@@ -450,6 +484,8 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
   final _toYear = TextEditingController();
   HistoricalSourceChoice? _source;
   Future<HistoricalSearchResponse>? _search;
+  _CompletedHistoricalSearch? _lastCompletedSearch;
+  _CompletedHistoricalSearch? _retryPreviousSearch;
   static const _limit = 100;
 
   @override
@@ -484,21 +520,73 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
     _textFocusNode.requestFocus();
   }
 
-  void _runSearch({int? start}) {
-    final nextStart = start ?? 0;
+  void _runSearch({
+    int? start,
+    _HistoricalSearchContext? context,
+    bool isRetry = false,
+  }) {
+    final nextContext =
+        context ??
+        _HistoricalSearchContext(
+          text: _optionalHistoricalFilter(_text.text),
+          place: _optionalHistoricalFilter(_place.text),
+          person: _optionalHistoricalFilter(_person.text),
+          event: _optionalHistoricalFilter(_event.text),
+          fromYear: _optionalHistoricalFilter(_fromYear.text),
+          toYear: _optionalHistoricalFilter(_toYear.text),
+          source: _source,
+          start: start ?? 0,
+          limit: _limit,
+        );
+    final previousSearch = isRetry ? _lastCompletedSearch : null;
+    final future = widget.source.loadHistoricalSearch(
+      text: nextContext.text,
+      place: nextContext.place,
+      person: nextContext.person,
+      event: nextContext.event,
+      fromYear: nextContext.fromYear,
+      toYear: nextContext.toYear,
+      source: nextContext.source,
+      start: nextContext.start,
+      limit: nextContext.limit,
+    );
     setState(() {
-      _search = widget.source.loadHistoricalSearch(
-        text: _optionalHistoricalFilter(_text.text),
-        place: _optionalHistoricalFilter(_place.text),
-        person: _optionalHistoricalFilter(_person.text),
-        event: _optionalHistoricalFilter(_event.text),
-        fromYear: _optionalHistoricalFilter(_fromYear.text),
-        toYear: _optionalHistoricalFilter(_toYear.text),
-        source: _source,
-        start: nextStart,
-        limit: _limit,
-      );
+      _search = future;
+      if (!isRetry) _lastCompletedSearch = null;
+      _retryPreviousSearch = previousSearch;
     });
+    future.then(
+      (response) {
+        if (!mounted || !identical(_search, future)) return;
+        final state = _effectiveHistoricalSearchState(response);
+        setState(() {
+          // SOURCE_FAILURE is a failed retry: retain the previous valid
+          // snapshot so its results and source statuses remain visible.
+          if (!isRetry || state != 'SOURCE_FAILURE') {
+            _lastCompletedSearch = _CompletedHistoricalSearch(
+              context: nextContext,
+              response: response,
+            );
+            _retryPreviousSearch = null;
+          }
+        });
+      },
+      onError: (Object _, StackTrace __) {
+        // FutureBuilder renders the safe transport-failure state. Keeping the
+        // retry snapshot here is intentional and contains no exception text.
+        if (!mounted || !identical(_search, future)) return;
+        setState(() {});
+      },
+    );
+  }
+
+  void _retrySearch() {
+    final previousSearch = _lastCompletedSearch;
+    if (previousSearch == null) {
+      _runSearch();
+      return;
+    }
+    _runSearch(context: previousSearch.context, isRetry: true);
   }
 
   @override
@@ -527,6 +615,7 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
             ],
             const SizedBox(height: 16),
             TextField(
+              key: const Key('historical-search-text'),
               controller: _text,
               focusNode: _textFocusNode,
               decoration: const InputDecoration(
@@ -538,6 +627,7 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
             ),
             const SizedBox(height: 12),
             TextField(
+              key: const Key('historical-search-place'),
               controller: _place,
               decoration: const InputDecoration(
                 labelText: 'Plek (optioneel)',
@@ -623,6 +713,28 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
                 future: _search,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState != ConnectionState.done) {
+                    final previousSearch = _retryPreviousSearch;
+                    if (previousSearch != null) {
+                      final previousState = _effectiveHistoricalSearchState(
+                        previousSearch.response,
+                      );
+                      if (previousSearch.response.results.isNotEmpty ||
+                          previousState == 'PARTIAL_AVAILABILITY') {
+                        return _HistoricalResults(
+                          response: previousSearch.response,
+                          state: previousState,
+                          source: widget.source,
+                          onRetry: _retrySearch,
+                          retryInProgress: true,
+                        );
+                      }
+                      return _HistoricalError(
+                        sources: previousSearch.response.sources,
+                        onRetry: _retrySearch,
+                        onAdjust: _focusSearchForm,
+                        retryInProgress: true,
+                      );
+                    }
                     return const _HistoricalStatus(
                       label: 'Historische zoekresultaten worden geladen.',
                       child: Column(
@@ -639,24 +751,62 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
                     if (error is HistoricalSearchValidationException) {
                       return _HistoricalValidationError(message: error.message);
                     }
+                    final previousSearch = _retryPreviousSearch;
+                    if (previousSearch != null &&
+                        previousSearch.response.results.isNotEmpty) {
+                      return _HistoricalResults(
+                        response: previousSearch.response,
+                        state: _effectiveHistoricalSearchState(
+                          previousSearch.response,
+                        ),
+                        source: widget.source,
+                        onRetry: _retrySearch,
+                        retryFailed: true,
+                      );
+                    }
                     return _HistoricalError(
-                      onRetry: _runSearch,
+                      sources: previousSearch?.response.sources ?? const [],
+                      onRetry: _retrySearch,
                       onAdjust: _focusSearchForm,
+                      retryFailureMessage: previousSearch == null
+                          ? null
+                          : 'Nieuwe poging mislukt door een tijdelijke '
+                                'transportfout. De vorige uitkomst blijft '
+                                'beschikbaar.',
                     );
                   }
                   final response = snapshot.requireData;
                   final state = _effectiveHistoricalSearchState(response);
                   if (state == 'SOURCE_FAILURE') {
+                    final previousSearch = _retryPreviousSearch;
+                    if (previousSearch != null &&
+                        previousSearch.response.results.isNotEmpty) {
+                      return _HistoricalResults(
+                        response: previousSearch.response,
+                        state: _effectiveHistoricalSearchState(
+                          previousSearch.response,
+                        ),
+                        source: widget.source,
+                        onRetry: _retrySearch,
+                        retryFailureSources: response.sources,
+                        retryFailed: true,
+                      );
+                    }
                     return _HistoricalError(
                       sources: response.sources,
-                      onRetry: _runSearch,
+                      onRetry: _retrySearch,
                       onAdjust: _focusSearchForm,
+                      retryFailureMessage: previousSearch == null
+                          ? null
+                          : 'Nieuwe poging mislukt; de bronfout wordt '
+                                'hieronder afzonderlijk gemeld.',
                     );
                   }
                   return _HistoricalResults(
                     response: response,
                     state: state,
                     source: widget.source,
+                    onRetry: _retrySearch,
                     onPrevious: response.start == 0
                         ? null
                         : () => _runSearch(
@@ -696,13 +846,21 @@ class _HistoricalResults extends StatelessWidget {
     required this.response,
     required this.state,
     required this.source,
-    required this.onPrevious,
-    required this.onNext,
+    this.onRetry,
+    this.retryInProgress = false,
+    this.retryFailed = false,
+    this.retryFailureSources = const [],
+    this.onPrevious,
+    this.onNext,
   });
 
   final HistoricalSearchResponse response;
   final String state;
   final HistoricalSearchSource source;
+  final VoidCallback? onRetry;
+  final bool retryInProgress;
+  final bool retryFailed;
+  final List<HistoricalSourceStatus> retryFailureSources;
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
 
@@ -725,20 +883,50 @@ class _HistoricalResults extends StatelessWidget {
     final statusLabel = noResults
         ? 'De historische zoekopdracht leverde geen resultaten op.${_sourceMessagesLabel(statusSourceLabels)}'
         : '${response.total} historische resultaten geladen.${_sourceMessagesLabel(statusSourceLabels)}';
+    final retryLabel = retryInProgress
+        ? ' Nieuwe poging voor dezelfde historische zoekopdracht wordt '
+              'uitgevoerd. De vorige uitkomst blijft zichtbaar.'
+        : retryFailed
+        ? ' Nieuwe poging mislukt. De vorige uitkomst blijft zichtbaar.'
+        : '';
+    final retryFailureLabel = retryFailureSources.isEmpty
+        ? ''
+        : ' Nieuwe bronfout: ${_sourceMessagesLabel(retryFailureSources.map(_historicalSourceMessage).toList(growable: false))}';
+    final fullStatusLabel = '$statusLabel$retryLabel$retryFailureLabel';
+    final canRetry =
+        onRetry != null &&
+        (state == 'PARTIAL_AVAILABILITY' || retryInProgress || retryFailed);
     if (noResults) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _HistoricalStatus(
-            label: statusLabel,
+            label: fullStatusLabel,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (retryInProgress)
+                  const Text(
+                    'Nieuwe poging voor dezelfde historische zoekopdracht '
+                    'wordt uitgevoerd; de vorige uitkomst blijft zichtbaar.',
+                  ),
+                if (retryFailed)
+                  const Text(
+                    'Nieuwe poging mislukt; de vorige uitkomst blijft '
+                    'zichtbaar.',
+                  ),
                 const Text('Geen historische resultaten gevonden.'),
                 ...sourceSummaries.map(Text.new),
+                if (retryFailureSources.isNotEmpty) ...[
+                  const Text('Melding van de nieuwe poging:'),
+                  ...retryFailureSources.map(
+                    (source) => Text(_historicalSourceMessage(source)),
+                  ),
+                ],
               ],
             ),
           ),
+          if (canRetry) ...[const SizedBox(height: 12), _retryButton(onRetry!)],
         ],
       );
     }
@@ -746,12 +934,32 @@ class _HistoricalResults extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _HistoricalStatus(
-          label: statusLabel,
+          label: fullStatusLabel,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (retryInProgress)
+                const Text(
+                  'Nieuwe poging voor dezelfde historische zoekopdracht '
+                  'wordt uitgevoerd; de vorige uitkomst blijft zichtbaar.',
+                ),
+              if (retryInProgress)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: ExcludeSemantics(child: LinearProgressIndicator()),
+                ),
+              if (retryFailed)
+                const Text(
+                  'Nieuwe poging mislukt; de vorige uitkomst blijft zichtbaar.',
+                ),
               Text('${response.total} historische resultaten'),
               ...sourceSummaries.map(Text.new),
+              if (retryFailureSources.isNotEmpty) ...[
+                const Text('Melding van de nieuwe poging:'),
+                ...retryFailureSources.map(
+                  (source) => Text(_historicalSourceMessage(source)),
+                ),
+              ],
             ],
           ),
         ),
@@ -763,6 +971,7 @@ class _HistoricalResults extends StatelessWidget {
             source: source,
           ),
         ),
+        if (canRetry) ...[const SizedBox(height: 4), _retryButton(onRetry!)],
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -779,6 +988,13 @@ class _HistoricalResults extends StatelessWidget {
       ],
     );
   }
+
+  Widget _retryButton(VoidCallback onPressed) => OutlinedButton.icon(
+    key: const Key('historical-search-retry'),
+    onPressed: onPressed,
+    icon: const Icon(Icons.refresh),
+    label: const Text('Opnieuw proberen'),
+  );
 }
 
 class _HistoricalResultCard extends StatelessWidget {
@@ -886,11 +1102,15 @@ class _HistoricalError extends StatelessWidget {
     required this.onRetry,
     required this.onAdjust,
     this.sources = const [],
+    this.retryInProgress = false,
+    this.retryFailureMessage,
   });
 
   final List<HistoricalSourceStatus> sources;
   final VoidCallback onRetry;
   final VoidCallback onAdjust;
+  final bool retryInProgress;
+  final String? retryFailureMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -898,8 +1118,10 @@ class _HistoricalError extends StatelessWidget {
         .where((source) => source.status != 'AVAILABLE')
         .map(_historicalSourceMessage)
         .toList(growable: false);
-    final label =
-        'Geen historische bronnen konden worden geraadpleegd.${_sourceMessagesLabel(sourceMessages)}';
+    final label = retryInProgress
+        ? 'Historische zoekresultaten worden geladen.'
+        : 'Geen historische bronnen konden worden geraadpleegd.${_sourceMessagesLabel(sourceMessages)}'
+              '${retryFailureMessage == null ? '' : ' $retryFailureMessage'}';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -908,6 +1130,17 @@ class _HistoricalError extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (retryInProgress)
+                const Text(
+                  'Nieuwe poging voor dezelfde historische zoekopdracht '
+                  'wordt uitgevoerd; de vorige uitkomst blijft zichtbaar.',
+                ),
+              if (retryInProgress)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: ExcludeSemantics(child: LinearProgressIndicator()),
+                ),
+              if (retryFailureMessage != null) Text(retryFailureMessage!),
               const Text(
                 'Geen historische bronnen konden worden geraadpleegd.',
               ),
