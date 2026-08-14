@@ -10,6 +10,15 @@
 
 ## Uitvoering
 
+- Nieuwe developer-run gestart na reviewafwijzing. De bestaande branch bevat de
+  allowlisted Open Archieven-logging, charset-regressietest en privacytests al;
+  deze run verifieert de checkout opnieuw en levert het ontbrekende volledige
+  frontend-vangnetbewijs aan.
+- Volledig vangnet opnieuw daadwerkelijk uitgevoerd: backend `mvn -B
+  --no-transfer-progress clean verify` groen met 320 tests en 0 failures/errors/skips;
+  `frontend` analyze, test (68 tests) en webbuild groen; `frontend-admin` analyze en
+  test (35 tests) groen. Geen check is overgeslagen.
+
 - Review-follow-up uitgevoerd op de opnieuw aangeboden branch. De drie frontend-checks
   zijn expliciet opnieuw uitgevoerd; daarnaast is de gemelde charset-regressie in de
   statusbehoudende Open Archieven HTTP-afhandeling hersteld met een ISO-8859-1-test.
