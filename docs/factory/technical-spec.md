@@ -609,6 +609,20 @@ standaardselectie beide bronnen bevraagt. De vervolgpagina toont de gekozen waar
 `historicalFollowUpWarning`-tekst in een programmatisch beschikbare regio. De Navigator-stack bewaart
 de oorspronkelijke detailpagina en resultatenlijst. Er is geen opslagmechanisme toegevoegd.
 
+De retry-state in `historical_search.dart` bewaart maximaal één `_CompletedHistoricalSearch` met een
+`_HistoricalSearchContext` en de genormaliseerde response, plus één `_lastRequestContext` voor een
+aanvraag die nog geen response heeft opgeleverd. De context bevat alleen tekstfilters, bronkeuze,
+pagina-offset en limiet; er wordt geen volledige zoekgeschiedenis, ruwe providerrespons of
+exceptiontekst bewaard. `_runSearch` legt de context vóór het starten van de Future vast en gebruikt
+bij een retry uitsluitend die context, ook wanneer de gebruiker daarna een veld wijzigt. Een retry
+kan worden gestart bij gedeeltelijke beschikbaarheid of een bronfout; tijdens het laden toont de
+pagina de vorige uitkomst, bronstatussen en tellingen met een tekstuele melding over de lopende
+nieuwe poging. `_retryInProgress` verhindert een tweede aanvraag. Een respons met
+`RESULTS`, `NO_RESULTS` of `PARTIAL_AVAILABILITY` vervangt de vorige snapshot volledig. Bij
+`SOURCE_FAILURE` of een transportfout blijft de vorige geldige uitkomst beschikbaar en worden de
+nieuwe bronstatus of vaste transportfout afzonderlijk weergegeven. Zonder eerdere resultaten valt
+de weergave terug op de bestaande volledige-bronuitvalstaat met retry- en aanpasacties.
+
 ## Publieke recorddetailpagina (gebruikersfrontend)
 
 `frontend/lib/records/` bevat de publieke recorddetailpagina en de sectie "Externe

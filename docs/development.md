@@ -236,14 +236,20 @@ Europeana/Open Archieven source. The page maps the API aggregate state to distin
 partial-availability and full-source-failure states. Partial results remain visible and include a
 short message for every unavailable source; full source failure does not show a result count and
 offers the keyboard-operable actions `Opnieuw proberen` and `Zoekopdracht aanpassen`. Retry returns
-through the loading state before announcing the new outcome. Adjusting the search keeps the same
-route, deliberately focuses the existing free-text field and preserves all search values until the
-user changes them. For available sources, the result status also includes the per-source page count
-and the explicitly labeled local Heemskerk indication. Loading, validation-error and transport
-error states remain separate. Pagination uses the server response offset and limit, including after
-a source fails during a later page. All states use one `SemanticsRole.status` node; the visible
-copy and loading spinner do not create additional status nodes, and automatic status updates do not
-move focus. External-link labels remain available. A result shows technical availability, metadata
+through the loading state before announcing the new outcome. The retry action is also available for
+partial availability with at least one failed source and for retryable transport errors or
+`SOURCE_FAILURE`. Before each retryable request the page stores one normalized snapshot of all
+search filters, source choice, visible page offset and limit. While a retry runs, the previous valid
+results, source statuses, counts and entered values remain visible; a second activation is ignored.
+A valid retry replaces the previous response completely. A failed retry preserves valid partial
+results and reports the new safe source or transport error separately. Adjusting the search keeps
+the same route, deliberately focuses the existing free-text field and preserves all search values
+until the user changes them. For available sources, the result status also includes the per-source
+page count and the explicitly labeled local Heemskerk indication. Loading, validation-error and
+transport error states remain separate. Pagination uses the server response offset and limit,
+including after a source fails during a later page. All states use one `SemanticsRole.status` node;
+the visible copy and loading spinner do not create additional status nodes, and automatic status
+updates do not move focus. External-link labels remain available. A result shows technical availability, metadata
 rights, object/media rights and privacy separately; content metadata is rendered only when the backend
 explicitly marks metadata rights as allowed and privacy as clear. Available results expose `Context bekijken`, opening the
 context detail page in `lib/historical/historical_context_detail.dart`. That page renders place,

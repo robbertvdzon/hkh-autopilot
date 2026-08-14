@@ -32,6 +32,14 @@ count for the current visible page. It shows a separate `Lokale Heemskerk-indica
 plaatsmetadata` only for certain, explicitly available place metadata; the indication is never
 presented as historical proof. Available empty sources show `0`, while disabled, temporarily
 unavailable or invalid sources show no numeric count. Available result cards also offer `Context bekijken`.
+The retry action is also available for partial availability when at least one selected source has
+failed, and for retryable transport errors or `SOURCE_FAILURE`. Before each retryable request the
+page keeps one normalized snapshot of the request context (all search filters, source choice,
+visible page offset and limit). During a retry the previous valid results, source statuses, counts
+and entered values remain visible, with text identifying the new attempt; a second retry activation
+is ignored. A valid retry replaces the previous response completely. After a failed retry, the
+previous valid partial results remain visible and the new safe source/transport error is shown
+separately. No raw provider response, exception text or search history is retained in client state.
 The detail page shows title, place, period, person, event and the source/rights/privacy metadata,
 with explicit `Niet beschikbaar` and `Onzeker` labels for context fields whose status is
 `MISSING`/`UNAVAILABLE` or `UNCERTAIN`. It repeats the aggregate search state and the selected
@@ -94,7 +102,9 @@ or move focus. Each error's `Opnieuw proberen` action follows its message in nat
 order, displays a three-pixel focus border and supports Enter and Space. On complete historical
 source failure, `Zoekopdracht aanpassen` follows the source messages and retry action, is also
 keyboard-operable, and is the only intentional focus move. Widget tests cover these semantics,
-focus and keyboard behaviors. A release check should also
+focus and keyboard behaviors, including preserving the previous result view and entered search
+values while a retry is running and using the same normalized request parameters for the retry. A
+release check should also
 use the repeatable browser and screen-reader scenarios in the active story worklog; DOM/ARIA
 inspection does not by itself confirm the announcements a screen reader produces.
 

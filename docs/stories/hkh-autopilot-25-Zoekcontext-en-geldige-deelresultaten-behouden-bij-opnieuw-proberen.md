@@ -57,7 +57,7 @@ Eindsamenvatting voor de PO:
 - Een succesvolle retry vervangt de oude uitkomst volledig; een mislukte retry behoudt geldige deelresultaten en toont een aparte veilige foutmelding.
 - Ruwe providerdata, exceptionteksten en zoekgeschiedenis worden niet bewaard of getoond.
 - Getest met gerichte frontendtests (24 geslaagd) en het volledige factory-vangnet: backend, frontendanalyse/tests/webbuild en adminanalyse/tests zijn groen. `git diff --check` is schoon.
-- Er zijn geen nieuwe backendroutes, databaseopslag of persistente zoekgeschiedenis toegevoegd. Preview is niet uitgevoerd omdat er geen preview-URL beschikbaar was; documentatie en deployment vallen onder latere subtaken.
+- Er zijn geen nieuwe backendroutes, databaseopslag of persistente zoekgeschiedenis toegevoegd. Preview is niet uitgevoerd omdat er geen preview-URL beschikbaar was; de relevante product-, frontend- en factory-documentatie is bijgewerkt. Deployment valt buiten deze story.
 
 <!-- deploy-summary:start -->
 Bij opnieuw proberen blijven je zoekopdracht en bruikbare resultaten zichtbaar. Een geslaagde nieuwe poging toont alleen de nieuwste resultaten en een foutmelding blijft duidelijk en veilig.
