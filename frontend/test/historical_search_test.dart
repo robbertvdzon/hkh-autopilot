@@ -1003,7 +1003,9 @@ void main() {
         const Key('historical-search-retry'),
         skipOffstage: false,
       );
-      tester.widget<OutlinedButton>(retryButton).onPressed!.call();
+      final retryAction = tester.widget<OutlinedButton>(retryButton).onPressed!;
+      retryAction();
+      retryAction();
       await tester.pump();
 
       expect(
@@ -1018,6 +1020,7 @@ void main() {
         findsOneWidget,
       );
       expect(source.calls, hasLength(2));
+      expect(find.byKey(const Key('historical-search-retry')), findsNothing);
       expect(source.calls[1].text, source.calls[0].text);
       expect(source.calls[1].place, source.calls[0].place);
       expect(source.calls[1].start, source.calls[0].start);

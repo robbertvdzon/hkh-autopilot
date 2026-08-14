@@ -486,6 +486,7 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
   Future<HistoricalSearchResponse>? _search;
   _CompletedHistoricalSearch? _lastCompletedSearch;
   _CompletedHistoricalSearch? _retryPreviousSearch;
+  bool _retryInProgress = false;
   static const _limit = 100;
 
   @override
@@ -554,12 +555,14 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
       _search = future;
       if (!isRetry) _lastCompletedSearch = null;
       _retryPreviousSearch = previousSearch;
+      if (!isRetry) _retryInProgress = false;
     });
     future.then(
       (response) {
         if (!mounted || !identical(_search, future)) return;
         final state = _effectiveHistoricalSearchState(response);
         setState(() {
+          if (isRetry) _retryInProgress = false;
           // SOURCE_FAILURE is a failed retry: retain the previous valid
           // snapshot so its results and source statuses remain visible.
           if (!isRetry || state != 'SOURCE_FAILURE') {
@@ -575,15 +578,19 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
         // FutureBuilder renders the safe transport-failure state. Keeping the
         // retry snapshot here is intentional and contains no exception text.
         if (!mounted || !identical(_search, future)) return;
-        setState(() {});
+        setState(() {
+          if (isRetry) _retryInProgress = false;
+        });
       },
     );
   }
 
   void _retrySearch() {
+    if (_retryInProgress) return;
+    _retryInProgress = true;
     final previousSearch = _lastCompletedSearch;
     if (previousSearch == null) {
-      _runSearch();
+      _runSearch(isRetry: true);
       return;
     }
     _runSearch(context: previousSearch.context, isRetry: true);
@@ -895,7 +902,8 @@ class _HistoricalResults extends StatelessWidget {
     final fullStatusLabel = '$statusLabel$retryLabel$retryFailureLabel';
     final canRetry =
         onRetry != null &&
-        (state == 'PARTIAL_AVAILABILITY' || retryInProgress || retryFailed);
+        !retryInProgress &&
+        (state == 'PARTIAL_AVAILABILITY' || retryFailed);
     if (noResults) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1149,12 +1157,13 @@ class _HistoricalError extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        OutlinedButton.icon(
-          key: const Key('historical-search-retry'),
-          onPressed: onRetry,
-          icon: const Icon(Icons.refresh),
-          label: const Text('Opnieuw proberen'),
-        ),
+        if (!retryInProgress)
+          OutlinedButton.icon(
+            key: const Key('historical-search-retry'),
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Opnieuw proberen'),
+          ),
         const SizedBox(height: 8),
         OutlinedButton(
           key: const Key('historical-search-adjust'),
