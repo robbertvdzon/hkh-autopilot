@@ -10,6 +10,16 @@
 
 ## Uitvoering
 
+- Nieuwe developer-run gestart op de huidige checkout. De eerdere implementatie en
+  reviewfix zijn aanwezig; ik verifieer de story opnieuw tegen de actuele branch en
+  voer het volledige vangnet uit, inclusief de drie eerder door de harness als
+  overgeslagen gerapporteerde frontend-checks.
+- Actuele verificatie: gerichte `HistoricalSearchTest` groen (42 tests); het volledige
+  backend-vangnet groen (320 tests, 0 failures/errors/skips); `frontend` analyze, test
+  (68 tests) en webbuild groen; `frontend-admin` analyze en test (35 tests) groen.
+  Alle zes versioned vangnetcommando's zijn deze run daadwerkelijk uitgevoerd met
+  exitcode 0; er zijn geen conflictmarkers of codewijzigingen buiten de worklog.
+
 - Nieuwe developer-run gestart na reviewafwijzing. De bestaande branch bevat de
   allowlisted Open Archieven-logging, charset-regressietest en privacytests al;
   deze run verifieert de checkout opnieuw en levert het ontbrekende volledige
