@@ -448,6 +448,18 @@ beschikbaarheid, bronuitval, validatie en opnieuw proberen via één status/live
 response met beschikbare bronnen leest die status ook de per-bron resultatentelling en de gelabelde
 Heemskerk-plaatsmetadata-indicatie voor; bij volledige bronuitval toont de pagina geen numerieke
 dekkingssamenvatting.
+
+De retry-flow geldt ook voor gedeeltelijke beschikbaarheid wanneer minstens één geselecteerde bron
+is uitgevallen. Voor iedere retrybare aanvraag bewaart de frontend één genormaliseerde context met
+vrije tekst, plek, persoon, gebeurtenis, periode, bronkeuze, pagina-offset en paginalimiet. De
+zoekvelden blijven ingevuld. Tijdens de retry blijven de vorige geldige resultaten, bronstatussen en
+tellingen zichtbaar met een tekstuele aanduiding van de nieuwe poging; de retryactie is gedurende
+de aanvraag niet opnieuw activeerbaar. Een geldige respons (`RESULTS`, `NO_RESULTS` of
+`PARTIAL_AVAILABILITY`) vervangt de vorige resultaten, tellingen en bronstatussen volledig. Bij een
+transportfout of `SOURCE_FAILURE` blijven geldige eerdere deelresultaten zichtbaar en wordt de
+nieuwe bronfout afzonderlijk en veilig gemeld. Als er geen eerdere geldige resultaten zijn, blijft
+de bestaande volledige-bronuitvalweergave met retry- en aanpasacties leidend. De context bevat geen
+zoekgeschiedenis of ruwe bronpayload; die worden ook niet aan een retry-aanvraag toegevoegd.
 Resultaatkaarten tonen de genormaliseerde bronnaam en bronidentifier, ophaaldatum, afzonderlijke
 technische/rechten-/privacystatussen en een tekstueel herkenbare externe link die uitsluitend naar
 de door de bron geleverde URL verwijst. Elk beschikbaar resultaat heeft daarnaast de actie
@@ -665,7 +677,11 @@ zelfstandige relatie, uitsluiting van het geopende resultaat en de limiet van dr
 Flutter-tests controleren de zichtbaarheid van partiële resultaten, het onderscheid tussen nul
 resultaten en volledige bronuitval, de bronmeldingen, één status/live-regio, de
 toetsenbordbedienbare retry- en aanpasacties, de laadstatus na retry, focusbehoud en behoud van
-ingevoerde zoekwaarden, paginering met een korte pagina en behoud van bronmetadata. De
+ingevoerde zoekwaarden. Voor de retry-flow controleren ze daarnaast behoud van deelresultaten bij
+een transportfout, volledige vervanging na succes, gelijkheid van alle genormaliseerde parameters
+inclusief pagina-offset en limiet, het blokkeren van dubbele retry-aanvragen en het ontbreken van
+ruwe provider- of exceptiondata. Paginering met een korte pagina en behoud van bronmetadata blijven
+eveneens gedekt. De
 contextdetailtests controleren de actie `Context bekijken`, detailvelden, expliciete
 `Niet beschikbaar`/`Onzeker`-meldingen, bronlinks, bronstatussen, de afzonderlijke
 `Bronvastgelegde relatie`-sectie met bronclaim- en externe-linktekst, het verbergen van ongeldige

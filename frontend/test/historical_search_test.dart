@@ -74,6 +74,65 @@ class _SequencedHistoricalSource implements HistoricalSearchSource {
   }
 }
 
+class _CapturedHistoricalCall {
+  const _CapturedHistoricalCall({
+    required this.text,
+    required this.place,
+    required this.person,
+    required this.event,
+    required this.fromYear,
+    required this.toYear,
+    required this.source,
+    required this.start,
+    required this.limit,
+  });
+
+  final String? text;
+  final String? place;
+  final String? person;
+  final String? event;
+  final String? fromYear;
+  final String? toYear;
+  final HistoricalSourceChoice? source;
+  final int start;
+  final int limit;
+}
+
+class _CapturingHistoricalSource implements HistoricalSearchSource {
+  _CapturingHistoricalSource(this.responses);
+
+  final List<Future<HistoricalSearchResponse>> responses;
+  final calls = <_CapturedHistoricalCall>[];
+
+  @override
+  Future<HistoricalSearchResponse> loadHistoricalSearch({
+    String? text,
+    String? place,
+    String? person,
+    String? event,
+    String? fromYear,
+    String? toYear,
+    HistoricalSourceChoice? source,
+    int start = 0,
+    int limit = 100,
+  }) {
+    calls.add(
+      _CapturedHistoricalCall(
+        text: text,
+        place: place,
+        person: person,
+        event: event,
+        fromYear: fromYear,
+        toYear: toYear,
+        source: source,
+        start: start,
+        limit: limit,
+      ),
+    );
+    return responses[calls.length - 1];
+  }
+}
+
 void main() {
   test('sends normalized historical filters and pagination', () async {
     final client = BackendClient(
@@ -667,7 +726,7 @@ void main() {
 
       expect(find.text('Beschikbaar resultaat'), findsOneWidget);
       expect(find.text('Europeana: niet geconfigureerd.'), findsOneWidget);
-      expect(find.byKey(const Key('historical-search-retry')), findsNothing);
+      expect(find.byKey(const Key('historical-search-retry')), findsOneWidget);
       expect(find.text('1 historische resultaten'), findsOneWidget);
       final statusNodes = find.semantics
           .byPredicate(
@@ -887,6 +946,403 @@ void main() {
           .evaluate()
           .toList();
       expect(statusNodes, hasLength(1));
+    },
+  );
+
+  testWidgets(
+    'retry keeps partial results and safe search context after a transport failure',
+    (tester) async {
+      final retry = Completer<HistoricalSearchResponse>();
+      final source = _CapturingHistoricalSource([
+        Future.value(
+          HistoricalSearchResponse(
+            results: [
+              HistoricalSearchResult(
+                source: 'OPEN_ARCHIEVEN',
+                sourceRecordId: 'retry-old',
+                stableUrl: 'https://example.test/retry-old',
+                retrievedAt: DateTime.utc(2026, 8, 12),
+                title: 'Oud deelresultaat',
+                metadataRights: 'ALLOWED',
+                privacyStatus: 'CLEAR',
+              ),
+            ],
+            total: 1,
+            start: 0,
+            limit: 100,
+            state: 'PARTIAL_AVAILABILITY',
+            sources: const [
+              HistoricalSourceStatus(
+                source: 'EUROPEANA',
+                status: 'TEMPORARILY_UNAVAILABLE',
+              ),
+              HistoricalSourceStatus(
+                source: 'OPEN_ARCHIEVEN',
+                status: 'AVAILABLE',
+              ),
+            ],
+          ),
+        ),
+        retry.future,
+      ]);
+      await tester.pumpWidget(
+        MaterialApp(home: HistoricalSearchPage(source: source)),
+      );
+      await tester.enterText(find.bySemanticsLabel('Vrije tekst'), ' kasteel ');
+      await tester.enterText(
+        find.bySemanticsLabel('Plek (optioneel)'),
+        ' Heemskerk ',
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('historical-search-submit')),
+      );
+      await tester.tap(find.byKey(const Key('historical-search-submit')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Oud deelresultaat'));
+      final retryButton = find.byKey(
+        const Key('historical-search-retry'),
+        skipOffstage: false,
+      );
+      final retryAction = tester.widget<OutlinedButton>(retryButton).onPressed!;
+      retryAction();
+      retryAction();
+      await tester.pump();
+
+      expect(
+        find.text('Oud deelresultaat', skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          'Nieuwe poging voor dezelfde historische zoekopdracht wordt '
+          'uitgevoerd; de vorige uitkomst blijft zichtbaar.',
+        ),
+        findsOneWidget,
+      );
+      expect(source.calls, hasLength(2));
+      expect(find.byKey(const Key('historical-search-retry')), findsNothing);
+      expect(source.calls[1].text, source.calls[0].text);
+      expect(source.calls[1].place, source.calls[0].place);
+      expect(source.calls[1].start, source.calls[0].start);
+      expect(source.calls[1].limit, source.calls[0].limit);
+      await tester.drag(find.byType(ListView), const Offset(0, 1000));
+      await tester.pump();
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(
+                const Key('historical-search-text'),
+                skipOffstage: false,
+              ),
+            )
+            .controller!
+            .text,
+        ' kasteel ',
+      );
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(
+                const Key('historical-search-place'),
+                skipOffstage: false,
+              ),
+            )
+            .controller!
+            .text,
+        ' Heemskerk ',
+      );
+
+      retry.completeError(StateError('raw provider payload and exception'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Oud deelresultaat', skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('Nieuwe poging mislukt', skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('raw provider payload and exception'),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets(
+    'retry after an initial transport failure reuses its request context',
+    (tester) async {
+      final initialRequest = Completer<HistoricalSearchResponse>();
+      final source = _CapturingHistoricalSource([
+        initialRequest.future,
+        Future.value(_HistoricalSearchResponseFactory.empty()),
+      ]);
+      await tester.pumpWidget(
+        MaterialApp(home: HistoricalSearchPage(source: source)),
+      );
+      await tester.enterText(find.bySemanticsLabel('Vrije tekst'), 'kasteel');
+      await tester.enterText(
+        find.bySemanticsLabel('Plek (optioneel)'),
+        'Heemskerk',
+      );
+      await tester.tap(find.byKey(const Key('historical-search-submit')));
+      await tester.pump();
+
+      initialRequest.completeError(StateError('temporary transport failure'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('historical-search-retry'), skipOffstage: false),
+        findsOneWidget,
+      );
+
+      await tester.enterText(
+        find.bySemanticsLabel('Vrije tekst'),
+        'gewijzigde zoekterm',
+      );
+      final retryButton = find.byKey(
+        const Key('historical-search-retry'),
+        skipOffstage: false,
+      );
+      tester.widget<OutlinedButton>(retryButton).onPressed!.call();
+      await tester.pumpAndSettle();
+
+      expect(source.calls, hasLength(2));
+      expect(source.calls[1].text, 'kasteel');
+      expect(source.calls[1].place, 'Heemskerk');
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(
+                const Key('historical-search-text'),
+                skipOffstage: false,
+              ),
+            )
+            .controller!
+            .text,
+        'gewijzigde zoekterm',
+      );
+    },
+  );
+
+  testWidgets(
+    'successful retry replaces results and source statuses completely',
+    (tester) async {
+      final source = _CapturingHistoricalSource([
+        Future.value(
+          HistoricalSearchResponse(
+            results: [
+              HistoricalSearchResult(
+                source: 'OPEN_ARCHIEVEN',
+                sourceRecordId: 'replace-old',
+                stableUrl: 'https://example.test/replace-old',
+                retrievedAt: DateTime.utc(2026, 8, 12),
+                title: 'Oud resultaat',
+                metadataRights: 'ALLOWED',
+                privacyStatus: 'CLEAR',
+              ),
+            ],
+            total: 1,
+            start: 0,
+            limit: 100,
+            state: 'PARTIAL_AVAILABILITY',
+            sources: const [
+              HistoricalSourceStatus(
+                source: 'EUROPEANA',
+                status: 'TEMPORARILY_UNAVAILABLE',
+              ),
+              HistoricalSourceStatus(
+                source: 'OPEN_ARCHIEVEN',
+                status: 'AVAILABLE',
+              ),
+            ],
+          ),
+        ),
+        Future.value(
+          HistoricalSearchResponse(
+            results: [
+              HistoricalSearchResult(
+                source: 'EUROPEANA',
+                sourceRecordId: 'replace-new',
+                stableUrl: 'https://example.test/replace-new',
+                retrievedAt: DateTime.utc(2026, 8, 13),
+                title: 'Nieuw resultaat',
+                metadataRights: 'ALLOWED',
+                privacyStatus: 'CLEAR',
+              ),
+            ],
+            total: 1,
+            start: 0,
+            limit: 100,
+            state: 'RESULTS',
+            sources: const [
+              HistoricalSourceStatus(
+                source: 'EUROPEANA',
+                status: 'AVAILABLE',
+                resultCount: 1,
+              ),
+              HistoricalSourceStatus(
+                source: 'OPEN_ARCHIEVEN',
+                status: 'DISABLED',
+              ),
+            ],
+          ),
+        ),
+      ]);
+      await tester.pumpWidget(
+        MaterialApp(home: HistoricalSearchPage(source: source)),
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('historical-search-submit')),
+      );
+      await tester.tap(find.byKey(const Key('historical-search-submit')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Oud resultaat'));
+      final retryButton = find.byKey(
+        const Key('historical-search-retry'),
+        skipOffstage: false,
+      );
+      tester.widget<OutlinedButton>(retryButton).onPressed!.call();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Oud resultaat'), findsNothing);
+      expect(find.text('Nieuw resultaat', skipOffstage: false), findsOneWidget);
+      expect(
+        find.text('Europeana: beschikbaar.', skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(find.text('Europeana: tijdelijk niet beschikbaar.'), findsNothing);
+      expect(source.calls, hasLength(2));
+    },
+  );
+
+  testWidgets(
+    'retry reuses every normalized parameter including the current page',
+    (tester) async {
+      final source = _CapturingHistoricalSource([
+        Future.value(
+          HistoricalSearchResponse(
+            results: [
+              HistoricalSearchResult(
+                source: 'EUROPEANA',
+                sourceRecordId: 'page-one',
+                stableUrl: 'https://example.test/page-one',
+                retrievedAt: DateTime.utc(2026, 8, 12),
+                title: 'Pagina één',
+                metadataRights: 'ALLOWED',
+                privacyStatus: 'CLEAR',
+              ),
+            ],
+            total: 2,
+            start: 0,
+            limit: 100,
+            sources: const [
+              HistoricalSourceStatus(source: 'EUROPEANA', status: 'AVAILABLE'),
+            ],
+          ),
+        ),
+        Future.value(
+          HistoricalSearchResponse(
+            results: [
+              HistoricalSearchResult(
+                source: 'EUROPEANA',
+                sourceRecordId: 'page-two',
+                stableUrl: 'https://example.test/page-two',
+                retrievedAt: DateTime.utc(2026, 8, 12),
+                title: 'Pagina twee',
+                metadataRights: 'ALLOWED',
+                privacyStatus: 'CLEAR',
+              ),
+            ],
+            total: 2,
+            start: 1,
+            limit: 100,
+            state: 'PARTIAL_AVAILABILITY',
+            sources: const [
+              HistoricalSourceStatus(source: 'EUROPEANA', status: 'AVAILABLE'),
+              HistoricalSourceStatus(
+                source: 'OPEN_ARCHIEVEN',
+                status: 'TEMPORARILY_UNAVAILABLE',
+              ),
+            ],
+          ),
+        ),
+        Future.value(
+          const HistoricalSearchResponse(
+            results: [],
+            total: 0,
+            start: 1,
+            limit: 100,
+            state: 'SOURCE_FAILURE',
+            sources: [
+              HistoricalSourceStatus(
+                source: 'EUROPEANA',
+                status: 'TEMPORARILY_UNAVAILABLE',
+              ),
+            ],
+          ),
+        ),
+      ]);
+      await tester.pumpWidget(
+        MaterialApp(home: HistoricalSearchPage(source: source)),
+      );
+      await tester.enterText(find.bySemanticsLabel('Vrije tekst'), ' kasteel ');
+      await tester.enterText(
+        find.bySemanticsLabel('Plek (optioneel)'),
+        ' plek ',
+      );
+      await tester.enterText(
+        find.bySemanticsLabel('Persoon (optioneel)'),
+        ' persoon ',
+      );
+      await tester.enterText(
+        find.bySemanticsLabel('Gebeurtenis (optioneel)'),
+        ' gebeurtenis ',
+      );
+      await tester.enterText(
+        find.bySemanticsLabel('Vanafjaar (optioneel)'),
+        '1800',
+      );
+      await tester.enterText(
+        find.bySemanticsLabel('Eindjaar (optioneel)'),
+        '1900',
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('historical-search-submit')),
+      );
+      await tester.tap(find.byKey(const Key('historical-search-submit')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Pagina één'));
+      await tester.ensureVisible(find.text('Volgende resultaten'));
+      final nextButton = tester.widget<OutlinedButton>(
+        find
+            .ancestor(
+              of: find.text('Volgende resultaten'),
+              matching: find.byType(OutlinedButton),
+            )
+            .first,
+      );
+      nextButton.onPressed!.call();
+      await tester.pumpAndSettle();
+      final retryButton = find.byKey(
+        const Key('historical-search-retry'),
+        skipOffstage: false,
+      );
+      tester.widget<OutlinedButton>(retryButton).onPressed!.call();
+      await tester.pumpAndSettle();
+
+      expect(source.calls, hasLength(3));
+      final pageRequest = source.calls[1];
+      final retryRequest = source.calls[2];
+      expect(retryRequest.text, pageRequest.text);
+      expect(retryRequest.place, pageRequest.place);
+      expect(retryRequest.person, pageRequest.person);
+      expect(retryRequest.event, pageRequest.event);
+      expect(retryRequest.fromYear, pageRequest.fromYear);
+      expect(retryRequest.toYear, pageRequest.toYear);
+      expect(retryRequest.source, pageRequest.source);
+      expect(retryRequest.start, 1);
+      expect(retryRequest.start, pageRequest.start);
+      expect(retryRequest.limit, pageRequest.limit);
     },
   );
 

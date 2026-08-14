@@ -26,6 +26,14 @@ zijn `Opnieuw proberen` en `Zoekopdracht aanpassen` beschikbaar; aanpassen behou
 waarden en brengt de focus naar het bestaande zoekveld. Per geselecteerde bron geeft de respons
 daarnaast de telling op de huidige zichtbare pagina en een als zodanig gelabelde lokale
 Heemskerk-indicatie op basis van zekere plaatsmetadata; die indicatie is geen historisch bewijs.
+Bij gedeeltelijke bronuitval met minstens één uitgevallen bron is `Opnieuw proberen` eveneens
+beschikbaar. De frontend bewaart voor een retry één genormaliseerde momentopname van de retrybare
+zoekopdracht (vrije tekst, filters, bronkeuze, pagina-offset en limiet); tijdens de nieuwe aanvraag
+blijven de vorige geldige resultaten, bronstatussen, tellingen en ingevulde velden zichtbaar. Een
+lopende retry start geen tweede aanvraag. Een geldige retry vervangt de vorige uitkomst volledig;
+bij een transportfout of `SOURCE_FAILURE` blijven geldige deelresultaten staan en wordt de nieuwe
+veilige bronfout afzonderlijk gemeld. Er wordt geen ruwe providerrespons, exceptiontekst of
+zoekgeschiedenis bewaard.
 De Europeana-wskey is uitsluitend server-side configuratie; zie
 [docs/factory/secrets-local.md](docs/factory/secrets-local.md) voor de configuratienamen.
 

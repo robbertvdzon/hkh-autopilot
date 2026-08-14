@@ -104,6 +104,12 @@
   zichtbaar; bij volledige bronuitval toont de pagina geen resultaatcount en biedt zij `Opnieuw
   proberen` en `Zoekopdracht aanpassen`. Aanpassen houdt de route en ingevulde zoekwaarden intact en
   focust doelgericht het bestaande vrije-tekstveld; alleen deze bewuste actie verplaatst de focus.
+  Bij gedeeltelijke beschikbaarheid met een uitgevallen bron is retry eveneens beschikbaar. De
+  frontend bewaart per retrybare aanvraag één genormaliseerde zoekcontext (inclusief bronkeuze,
+  pagina-offset en limiet); tijdens retry blijven de vorige geldige resultaten en bronstatussen
+  zichtbaar, wordt dubbele activatie geblokkeerd en vervangt een geldige retry de vorige uitkomst
+  volledig. Een transportfout of `SOURCE_FAILURE` behoudt geldige deelresultaten en meldt de nieuwe
+  fout afzonderlijk, zonder ruwe payloads, exceptionteksten of zoekgeschiedenis in client-state.
   Alle zoekstatussen gebruiken één `SemanticsRole.status`-node en de zichtbare laadindicator is
   semantisch uitgesloten. `lib/historical/historical_context_detail.dart` bevat de contextdetailweergave, de aparte
   sectie `Bronvastgelegde relatie` voor providerclaims en de begrensde afgeleide relatiebepaling;
@@ -163,7 +169,9 @@ build met een expliciete testbackend, bijvoorbeeld
 
 - Dart-code wordt met `dart format` geformatteerd en moet `flutter analyze` zonder meldingen halen.
 - Statusbronnen worden achter `BackendStatusSource` en `LatestNewsSource` geïnjecteerd; widgettests
-  gebruiken deterministische fakes en `Completer`s voor laden, fout, retry, leeg en succes.
+  gebruiken deterministische fakes en `Completer`s voor laden, fout, retry, leeg en succes. De
+  historische retry-tests controleren contextgelijkheid, behoud tijdens een lopende/mislukte retry,
+  volledige vervanging na succes en het voorkomen van dubbele aanvragen.
 - Widgettests inspecteren de daadwerkelijke Flutter-semantiekboom en toetsenbordfocus. Nieuwe
   zichtbare statuskopieën mogen geen tweede `SemanticsRole.status` opleveren.
 - Kotlin-tests draaien via Maven `verify`; componentgrenzen volgen de bestaande Spring
