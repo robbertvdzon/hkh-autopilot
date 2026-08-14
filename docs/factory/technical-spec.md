@@ -593,10 +593,17 @@ exceptioninhoud wordt nooit gerenderd;
 externe bronknoppen
 hebben een tekstueel label dat het openen van een externe bron in een nieuw tabblad aankondigt.
 
-Een resultaatkaart toont alleen toegestane inhoudelijke metadata, plus altijd de genormaliseerde
-bronnaam, veilige bronidentifier, oorspronkelijke bron-URL, ophaaldatum en de afzonderlijke
-technische, metadatarechten-, object-/mediarechten- en
-privacystatussen. Een beschikbare kaart bevat de actie `Context bekijken`, die opent
+Een resultaatkaart toont alleen publiek geldige resultaten en alleen toegestane inhoudelijke metadata,
+plus altijd de genormaliseerde bronnaam, veilige bronidentifier, oorspronkelijke bron-URL, ophaaldatum
+en de afzonderlijke technische, metadatarechten-, object-/mediarechten- en privacystatussen. De
+frontend filtert resultaten zonder niet-lege stabiele identifier of absolute HTTP(S)-URL weg. Voor
+Open Archieven is `openArchievenContractValid` alleen waar wanneer `source_name`, `stable_identifier`
+en `original_source_url` niet-leeg, veilig en consistent met de legacy-identiteitsvelden zijn; een
+ongeldig resultaat krijgt geen kaart of externe link. De kaart gebruikt bij `ALLOWED` plus `CLEAR` de
+expliciete niet-lege titel, anders de primaire beschrijving, en toont niets inhoudelijks wanneer beide
+ontbreken. Onbekende rechten- of privacystatussen mappen naar `Onbekend`. Het zichtbare label
+`Externe bron openen in nieuw tabblad` is tegelijk de semantische linknaam en blijft toetsenbordbedienbaar.
+Een beschikbare kaart bevat de actie `Context bekijken`, die opent
 `historical_context_detail.dart`. De detailweergave toont de context- en bronvelden, herhaalt de
 zoek- en bronstatus, gebruikt `Niet beschikbaar`/`Onzeker` volgens de contextstatus en toont
 maximaal drie relaties uit de huidige responsepagina. Elke relatielink gebruikt uitsluitend de door

@@ -375,6 +375,11 @@ in `target.uri` en een door de bron geleverde externe HTTP(S)-link in `target.li
 leeg wanneer de bron geen expliciete volledige relaties levert. Elke contextstatus is
 `AVAILABLE`, `MISSING`, `UNCERTAIN` of `UNAVAILABLE`. Alleen een geldige, door de bron geleverde
 HTTP(S)-recordlink en bronidentifier worden gebruikt; links worden niet lokaal geconstrueerd.
+Voor de publieke Open Archieven-kaart zijn `source_name`, `stable_identifier` en
+`original_source_url` bovendien verplichte, niet-lege contractvelden. Ontbrekende, lege, onveilige
+of onderling tegenstrijdige waarden — ook wanneer de expliciete velden niet overeenkomen met de
+genormaliseerde legacy-identiteit — maken het resultaat niet publiek toonbaar en leveren geen
+bronlink op.
 Plaats wordt alleen uit expliciete bronmetadata overgenomen, nooit uit zoekfilters, titels of URLs.
 Ontbrekende, ongeldige of tegenstrijdige metadata wordt niet inhoudelijk ingevuld. Titel, beschrijving,
 plaats, persoon, gebeurtenis, datering, bronhouder en bronrechten worden alleen getoond wanneer
@@ -484,9 +489,13 @@ transportfout of `SOURCE_FAILURE` blijven geldige eerdere deelresultaten zichtba
 nieuwe bronfout afzonderlijk en veilig gemeld. Als er geen eerdere geldige resultaten zijn, blijft
 de bestaande volledige-bronuitvalweergave met retry- en aanpasacties leidend. De context bevat geen
 zoekgeschiedenis of ruwe bronpayload; die worden ook niet aan een retry-aanvraag toegevoegd.
-Resultaatkaarten tonen de genormaliseerde bronnaam en bronidentifier, ophaaldatum, afzonderlijke
-technische/rechten-/privacystatussen en een tekstueel herkenbare externe link die uitsluitend naar
-de door de bron geleverde URL verwijst. Elk beschikbaar resultaat heeft daarnaast de actie
+Resultaatkaarten tonen alleen publiek geldige resultaten. Zij tonen de genormaliseerde bronnaam en
+bronidentifier, ophaaldatum, afzonderlijke technische/rechten-/privacystatussen en een tekstueel
+herkenbare externe link die uitsluitend naar de door de bron geleverde URL verwijst. Inhoudelijke
+kopie gebruikt een niet-lege titel, met de primaire beschrijving als fallback; wanneer beide ontbreken
+wordt geen placeholdertekst verzonnen. Ontbrekende, lege, niet-herkende of tegenstrijdige rechten- en
+privacystatussen worden als `Onbekend` getoond. Het zichtbare linklabel kondigt aan dat de externe bron
+in een nieuw tabblad opent en blijft met het toetsenbord bedienbaar. Elk beschikbaar resultaat heeft daarnaast de actie
 `Context bekijken`. De detailweergave toont titel, plaats, periode, persoon, gebeurtenis,
 genormaliseerde bronnaam en bronhouder, identifier, oorspronkelijke bron-URL, server-side ophaaldatum, technische bronstatus, rechtenstatussen en
 privacystatus. Ontbrekende of onbeschikbare context wordt als `Niet beschikbaar` getoond; onzekere

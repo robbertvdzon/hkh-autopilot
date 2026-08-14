@@ -75,6 +75,14 @@ aanvullende broninformatie en bepaalt geen gecontroleerde status. Kaart en detai
 metadatarechten en object-/mediarechten afzonderlijk, met een semantische, toetsenbordbedienbare
 uitleg dat beide statussen onafhankelijk zijn en dat `UNKNOWN` geen toestemming of weigering betekent.
 
+De publieke resultaatkaart toont alleen resultaten met een geldige stabiele identifier en absolute
+HTTP(S)-bron-URL. Voor Open Archieven zijn daarvoor de door de bron geleverde `source_name`, `uuid`
+en `original_source_url` alle drie verplicht; ontbrekende, lege of tegenstrijdige waarden leveren
+geen kaart of bronlink op. Bij toegestane metadatarechten en een duidelijke privacystatus gebruikt de
+kaart de expliciete titel, anders de primaire beschrijving; ontbrekende inhoud blijft leeg en krijgt
+geen verzonnen placeholder. De kaart toont de ophaaldatum en afzonderlijke onbekende statuslabels,
+en de externe actie heeft het zichtbare label `Externe bron openen in nieuw tabblad`.
+
 Beschikbare resultaten hebben een actie `Context bekijken`. Die detailweergave behoudt de bestaande
 bron-, identifier-, URL-, ophaal-, rechten- en privacymetadata en toont ook plaats, periode, persoon
 en gebeurtenis. Ontbrekende of onbeschikbare context wordt als `Niet beschikbaar` en onzekere of

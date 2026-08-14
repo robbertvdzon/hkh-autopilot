@@ -122,6 +122,12 @@
   de resultaatkaart en detailweergave tonen metadatarechten en object-/mediarechten afzonderlijk met
   de gedeelde semantische, toetsenbordbedienbare `HistoricalRightsExplanation`; deze legt beide
   richtingen van de onafhankelijke beoordeling uit en dat `UNKNOWN` geen toestemming of weigering is;
+  een resultaatkaart verschijnt alleen bij een niet-lege stabiele identifier en een absolute HTTP(S)-
+  bron-URL. Voor Open Archieven moeten `source_name`, `uuid` en `original_source_url` uit het
+  providercontract aanwezig en onderling consistent zijn; anders worden kaart en bronlink
+  weggelaten. Toegestane inhoud gebruikt de expliciete titel met primaire beschrijving als fallback,
+  zonder verzonnen placeholder wanneer beide ontbreken. Onbekende rechten- en privacystatussen
+  worden als `Onbekend` getoond; de externe actie kondigt zichtbaar een nieuw tabblad aan;
   Unicode-normalisatie gebruikt de directe dependency
   `unorm_dart`. `lib/records/`
   bevat de nieuwe publieke recorddetailpagina (`RecordDetailPage`) met de in-/uitklapbare sectie
