@@ -402,19 +402,43 @@ antwoord is `HTTP_ERROR`, onafhankelijk van de HTTP-body, en een lege of niet al
 respons is `INVALID_JSON`. Een lege `docs`-lijst met `number_found: 0` is juist `AVAILABLE` met
 `NO_RESULTS` wanneer alle bronnen leeg zijn.
 
+Naast de procesbrede egresslimiet geldt voor Open Archieven een proceslokaal verzoekbudget per
+gebruikers-IP: maximaal 10 directe pogingen als burst en maximaal 60 toegestane pogingen per
+rollende minuut. Automatische retries tellen mee als pogingen. Het gebruikers-IP wordt alleen uit
+`X-Forwarded-For` gehaald wanneer de directe peer een geconfigureerde vertrouwde proxy is; anders
+wordt het directe connection-IP gebruikt. Een nieuw inkomend verzoek dat het budget overschrijdt
+geeft HTTP 429 met uitsluitend de vaste foutcode `RATE_LIMITED`; er worden geen zoekwaarden,
+persoonsnamen, IP-adressen of providergegevens teruggegeven.
+
+Geldige genormaliseerde Open Archieven-paginantwoorden worden tijdelijk gecachet (standaard 30
+seconden, begrensd op 1.024 entries). De cachekey gebruikt bron, de volledige genormaliseerde
+zoekcontext, pagina-offset, paginalimiet en de vaste taalwaarde `nl`; vrije zoekwaarden worden alleen
+in een SHA-256-representatie gebruikt. Alleen `AVAILABLE`-antwoorden worden gecachet. Verlopen,
+ontbrekende of onbruikbare items zijn cachemisses en gelijktijdige identieke misses delen één
+lopende externe aanvraag. Cachehits behouden de bestaande resultaten, tellingen, bronstatussen,
+rechten-, privacy- en permanente bronlinkvelden en verbruiken geen nieuw Open Archieven-budget.
+
 De route geeft per bron een technische status (`AVAILABLE`, `DISABLED`,
 `TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`; voor Open Archieven daarnaast `TIMEOUT`,
-`HTTP_ERROR`, `INVALID_JSON` of `MISSING_REQUIRED_FIELDS`) met een veilige, korte melding en de
+`HTTP_ERROR`, `INVALID_JSON`, `MISSING_REQUIRED_FIELDS` of `RATE_LIMITED`) met een veilige, korte melding en de
 geaggregeerde zoektoestand `RESULTS`, `NO_RESULTS`, `PARTIAL_AVAILABILITY` of `SOURCE_FAILURE`.
 Alleen bronnen die uiteindelijk `AVAILABLE` zijn dragen bij aan `results` en `total`. Als minstens
 één bron beschikbaar is, blijven diens resultaten zichtbaar wanneer een andere bron uitvalt; de
-frontend toont per falende bron een vaste, veilige tekst. Voor de vier Open Archieven-categorieën
+frontend toont per falende bron een vaste, veilige tekst. Voor de vijf Open Archieven-categorieën
 zijn dat respectievelijk "Open Archieven reageerde niet op tijd", "Open Archieven gaf een fout bij
 het opvragen", "Open Archieven stuurde een onleesbaar antwoord" en "Open Archieven stuurde een
-onvolledig antwoord". Voor `DISABLED` en `INVALID_RESPONSE` blijven dat respectievelijk
+onvolledig antwoord" en "Open Archieven is tijdelijk niet beschikbaar door verzoekbeperking".
+Voor `DISABLED` en `INVALID_RESPONSE` blijven dat respectievelijk
 "niet geconfigureerd" en "ongeldige bronrespons"; andere transportproblemen blijven "tijdelijk niet
 beschikbaar". Een volledig beschikbare maar lege zoekopdracht is `NO_RESULTS` en is dus geen
 bronfout.
+
+Een upstream HTTP 429 is een afzonderlijke bronstatus `RATE_LIMITED`. De adapter probeert maximaal
+één keer opnieuw wanneer `Retry-After` bruikbaar is en niet langer dan twee seconden aangeeft,
+waarbij zowel een aantal seconden als een RFC 1123-datum wordt ondersteund. Bij een ontbrekende,
+ongeldige of langere wachttijd volgt geen retry. Een geslaagde retry wordt `AVAILABLE` en mag worden
+gecachet; een niet-toegestane retry of opnieuw mislukte retry blijft `RATE_LIMITED` en wordt niet
+gecachet. De publieke route accepteert hiervoor geen nieuwe taalparameter.
 
 Elke geselecteerde bron krijgt daarnaast een compacte dekkingssamenvatting. Bij een beschikbare
 bron is `resultCount` het aantal veilig genormaliseerde resultaten van die bron in de huidige
@@ -427,7 +451,7 @@ tellingen `null`, zodat bronuitval niet als nulresultaat wordt gepresenteerd. De
 plaatswaarde en alle bestaande resultaatmetadata blijven ongewijzigd beschikbaar volgens de
 bestaande rechten- en privacyregels.
 
-Iedere externe Open Archieven-paginabevraging legt precies één operationeel logevent vast. Dit event
+Iedere daadwerkelijke Open Archieven-poging legt precies één operationeel logevent vast. Dit event
 heeft een vaste allowlist met `event=OPEN_ARCHIEVEN_SEARCH`, `source=OPEN_ARCHIEVEN`, de technische
 `outcome`, de niet-negatieve duur `durationMs`, `httpStatusClass` als klasse (`1xx` t/m `5xx`)
 wanneer een HTTP-respons beschikbaar is, en `processedResultCount` wanneer de pagina beschikbaar is.
@@ -664,9 +688,12 @@ wijzigt; en een test die aantoont dat uitsluitend `LatestNewsItem`/`NewsEntity`/
 `AggregatedNewsEntity`-velden gerenderd worden, nooit record-intake-, privacyclassificatie- of
 externe-verificatiedata.
 
-De publieke historische zoekroute is gedekt met `HistoricalSearchTest` en
-`historical_search_test.dart`. De backendtests controleren het responsveld `state`, alle vier de
-geaggregeerde toestanden, de vier nieuwe Open Archieven-bronstatussen, veilige meldingen, beschikbare-resultaten-
+De publieke historische zoekroute is gedekt met `HistoricalSearchTest`,
+`OpenArchievenProtectionTest` en `historical_search_test.dart`. `OpenArchievenProtectionTest` dekt
+cache- en single-flightgedrag, TTL/misses, cachekeyvariaties, budget- en proxy-IP-isolatie,
+upstream-429-retry en veilige statusmapping. De backendtests controleren het responsveld `state`,
+alle vier de geaggregeerde toestanden en alle Open Archieven-bronstatussen, inclusief `RATE_LIMITED`,
+veilige meldingen, beschikbare-resultaten-
 merging, uitsluitend beschikbare bijdragen aan `total`, uitval tijdens paginering en de effectieve
 offset, per-bron `resultCount`/`heemskerkCount` voor volledige, lege, gedeeltelijke en falende
 bronbeschikbaarheid, contextvelden en de vier contextstatussen. `HistoricalSearchTest` dekt daarnaast

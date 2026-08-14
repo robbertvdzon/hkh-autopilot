@@ -2,7 +2,9 @@
 
 De fase-1-baseline wordt via ArgoCD uit `deploy/overlays/openshift` naar namespace `hkh-autopilot`
 gesynchroniseerd. De set bevat de Kotlin-backend, beide Flutter-webapps en PostgreSQL 16.
-OpenShift maakt voor de drie HTTP-services automatisch TLS-routes aan.
+OpenShift maakt voor de frontend en beheerfrontend twee TLS-routes aan. De Android-release gebruikt
+de frontend-route als veilige API-ingang: de nginx-proxy stuurt `/api` en `/actuator` door naar de
+private backendservice.
 
 De productiedatabase gebruikt een 5Gi `local-path`-PVC op de SSD. Om 02:30 (Europe/Amsterdam)
 maakt `postgres-backup` een gecontroleerde custom-format dump plus SHA-256-checksum op de externe
@@ -37,6 +39,21 @@ in frontendconfiguratie, manifests, logs of API-responses.
 Google-login blijft bewust uitgeschakeld zolang zowel `HKH_GOOGLE_CLIENT_ID` als
 `HKH_ADMIN_ALLOWED_EMAILS` leeg zijn. Voor echte login moeten dezelfde Google web-client-ID in
 het clustersecret en in de GitHub Actions-variable `GOOGLE_CLIENT_ID` staan.
+
+De backend heeft geen publieke OpenShift-Route. `backend-ingress` laat alleen verkeer van de
+frontend- en adminproxy-pods toe; de proxies zetten de door de OpenShift-router aangeleverde laatste
+forwarded-hop om naar één `X-Forwarded-For`-waarde. De backend vertrouwt die header bovendien alleen
+voor directe peers binnen de expliciete proxyconfiguratie. `deploy/base/backend-config.yaml` gebruikt
+hiervoor de OpenShift-pod-CIDR `10.128.0.0/14`, waarin de proxy-pods draaien; pas deze ConfigMap aan
+als het werkelijke cluster-podnetwerk anders is. Gebruik geen algemene private-adresrange en
+vertrouw geen forwarded headers buiten deze proxycontext.
+
+De Open Archieven-zoekroute gebruikt per backendproces een tijdelijke cache (standaard 30 seconden)
+en een per-IP-verzoekbudget (burst 10, maximaal 60 pogingen per rollende minuut). De cache en het
+budget worden niet gedeeld met PostgreSQL of andere backendpods. De cacheduur kan via de runtime-
+variabele `HKH_HISTORICAL_OPEN_ARCHIEVEN_CACHE_DURATION` worden aangepast; de trusted-proxy-configuratie
+loopt via `HKH_HISTORICAL_TRUSTED_PROXY_ADDRESSES` in `backend-config.yaml`. Een wijziging van het
+cluster-podnetwerk vereist aanpassing van die ConfigMap en controle van de NetworkPolicy.
 
 ## Controleren en installeren
 

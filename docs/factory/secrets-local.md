@@ -27,6 +27,12 @@ overschrijven waarden uit het bestand; `HKH_SECRETS_FILE` kan naar een andere lo
 - `HKH_HISTORICAL_OPEN_ARCHIEVEN_BASE_URL`: optionele basis-URI voor de Open Archieven-zoekadapter,
   standaard `https://api.openarchieven.nl/1.1`; lokaal/testmatig te overschrijven met een
   fixture-/mock-endpoint.
+- `HKH_HISTORICAL_OPEN_ARCHIEVEN_CACHE_DURATION`: optionele duur van de proceslokale Open Archieven-
+  responsecache, standaard `30s`. Alleen geldige genormaliseerde antwoorden worden tijdelijk
+  gecachet; er is geen persistente cacheopslag.
+- `HKH_HISTORICAL_TRUSTED_PROXY_ADDRESSES`: optionele komma-gescheiden IP-adressen of CIDR-netwerken
+  van directe vertrouwde proxies. Alleen vanuit deze peers wordt `X-Forwarded-For` gebruikt voor het
+  per-IP Open Archieven-budget; leeg betekent dat altijd het directe connection-IP leidend is.
 
 De gebruikersfrontend gebruikt geen secret voor zijn backendadres. Geef een openbaar adres tijdens
 build/run door met `--dart-define=API_BASE_URL=https://...`; standaard is

@@ -126,7 +126,7 @@ without returning more than the requested page size. The response also contains 
 `RESULTS`, `NO_RESULTS`, `PARTIAL_AVAILABILITY` or `SOURCE_FAILURE`, plus a `sources` entry for
 each selected provider. Each source entry reports `AVAILABLE`, `DISABLED`,
 `TEMPORARILY_UNAVAILABLE` or `INVALID_RESPONSE`; Open Archieven additionally uses the diagnostic
-statuses `TIMEOUT`, `HTTP_ERROR`, `INVALID_JSON` and `MISSING_REQUIRED_FIELDS`. The route retains a
+statuses `TIMEOUT`, `HTTP_ERROR`, `INVALID_JSON`, `MISSING_REQUIRED_FIELDS` and `RATE_LIMITED`. The route retains a
 short safe message where applicable; other transport problems remain `TEMPORARILY_UNAVAILABLE`.
 Available source entries also expose nullable `resultCount` and `heemskerkCount`: the former counts
 only that source's safely normalized results on the current visible response page, while the latter
@@ -134,12 +134,13 @@ counts only results with `placeStatus == AVAILABLE` whose explicit place metadat
 after trim, Unicode-NFKC normalization, whitespace collapse and case-insensitive comparison. A
 successful empty source reports both values as `0`; an unavailable source reports both as `null`.
 The Heemskerk value is displayed as a place-metadata indication, never as historical proof. The
-four Open Archieven diagnostic statuses have fixed frontend messages: `Open Archieven reageerde
+five Open Archieven diagnostic statuses have fixed frontend messages: `Open Archieven reageerde
 niet op tijd`, `Open Archieven gaf een fout bij het opvragen`, `Open Archieven stuurde een
-onleesbaar antwoord` and `Open Archieven stuurde een onvolledig antwoord`. These messages do not
+onleesbaar antwoord`, `Open Archieven stuurde een onvolledig antwoord` and `Open Archieven is tijdelijk
+niet beschikbaar door verzoekbeperking`. These messages do not
 include provider bodies, HTTP details, exception text, stack traces or personal data.
 
-Each external Open Archieven page request also writes exactly one operational diagnostic event. The
+Each actual Open Archieven provider attempt also writes exactly one operational diagnostic event. The
 allowlist is fixed to `event=OPEN_ARCHIEVEN_SEARCH`, `source=OPEN_ARCHIEVEN`, the technical `outcome`,
 non-negative `durationMs`, `httpStatusClass` (`1xx` through `5xx`) when an HTTP response exists, and
 `processedResultCount` for an available page, including `0` for a valid empty page. The HTTP status
@@ -187,7 +188,13 @@ the route returns `SOURCE_FAILURE`, an empty result list and `total: 0`; this is
 `NO_RESULTS`, which means all selected sources were available but returned no results.
 
 Europeana is disabled independently when `HKH_EUROPEANA_WSKEY` is absent. Open Archieven uses the
-same descriptive user-agent and a process-wide limiter with at least 251 ms between requests.
+same descriptive user-agent and a process-wide limiter with at least 251 ms between requests. It
+also uses a process-local, bounded response cache with a default TTL of 30 seconds and a default
+maximum of 1,024 entries. The cache key contains the source, a SHA-256 digest of the complete
+normalized provider context, page offset, page limit and the fixed language value `nl`; raw search
+values are never retained in the key. Only valid normalized `AVAILABLE` pages are cached, and
+identical concurrent misses share one in-flight provider request. Cache hits bypass the provider
+request budget.
 Its response contract requires an object `response` with an array `docs` and a non-negative numeric
 `number_found`. The count must agree with whether the page is empty and cannot be smaller than the
 page size. A non-2xx response is `HTTP_ERROR` regardless of its body; an empty or unreadable body
@@ -196,7 +203,18 @@ is `INVALID_JSON`; malformed, missing, empty or contradictory required fields ar
 `source_name`, a safe `uuid` and an absolute HTTP(S) `original_source_url` with a valid host. A
 valid empty `docs` array with `number_found: 0` remains `AVAILABLE`. URLs are never constructed
 locally, and explicit rights/privacy checks suppress content metadata fail-closed. The route never
-stores searches, raw provider responses, media or external personal data.
+stores searches, raw provider responses, media or external personal data. Each actual Open Archieven
+attempt consumes a per-client process-local budget: a burst of at most 10 attempts and at most 60
+attempts in a rolling minute. The client identity comes from `X-Forwarded-For` only when the direct
+peer is in `HKH_HISTORICAL_TRUSTED_PROXY_ADDRESSES`; otherwise the direct connection IP is used.
+An initial budget rejection returns HTTP 429 with only `{"error":"RATE_LIMITED"}`. An automatic
+retry also consumes the same budget and, when refused, remains a safe source-level `RATE_LIMITED`
+status.
+
+An upstream HTTP 429 is a separate `RATE_LIMITED` source status. The adapter retries at most once
+when `Retry-After` is a usable delta or RFC 1123 date no more than two seconds in the future; an
+unusable or longer delay is not retried. The route has no public language parameter: the cache key
+uses the fixed language value `nl`, while the provider request keeps the existing parameter contract.
 
 For each result, `metadataRights` and `objectMediaRights` are mapped independently from explicit
 provider rights fields. The public search adapters recognize only `ALLOWED` and `RESTRICTED`; blank,

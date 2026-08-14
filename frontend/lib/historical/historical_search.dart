@@ -1224,6 +1224,8 @@ String _historicalSourceMessage(HistoricalSourceStatus source) {
     'INVALID_JSON' => 'Open Archieven stuurde een onleesbaar antwoord',
     'MISSING_REQUIRED_FIELDS' =>
       'Open Archieven stuurde een onvolledig antwoord',
+    'RATE_LIMITED' =>
+      'Open Archieven is tijdelijk niet beschikbaar door verzoekbeperking',
     _ => 'niet beschikbaar',
   };
   if (const {
@@ -1231,6 +1233,7 @@ String _historicalSourceMessage(HistoricalSourceStatus source) {
     'HTTP_ERROR',
     'INVALID_JSON',
     'MISSING_REQUIRED_FIELDS',
+    'RATE_LIMITED',
   }.contains(source.status)) {
     return '$status.';
   }

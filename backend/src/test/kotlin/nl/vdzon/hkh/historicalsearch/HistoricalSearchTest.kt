@@ -966,6 +966,54 @@ class HistoricalSearchTest {
     }
 
     @Test
+    fun `service converts an adapter exception on the first page to safe source failure`() {
+        val adapter = object : HistoricalSearchAdapter {
+            override val source = HistoricalSearchSource.OPEN_ARCHIEVEN
+
+            override fun search(query: HistoricalSearchQuery): HistoricalSearchPage {
+                error("provider payload and exception details")
+            }
+        }
+
+        val outcome = HistoricalSearchService(listOf(adapter)).search(
+            HistoricalSearchQuery(text = "kerk", source = HistoricalSearchSource.OPEN_ARCHIEVEN),
+        )
+
+        assertEquals(HistoricalSearchState.SOURCE_FAILURE, outcome.state)
+        assertEquals(HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE, outcome.sources.single().status)
+        assertEquals(0, outcome.total)
+        assertTrue(outcome.results.isEmpty())
+        assertEquals(HistoricalSourceMessages.TEMPORARILY_UNAVAILABLE, outcome.sources.single().message)
+    }
+
+    @Test
+    fun `service converts an adapter exception on a continuation page to safe source failure`() {
+        val adapter = object : HistoricalSearchAdapter {
+            override val source = HistoricalSearchSource.OPEN_ARCHIEVEN
+
+            override fun search(query: HistoricalSearchQuery): HistoricalSearchPage {
+                if (query.start > 0) error("provider payload and exception details")
+                return HistoricalSearchPage(
+                    source = source,
+                    results = (0 until 100).map { historicalResult(source, it) },
+                    total = 200,
+                    status = HistoricalTechnicalStatus.AVAILABLE,
+                )
+            }
+        }
+
+        val outcome = HistoricalSearchService(listOf(adapter)).search(
+            HistoricalSearchQuery(text = "kerk", source = HistoricalSearchSource.OPEN_ARCHIEVEN, limit = 150),
+        )
+
+        assertEquals(HistoricalSearchState.SOURCE_FAILURE, outcome.state)
+        assertEquals(HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE, outcome.sources.single().status)
+        assertEquals(0, outcome.total)
+        assertTrue(outcome.results.isEmpty())
+        assertEquals(HistoricalSourceMessages.TEMPORARILY_UNAVAILABLE, outcome.sources.single().message)
+    }
+
+    @Test
     fun `service exposes each Open Archieven failure category with a safe message`() {
         val categories = listOf(
             HistoricalTechnicalStatus.TIMEOUT to HistoricalSourceMessages.OPEN_ARCHIEVEN_TIMEOUT,

@@ -72,7 +72,9 @@ jobs:
             echo "google_client_id=" >> "$GITHUB_OUTPUT"
             echo "preview_mode=true" >> "$GITHUB_OUTPUT"
           else
-            echo "api_base_url=$PRODUCTION_API_BASE_URL" >> "$GITHUB_OUTPUT"
+            # Production web apps use their own same-origin nginx proxy. Keeping the
+            # backend Route private prevents a direct path around the proxy trust boundary.
+            echo "api_base_url=" >> "$GITHUB_OUTPUT"
             echo "google_client_id=$PRODUCTION_GOOGLE_CLIENT_ID" >> "$GITHUB_OUTPUT"
             echo "preview_mode=false" >> "$GITHUB_OUTPUT"
           fi

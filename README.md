@@ -47,7 +47,7 @@ behoudt de bestaande User-Agent, limiet, paginering en procesbrede rate limit. D
 voor Open Archieven afzonderlijk onderscheid tussen `TIMEOUT`, `HTTP_ERROR`, `INVALID_JSON` en
 `MISSING_REQUIRED_FIELDS`; de frontend toont daarvoor vaste, veilige meldingen. Andere
 transportproblemen blijven `TEMPORARILY_UNAVAILABLE`. Geen van deze foutstatussen toont een
-resultatentelling of ruwe bron- of exceptiondetails. Per externe Open Archieven-paginabevraging
+resultatentelling of ruwe bron- of exceptiondetails. Per daadwerkelijke Open Archieven-poging
 schrijft de adapter daarnaast één operationeel logevent met uitsluitend `event=OPEN_ARCHIEVEN_SEARCH`,
 `source=OPEN_ARCHIEVEN`, de technische `outcome`, niet-negatieve `durationMs`, de HTTP-statusklasse
 (`1xx` t/m `5xx`) wanneer een HTTP-respons beschikbaar is, en `processedResultCount` voor een
@@ -56,6 +56,17 @@ blijft de statusklasse leeg en bij niet-beschikbare resultaten blijft de resulta
 Zoekwaarden, namen, queryparameters, URL's, bronpayloads, identifiers, exceptiondetails en
 stacktraces komen niet in dit logevent terecht; er wordt geen zoekgeschiedenis of persistente
 loggingopslag toegevoegd.
+
+Open Archieven wordt daarnaast beschermd met een proceslokaal per-IP-verzoekbudget: maximaal 10
+directe aanvragen en maximaal 60 toegestane aanvragen per rollende minuut. Alleen een expliciet
+vertrouwde proxy mag `X-Forwarded-For` voor het gebruikers-IP aanleveren; anders gebruikt de backend
+het directe connection-IP. Een overschrijding geeft HTTP 429 met alleen de vaste foutcode
+`RATE_LIMITED`. Geldige genormaliseerde Open Archieven-pagina's worden maximaal 30 seconden in een
+begrensde procescache bewaard; gelijktijdige misses delen één externe aanvraag. Een cache-hit bewaart
+de bestaande resultaten, status-, rechten-, privacy- en bronlinkvelden. Een upstream HTTP 429 wordt
+als `RATE_LIMITED` gemapt en krijgt hoogstens één retry met een bruikbare `Retry-After` van maximaal
+twee seconden. Er wordt geen nieuwe taalparameter toegevoegd en cache, budget en single-flight zijn
+niet-persistent.
 
 De rechtenvelden van elk resultaat worden uitsluitend uit expliciete rechtenmetadata van dat
 bronresultaat bepaald. Alleen `ALLOWED` en `RESTRICTED` worden herkend; ontbrekende, lege,

@@ -13,6 +13,10 @@ Productie draait in de OpenShift-namespace `hkh-autopilot`. ArgoCD synchroniseer
 De deployment bevat de Kotlin-backend, beide Flutter-webapps en PostgreSQL 16. OpenShift verzorgt
 TLS-routes voor de HTTP-services.
 
+De publieke historische zoekroute gebruikt een proceslokaal Open Archieven-cache- en verzoekbudget.
+Dit is tijdelijke backendinstantiestate, niet gedeeld via PostgreSQL of een externe cache; zie
+`deploy/README.md` en `docs/deployment.md` voor de proxyvertrouwensgrens en runtimeconfiguratie.
+
 Er is in deze repository geen stabiele, door de factory adresseerbare PR-preview-URL of
 namespacetemplate vastgelegd; daarom blijven de previewvelden leeg. De bestaande infrastructuur kan
 wel disposable previews met een eigen databasevolume en synthetische seeddata aanmaken. Zie

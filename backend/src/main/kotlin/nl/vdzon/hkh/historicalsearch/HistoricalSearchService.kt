@@ -20,8 +20,18 @@ class HistoricalSearchService(
         val bySource = adapters.associateBy(HistoricalSearchAdapter::source)
         val cursors = selected.map { source ->
             val adapter = bySource[source]
-            val firstPage = runCatching { adapter?.search(query.copy(start = 0, limit = 100)) }.getOrNull()
-                ?: HistoricalSearchPage(
+            val firstPage = try {
+                adapter?.search(query.copy(start = 0, limit = 100))
+            } catch (exception: HistoricalSearchRequestBudgetExceededException) {
+                throw exception
+            } catch (_: Exception) {
+                HistoricalSearchPage(
+                    source = source,
+                    results = emptyList(),
+                    total = 0,
+                    status = HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE,
+                )
+            } ?: HistoricalSearchPage(
                     source = source,
                     results = emptyList(),
                     total = 0,
@@ -164,9 +174,18 @@ private class HistoricalSearchCursor(
                 exhausted = true
                 break
             }
-            val nextPage = runCatching {
+            val nextPage = try {
                 adapter?.search(query.copy(start = nextSourceStart, limit = 100))
-            }.getOrNull()
+            } catch (exception: HistoricalSearchRequestBudgetExceededException) {
+                throw exception
+            } catch (_: Exception) {
+                HistoricalSearchPage(
+                    source = initialPage.source,
+                    results = emptyList(),
+                    total = 0,
+                    status = HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE,
+                )
+            }
             if (nextPage == null || nextPage.status != HistoricalTechnicalStatus.AVAILABLE) {
                 currentStatus = nextPage?.status ?: HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE
                 currentMessage = nextPage?.message

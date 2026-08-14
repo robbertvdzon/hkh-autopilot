@@ -8,6 +8,9 @@ import java.net.SocketTimeoutException
 import java.net.http.HttpTimeoutException
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeoutException
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.util.concurrent.CompletableFuture
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -33,9 +36,26 @@ class HistoricalSearchConfiguration(
     private val openArchievenBaseUrl: String,
     @param:Value("\${hkh.historical.open-archieven-timeout:10s}")
     private val openArchievenTimeout: Duration,
+    @param:Value("\${hkh.historical.open-archieven-cache-duration:30s}")
+    private val openArchievenCacheDuration: Duration,
+    @param:Value("\${hkh.historical.trusted-proxy-addresses:}")
+    private val trustedProxyAddresses: String,
 ) {
     @Bean
     fun historicalSearchRateLimiter(): HistoricalSearchRateLimiter = FourPerSecondHistoricalRateLimiter()
+
+    @Bean
+    fun historicalSearchRequestBudget(): HistoricalSearchRequestBudget =
+        SlidingWindowHistoricalSearchRequestBudget()
+
+    @Bean
+    fun openArchievenResponseCache(): OpenArchievenResponseCache =
+        OpenArchievenResponseCache(ttl = openArchievenCacheDuration)
+
+    @Bean
+    fun historicalClientIpResolver(): HistoricalClientIpResolver = HistoricalClientIpResolver(
+        trustedProxyAddresses = trustedProxyAddresses.split(',').mapNotNull { it.trim().takeIf(String::isNotEmpty) }.toSet(),
+    )
 
     @Bean
     fun europeanaSearchAdapter(): EuropeanaSearchAdapter = EuropeanaSearchAdapter(
@@ -49,6 +69,8 @@ class HistoricalSearchConfiguration(
             restClient = openArchievenRestClient(openArchievenBaseUrl, openArchievenTimeout),
             rateLimiter = rateLimiter,
             configured = openArchievenBaseUrl.isNotBlank(),
+            requestBudget = historicalSearchRequestBudget(),
+            responseCache = openArchievenResponseCache(),
         )
 
     private fun openArchievenRestClient(baseUrl: String, timeout: Duration): RestClient {
@@ -210,41 +232,123 @@ class OpenArchievenSearchAdapter(
     private val clock: Clock = Clock.systemUTC(),
     private val objectMapper: ObjectMapper = JsonMapper.builder().build(),
     private val configured: Boolean = true,
+    private val requestBudget: HistoricalSearchRequestBudget = AllowAllHistoricalSearchRequestBudget,
+    private val responseCache: OpenArchievenResponseCache = OpenArchievenResponseCache(clock = clock),
+    private val retrySleeper: (Duration) -> Unit = { duration ->
+        if (!duration.isZero) Thread.sleep(duration.toMillis())
+    },
 ) : HistoricalSearchAdapter {
     override val source: HistoricalSearchSource = HistoricalSearchSource.OPEN_ARCHIEVEN
     private val log = LoggerFactory.getLogger(OpenArchievenSearchAdapter::class.java)
+    private val inFlight = mutableMapOf<OpenArchievenCacheKey, CompletableFuture<HistoricalSearchPage>>()
+
+    /** Exposed for contract tests; the digest is the only representation retained by the cache. */
+    fun cacheKeyFor(query: HistoricalSearchQuery): OpenArchievenCacheKey {
+        val normalized = buildString {
+            appendCacheContextValue(source.name)
+            appendCacheContextValue("nl")
+            appendCacheContextValue(cacheContextValue(query.text))
+            appendCacheContextValue(cacheContextValue(query.place))
+            appendCacheContextValue(cacheContextValue(query.person))
+            appendCacheContextValue(cacheContextValue(query.event))
+            appendCacheContextValue(query.fromYear?.toString())
+            appendCacheContextValue(query.toYear?.toString())
+            appendCacheContextValue(if (isHeemskerkSearch(query)) "hee" else null)
+        }
+        return OpenArchievenCacheKey(
+            source = source,
+            normalizedContextDigest = sha256Hex(normalized),
+            start = query.start,
+            limit = query.limit.coerceAtMost(100),
+            language = "nl",
+        )
+    }
 
     override fun search(query: HistoricalSearchQuery): HistoricalSearchPage {
+        val key = cacheKeyFor(query)
+        var leader = false
+        val future = synchronized(inFlight) {
+            responseCache.get(key)?.let { return it }
+            inFlight[key]?.let { return@synchronized it }
+            leader = true
+            CompletableFuture<HistoricalSearchPage>().also { inFlight[key] = it }
+        }
+        if (!leader) return await(future)
+
+        try {
+            val page = searchUncached(query)
+            responseCache.put(key, page)
+            future.complete(page)
+            return page
+        } catch (exception: Exception) {
+            future.completeExceptionally(exception)
+            throw exception
+        } finally {
+            synchronized(inFlight) {
+                if (inFlight[key] === future) inFlight.remove(key)
+            }
+        }
+    }
+
+    private fun searchUncached(query: HistoricalSearchQuery): HistoricalSearchPage {
         val startedAt = System.nanoTime()
         var outcome: HistoricalTechnicalStatus? = null
         var httpStatusClass: String? = null
         var processedResultCount: Int? = null
+        var actualAttempts = 0
+        var intermediateAttemptLogged = false
 
         return try {
-            val page = searchPage(query) { statusCode ->
-                httpStatusClass = statusCode.toHttpStatusClass()
-            }
+            val page = searchPage(
+                query = query,
+                onHttpStatus = { statusCode -> httpStatusClass = statusCode.toHttpStatusClass() },
+                onAttempt = { actualAttempts++ },
+                onRetryScheduled = {
+                    intermediateAttemptLogged = true
+                    logDiagnostic(
+                        outcome = HistoricalTechnicalStatus.RATE_LIMITED,
+                        durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L),
+                        httpStatusClass = "4xx",
+                        processedResultCount = null,
+                    )
+                },
+            )
             outcome = page.status
             processedResultCount = page.results.size.takeIf {
                 page.status == HistoricalTechnicalStatus.AVAILABLE
             }
             page
+        } catch (exception: HistoricalSearchRequestBudgetExceededException) {
+            throw exception
         } catch (_: Exception) {
             outcome = HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE
             unavailable(Instant.now(clock), HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE)
         } finally {
-            logDiagnostic(
-                outcome = outcome ?: HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE,
-                durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L),
-                httpStatusClass = httpStatusClass,
-                processedResultCount = processedResultCount,
-            )
+            if (!intermediateAttemptLogged || actualAttempts > 1 || actualAttempts == 0) {
+                logDiagnostic(
+                    outcome = outcome ?: HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE,
+                    durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L),
+                    httpStatusClass = httpStatusClass,
+                    processedResultCount = processedResultCount,
+                )
+            }
         }
+    }
+
+    private fun await(future: CompletableFuture<HistoricalSearchPage>): HistoricalSearchPage = try {
+        future.get()
+    } catch (exception: InterruptedException) {
+        Thread.currentThread().interrupt()
+        throw IllegalStateException("Open Archieven-aanvraag onderbroken")
+    } catch (exception: java.util.concurrent.ExecutionException) {
+        throw (exception.cause ?: exception)
     }
 
     private fun searchPage(
         query: HistoricalSearchQuery,
         onHttpStatus: (Int) -> Unit,
+        onAttempt: () -> Unit,
+        onRetryScheduled: () -> Unit,
     ): HistoricalSearchPage {
         if (!configured) {
             return HistoricalSearchPage(source, emptyList(), 0, HistoricalTechnicalStatus.DISABLED,
@@ -253,45 +357,105 @@ class OpenArchievenSearchAdapter(
         val name = buildNameQuery(query)
             ?: return HistoricalSearchPage(source, emptyList(), 0, HistoricalTechnicalStatus.INVALID_RESPONSE,
                 "Open Archieven vereist een zoekterm, persoon of gebeurtenis.")
-        rateLimiter.awaitPermit()
-        val fetchedAt = Instant.now(clock)
-        val response = try {
-            restClient.get().uri { builder ->
-                var uri = UriComponentsBuilder.fromUri(builder.build()).path("/records/search.json")
-                    .queryParam("name", name)
-                    .queryParam("number_show", query.limit.coerceAtMost(100))
-                    .queryParam("start", query.start)
-                if (isHeemskerkSearch(query)) uri = uri.queryParam("archive_code", "hee")
-                query.place?.let { uri = uri.queryParam("eventplace", it) }
-                uri.build().toUri()
-            }.headers { headers -> headers.set(HttpHeaders.USER_AGENT, USER_AGENT) }
-                .exchange { _, clientResponse ->
-                    OpenArchievenHttpResponse(
-                        statusCode = clientResponse.statusCode.value(),
-                        body = clientResponse.body.readAllBytes().toString(
-                            clientResponse.headers.contentType?.charset ?: StandardCharsets.UTF_8,
-                        ),
-                    )
+        var retry = false
+        while (true) {
+            if (!reserveAttempt(retry)) {
+                return unavailable(Instant.now(clock), HistoricalTechnicalStatus.RATE_LIMITED)
+            }
+            rateLimiter.awaitPermit()
+            val fetchedAt = Instant.now(clock)
+            onAttempt()
+            val response = try {
+                restClient.get().uri { builder ->
+                    var uri = UriComponentsBuilder.fromUri(builder.build()).path("/records/search.json")
+                        .queryParam("name", name)
+                        .queryParam("number_show", query.limit.coerceAtMost(100))
+                        .queryParam("start", query.start)
+                    if (isHeemskerkSearch(query)) uri = uri.queryParam("archive_code", "hee")
+                    query.place?.let { uri = uri.queryParam("eventplace", it) }
+                    uri.build().toUri()
+                }.headers { headers -> headers.set(HttpHeaders.USER_AGENT, USER_AGENT) }
+                    .exchange { _, clientResponse ->
+                        OpenArchievenHttpResponse(
+                            statusCode = clientResponse.statusCode.value(),
+                            body = clientResponse.body.readAllBytes().toString(
+                                clientResponse.headers.contentType?.charset ?: StandardCharsets.UTF_8,
+                            ),
+                            retryAfter = clientResponse.headers.getFirst("Retry-After"),
+                        )
+                    }
+            } catch (exception: Exception) {
+                return unavailable(fetchedAt, exception.transportStatus())
+            }
+            onHttpStatus(response.statusCode)
+            if (response.statusCode == 429) {
+                if (!retry) {
+                    retryAfter(response.retryAfter)?.let {
+                        onRetryScheduled()
+                        retrySleeper(it)
+                        retry = true
+                        continue
+                    }
                 }
-        } catch (exception: Exception) {
-            return unavailable(fetchedAt, exception.transportStatus())
+                return unavailable(fetchedAt, HistoricalTechnicalStatus.RATE_LIMITED)
+            }
+            if (response.statusCode !in 200..299) {
+                return unavailable(fetchedAt, HistoricalTechnicalStatus.HTTP_ERROR)
+            }
+            val body = response.body
+            if (body.isBlank()) return unavailable(fetchedAt, HistoricalTechnicalStatus.INVALID_JSON)
+            val root = try {
+                objectMapper.readTree(body)
+            } catch (_: Exception) {
+                return unavailable(fetchedAt, HistoricalTechnicalStatus.INVALID_JSON)
+            }
+            return try {
+                parse(root, fetchedAt)
+            } catch (_: Exception) {
+                unavailable(fetchedAt, HistoricalTechnicalStatus.MISSING_REQUIRED_FIELDS)
+            }
         }
-        onHttpStatus(response.statusCode)
-        if (response.statusCode !in 200..299) {
-            return unavailable(fetchedAt, HistoricalTechnicalStatus.HTTP_ERROR)
+    }
+
+    private fun reserveAttempt(retry: Boolean): Boolean {
+        val identity = HistoricalSearchRequestContext.current()
+        val budget = identity?.budget ?: requestBudget
+        val clientIp = identity?.clientIp ?: "unknown"
+        if (budget.tryAcquire(clientIp)) return true
+        if (retry) return false
+        throw HistoricalSearchRequestBudgetExceededException()
+    }
+
+    private fun cacheContextValue(value: String?): String = value
+        ?.let { java.text.Normalizer.normalize(it, java.text.Normalizer.Form.NFKC) }
+        ?.replace(Regex("\\s+"), " ")
+        ?.trim()
+        ?.lowercase(java.util.Locale.ROOT)
+        ?.takeIf(String::isNotEmpty)
+        ?: ""
+
+    /**
+     * Adds a length-prefixed, nullable field. The length makes separators in user input harmless,
+     * while the explicit null marker prevents null and an empty string from sharing a key.
+     */
+    private fun StringBuilder.appendCacheContextValue(value: String?) {
+        if (value == null) {
+            append("N;")
+            return
         }
-        val body = response.body
-        if (body.isBlank()) return unavailable(fetchedAt, HistoricalTechnicalStatus.INVALID_JSON)
-        val root = try {
-            objectMapper.readTree(body)
-        } catch (_: Exception) {
-            return unavailable(fetchedAt, HistoricalTechnicalStatus.INVALID_JSON)
-        }
-        return try {
-            parse(root, fetchedAt)
-        } catch (_: Exception) {
-            unavailable(fetchedAt, HistoricalTechnicalStatus.MISSING_REQUIRED_FIELDS)
-        }
+        val bytes = value.toByteArray(StandardCharsets.UTF_8)
+        append("V").append(bytes.size).append(':').append(value).append(';')
+    }
+
+    private fun retryAfter(raw: String?): Duration? {
+        val value = raw?.trim()?.takeIf(String::isNotEmpty) ?: return null
+        val seconds = value.toLongOrNull()
+        if (seconds != null) return seconds.takeIf { it in 0..2 }?.let(Duration::ofSeconds)
+        val retryAt = runCatching {
+            ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME).toInstant()
+        }.getOrNull() ?: return null
+        val duration = Duration.between(clock.instant(), retryAt)
+        return duration.takeIf { !it.isNegative && it <= Duration.ofSeconds(2) }
     }
 
     private fun logDiagnostic(
@@ -421,6 +585,7 @@ class OpenArchievenSearchAdapter(
 private data class OpenArchievenHttpResponse(
     val statusCode: Int,
     val body: String,
+    val retryAfter: String?,
 )
 
 private fun Int.toHttpStatusClass(): String? = takeIf { it in 100..599 }?.let { "${it / 100}xx" }
