@@ -152,10 +152,17 @@ Each result also exposes `placeStatus`, `personStatus` and `eventStatus` with `A
 `UNCERTAIN` or `UNAVAILABLE`. Context values are copied only from explicit provider fields;
 conflicting or unsafe values are withheld and marked accordingly. The Flutter result card offers
 `Context bekijken` for available results and shows the normalized provider source name and
-identifier when supplied. Its detail page shows the normalized source name, identifier and
-provider-supplied original URL alongside the available context and source metadata, the aggregate
-search state and the selected source status. Missing or unavailable values are rendered as
-`Niet beschikbaar`, uncertain values as `Onzeker`.
+identifier when supplied. A public card is rendered only when the normalized identifier is non-empty
+and the source URL is an absolute HTTP(S) URL; for Open Archieven the provider-supplied `source_name`,
+`uuid` and `original_source_url` must also be present and consistent with the normalized legacy
+identity. Invalid identity or URL data suppresses both the card and its source link. Its detail page
+shows the normalized source name, identifier and provider-supplied original URL alongside the
+available context and source metadata, the aggregate search state and the selected source status.
+Missing or unavailable values are rendered as `Niet beschikbaar`, uncertain values as `Onzeker`.
+When metadata rights are `ALLOWED` and privacy is `CLEAR`, the card uses a non-empty title or, when
+absent, the primary description; it does not invent content when both are absent. Rights and privacy
+statuses outside their explicit contract values render as `Onbekend`, and the external action visibly
+announces that it opens the source in a new tab.
 
 The detail page calculates at most three related results from the response's currently visible
 `results` list; it does not fetch another provider page. The opened result is excluded. A relation

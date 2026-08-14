@@ -18,3 +18,13 @@ Tester-verificatie:
 - Gerichte Flutter-run `flutter test test/hkh171_historical_result_card_test.dart test/hkh165_historical_search_smoke_contract_test.dart test/historical_search_test.dart` uitgevoerd: 30 tests, 0 failures/errors.
 - Geldige en ongeldige Open Archieven-kaarten, fail-closed metadata/statusweergave, linklabel/semantiek en behoud van nul-, deel-, fout- en retrysemantiek zijn groen.
 - Preview/E2E niet uitgevoerd: `.factory/verification.yaml` en `deployment.md` leveren geen preview-URL.
+
+Documenter-verificatie:
+- De kaartregels zijn aangevuld in `README.md`, `frontend/README.md`, `docs/development.md`,
+  `docs/factory/development.md`, `docs/factory/functional-spec.md` en
+  `docs/factory/technical-spec.md`.
+- Vastgelegd zijn de verplichte Open Archieven-identiteit voor publieke weergave, het weglaten van
+  ongeldige kaarten/links, de titel-naar-beschrijving-fallback zonder verzonnen inhoud, fail-closed
+  `Onbekend`-statussen en het zichtbare nieuw-tabblad-label.
+- Deployment-, secrets- en overige runbookdocumentatie zijn niet geraakt: deze story wijzigt alleen
+  de bestaande gebruikersfrontend en voegt geen runtimeconfiguratie of API-route toe.

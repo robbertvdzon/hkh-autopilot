@@ -27,7 +27,14 @@ route, moves focus deliberately to the existing free-text field and preserves al
 until the user edits them. Results show the source
 identifier, retrieval time, technical availability, metadata rights, object/media rights, privacy
 status and a clearly labeled external source link; source metadata is shown only when the backend
-has explicit safe rights and privacy statuses. Each selected source also shows its available result
+has explicit safe rights and privacy statuses. A card is rendered only when its stable identifier
+and absolute HTTP(S) source URL are valid. For Open Archieven, the provider-supplied `source_name`,
+`uuid` and `original_source_url` must all be non-empty and consistent with the normalized identity;
+otherwise the result has no public card or source link. When metadata rights are `ALLOWED` and
+privacy is `CLEAR`, the card uses a non-empty title, falling back to the primary description; it
+does not invent a heading when both are absent. Missing, blank, unrecognized or conflicting rights
+and privacy values are shown as `Onbekend`. The external action is keyboard-operable and visibly
+announces `Externe bron openen in nieuw tabblad`. Each selected source also shows its available result
 count for the current visible page. It shows a separate `Lokale Heemskerk-indicatie op basis van
 plaatsmetadata` only for certain, explicitly available place metadata; the indication is never
 presented as historical proof. Available empty sources show `0`, while disabled, temporarily
