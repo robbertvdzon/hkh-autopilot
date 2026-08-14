@@ -86,3 +86,16 @@ Huidige developer-run:
 - Eindcontrole groen: volledig vangnet met Maven 333 tests, frontend 72 tests en frontend-admin 36
   tests, plus beide analyzes en de frontend-webbuild; alle commando's exitcode 0 zonder failures of
   errors. De OpenShift-overlay is gerenderd en `git diff --check` is groen.
+
+Vervolgreview na de laatste developerfix:
+- De eerdere cachekey-, exception- en proxytrustbevindingen zijn gecontroleerd als opgelost. De
+  productie-overlay rendert geen backend-Route meer en de frontendproxies gebruiken same-origin
+  verkeer met de nieuwe ingressbeperking.
+- [blocker] De Android-releaseworkflow is door de deploymentfix niet aangepast: `.github/workflows/
+  build-apk.yml` bouwt de APK nog steeds met `--dart-define=API_BASE_URL=${{ vars.API_BASE_URL }}`.
+  De APK heeft geen nginx same-origin proxy, terwijl `deploy/base/backend-route.yaml` nu verwijderd
+  is. Een productie-APK kan daardoor na deze rollout de backend niet meer bereiken; de productie-
+  endpointconfiguratie van de mobiele app moet worden aangepast of er moet een passend publiek,
+  veilig API-ingangspunt blijven bestaan.
+- [suggestie] `deploy/README.md` zegt nog dat OpenShift voor drie HTTP-services TLS-routes maakt,
+  terwijl de backend-Route inmiddels bewust ontbreekt; werk deze documentatiezin bij.
