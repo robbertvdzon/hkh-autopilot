@@ -45,3 +45,15 @@
   beschadigd en wijzigt de publieke zoekrespons. Behoud statusbehoudende HTTP-
   afhandeling maar decodeer via de response-headers/message converter en voeg een
   gerichte charset-regressietest toe.
+
+## Vervolgreview
+
+- [blocker] Het nieuwste `[FACTORY VERIFICATION EVIDENCE]`-blok in `.task.md`
+  rapporteert `frontend-flutter-analyze`, `frontend-flutter-test` en
+  `frontend-flutter-build-web` als `skipped`. Daardoor ontbreekt nog steeds geldig
+  volledig vangnetbewijs; de worklogclaim dat deze commando's groen waren kan dit
+  harnessbewijs niet vervangen.
+
+- Gerichte controle: `mvn -B --no-transfer-progress -Dtest=nl.vdzon.hkh.historicalsearch.HistoricalSearchTest test`
+  geslaagd (42 tests, 0 failures/errors/skips). Dit heft het ontbrekende volledige
+  factory-bewijs niet op.
