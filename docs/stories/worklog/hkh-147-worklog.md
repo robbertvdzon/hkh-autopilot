@@ -134,3 +134,16 @@
 - Gerichte hercontrole op de actuele HEAD: `HistoricalSearchTest` geslaagd (42
   tests, 0 failures/errors/skips). De eerdere charsetbevinding blijft opgelost;
   er is door deze developer-run geen nieuwe code-regressie geïntroduceerd.
+
+## Vervolgreview laatste developer-run
+
+- Het actuele `[FACTORY VERIFICATION EVIDENCE]`-blok is geldig: `testedTreeSha`
+  `c6e9f3ef1ca72d32352bdafcaafdf780dfd240b5` is gelijk aan de boom van de
+  actuele developercommit en alle zes verplichte checks zijn `passed` met exitcode
+  0; er zijn geen skips, failures of errors.
+- De eerdere charsetbevinding is opgelost: de statusbehoudende HTTP-afhandeling
+  gebruikt de charset uit `Content-Type`, met een geslaagde ISO-8859-1-
+  regressietest.
+- Gerichte hercontrole: `HistoricalSearchTest` geslaagd (42 tests, 0 failures,
+  0 errors, 0 skips). De laatste developerwijziging bevatte alleen de factory-
+  verificatieconfiguratie en worklog; geen nieuwe regressies of blockers gevonden.
