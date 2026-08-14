@@ -13,7 +13,11 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import org.hamcrest.Matchers.containsString
+import org.slf4j.LoggerFactory
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
@@ -482,6 +486,10 @@ class HistoricalSearchTest {
         val requestFactory = JdkClientHttpRequestFactory(HttpClient.newHttpClient()).apply {
             setReadTimeout(Duration.ofMillis(50))
         }
+        val logger = LoggerFactory.getLogger(OpenArchievenSearchAdapter::class.java) as Logger
+        val appender = ListAppender<ILoggingEvent>()
+        appender.start()
+        logger.addAppender(appender)
         try {
             val result = OpenArchievenSearchAdapter(
                 RestClient.builder()
@@ -494,8 +502,124 @@ class HistoricalSearchTest {
             assertEquals(HistoricalTechnicalStatus.TIMEOUT, result.status)
             assertEquals(HistoricalSourceMessages.OPEN_ARCHIEVEN_TIMEOUT,
                 HistoricalSourceMessages.safe(result.status, result.message))
+            assertEquals(1, appender.list.size)
+            assertTrue(appender.list.single().formattedMessage.contains("outcome=TIMEOUT"))
+            assertTrue(appender.list.single().formattedMessage.contains("httpStatusClass="))
+            assertTrue(appender.list.single().formattedMessage.contains("processedResultCount="))
         } finally {
+            logger.detachAppender(appender)
             fixture.stop()
+        }
+    }
+
+    @Test
+    fun `open archieven logs one allowlisted diagnostic for a valid page`() {
+        val fixture = startFixture(
+            """
+            {"response":{"number_found":1,"docs":[
+              {"source_name":"Persoonsbron Jan Jansen","uuid":"privacy-record",
+               "original_source_url":"https://example.test/source/privacy-record",
+               "eventplace":"Heemskerk","personname":"Jan Jansen",
+               "description":"bronpayload name=Heemskerk"}
+            ]}}
+            """.trimIndent(),
+        )
+        val logger = LoggerFactory.getLogger(OpenArchievenSearchAdapter::class.java) as Logger
+        val appender = ListAppender<ILoggingEvent>()
+        appender.start()
+        logger.addAppender(appender)
+        try {
+            val result = OpenArchievenSearchAdapter(
+                RestClient.builder().baseUrl(fixture.baseUrl).build(),
+                rateLimiter = HistoricalSearchRateLimiter { },
+            ).search(HistoricalSearchQuery(text = "Heemskerk", person = "Jan Jansen"))
+
+            assertEquals(HistoricalTechnicalStatus.AVAILABLE, result.status)
+            assertEquals(1, result.results.size)
+            assertEquals(1, appender.list.size)
+            val message = appender.list.single().formattedMessage
+            assertAllowlistedDiagnostic(message)
+            assertTrue(message.contains("outcome=AVAILABLE"))
+            assertTrue(message.contains("durationMs=") && Regex("durationMs=\\d+").containsMatchIn(message))
+            assertTrue(message.contains("httpStatusClass=2xx"))
+            assertTrue(message.contains("processedResultCount=1"))
+            listOf(
+                "Heemskerk",
+                "Jan Jansen",
+                "name=Heemskerk",
+                "Persoonsbron",
+                "privacy-record",
+                "https://example.test/source/privacy-record",
+                "bronpayload",
+            ).forEach { sensitiveValue -> assertFalse(message.contains(sensitiveValue)) }
+        } finally {
+            logger.detachAppender(appender)
+            fixture.stop()
+        }
+    }
+
+    @Test
+    fun `open archieven logs zero processed results for a valid empty page`() {
+        val fixture = startFixture("{\"response\":{\"number_found\":0,\"docs\":[]}}")
+        val logger = LoggerFactory.getLogger(OpenArchievenSearchAdapter::class.java) as Logger
+        val appender = ListAppender<ILoggingEvent>()
+        appender.start()
+        logger.addAppender(appender)
+        try {
+            val result = OpenArchievenSearchAdapter(
+                RestClient.builder().baseUrl(fixture.baseUrl).build(),
+                rateLimiter = HistoricalSearchRateLimiter { },
+            ).search(HistoricalSearchQuery(text = "Heemskerk"))
+
+            assertEquals(HistoricalTechnicalStatus.AVAILABLE, result.status)
+            assertEquals(0, result.results.size)
+            assertEquals(1, appender.list.size)
+            val message = appender.list.single().formattedMessage
+            assertAllowlistedDiagnostic(message)
+            assertTrue(message.contains("outcome=AVAILABLE"))
+            assertTrue(message.contains("httpStatusClass=2xx"))
+            assertTrue(message.contains("processedResultCount=0"))
+        } finally {
+            logger.detachAppender(appender)
+            fixture.stop()
+        }
+    }
+
+    @Test
+    fun `open archieven logs each safe failure category without exception or payload details`() {
+        val cases = listOf(
+            "{\"response\":" to (HistoricalTechnicalStatus.INVALID_JSON to "2xx"),
+            "{\"response\":{}}" to (HistoricalTechnicalStatus.MISSING_REQUIRED_FIELDS to "2xx"),
+            "provider-secret Jan Jansen name=Heemskerk" to (HistoricalTechnicalStatus.HTTP_ERROR to "5xx"),
+        )
+
+        cases.forEach { (body, expected) ->
+            val responseStatus = if (expected.first == HistoricalTechnicalStatus.HTTP_ERROR) 503 else 200
+            val fixture = startFixture(body, responseStatus = responseStatus)
+            val logger = LoggerFactory.getLogger(OpenArchievenSearchAdapter::class.java) as Logger
+            val appender = ListAppender<ILoggingEvent>()
+            appender.start()
+            logger.addAppender(appender)
+            try {
+                val result = OpenArchievenSearchAdapter(
+                    RestClient.builder().baseUrl(fixture.baseUrl).build(),
+                    rateLimiter = HistoricalSearchRateLimiter { },
+                ).search(HistoricalSearchQuery(text = "Heemskerk", person = "Jan Jansen"))
+
+                assertEquals(expected.first, result.status)
+                assertEquals(1, appender.list.size)
+                val message = appender.list.single().formattedMessage
+                assertAllowlistedDiagnostic(message)
+                assertTrue(message.contains("outcome=${expected.first.name}"))
+                assertTrue(message.contains("httpStatusClass=${expected.second}"))
+                assertTrue(message.contains("processedResultCount="))
+                listOf("provider-secret", "Jan Jansen", "Heemskerk", "name=Heemskerk").forEach {
+                    assertFalse(message.contains(it))
+                }
+            } finally {
+                logger.detachAppender(appender)
+                fixture.stop()
+            }
         }
     }
 
@@ -1206,6 +1330,15 @@ class HistoricalSearchTest {
     }
 
     private fun fixedClock() = Clock.fixed(Instant.parse("2026-08-12T00:00:00Z"), ZoneOffset.UTC)
+
+    private fun assertAllowlistedDiagnostic(message: String) {
+        val fields = message.split(' ').map { it.substringBefore('=') }.toSet()
+        assertEquals(
+            setOf("event", "source", "outcome", "durationMs", "httpStatusClass", "processedResultCount"),
+            fields,
+        )
+        assertTrue(message.startsWith("event=OPEN_ARCHIEVEN_SEARCH source=OPEN_ARCHIEVEN "))
+    }
 
     private fun historicalResult(source: HistoricalSearchSource, index: Int) = HistoricalSearchResult(
         source = source,
