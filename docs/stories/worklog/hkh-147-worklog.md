@@ -108,3 +108,14 @@
 - Gerichte hercontrole: `HistoricalSearchTest` geslaagd (42 tests, 0 failures,
   0 errors, 0 skips). De response-charsetfix en de ISO-8859-1-regressietest zijn
   aanwezig en veroorzaken geen nieuwe reviewbevinding.
+
+## Vervolgreview actuele HEAD
+
+- [blocker] Het nieuwste factory-evidenceblok (issue comment 3373) rapporteert
+  voor de huidige tree `6f95db183ad7cd548d58d24fd3e746cbde3c1545` opnieuw de drie
+  frontend-checks als `skipped`. Volgens de factory-regels is het verplichte
+  volledige vangnet daarmee ongeldig; de lokale claim in het developer-worklog
+  kan dit harnessbewijs niet vervangen.
+- Gerichte hercontrole op de actuele HEAD: `HistoricalSearchTest` geslaagd (42
+  tests, 0 failures/errors/skips). De eerdere charsetbevinding blijft opgelost;
+  er is door deze developer-run geen nieuwe code-regressie geïntroduceerd.
