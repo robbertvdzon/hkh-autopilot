@@ -28,3 +28,26 @@ Done / rationale:
 - Verificatie groen: `mvn -B --no-transfer-progress clean verify` (327 tests), `flutter analyze`,
   `flutter test` (72 tests), `flutter build web`, `frontend-admin/flutter analyze` en
   `frontend-admin/flutter test` (36 tests); alle commando's exitcode 0 zonder failures/errors.
+
+Review:
+- [blocker] `OpenArchievenSearchAdapter.cacheKeyFor` bouwt de digest-input met ongescapete
+  `|`-scheidingstekens. Daardoor kunnen verschillende geldige zoekcontexten dezelfde cachekey
+  krijgen, bijvoorbeeld `text="x|place=y|person=<null>"` met lege `place` versus `text="x"` en
+  `place="y|person=<null>|place=<null>"`. De provider-aanvragen verschillen dan wel, maar de
+  tweede kan de genormaliseerde uitkomst van de eerste terugkrijgen; serialiseer veldwaarden
+  injectief vóór het hashen en voeg een regressietest toe.
+- [bug] `HistoricalSearchService` heeft de bestaande `runCatching` rond zowel de eerste als
+  vervolgpagina verwijderd en vangt nu alleen `HistoricalSearchRequestBudgetExceededException`.
+  Een andere adapter-/transportexception ontsnapt daardoor als HTTP 500 in plaats van als veilige
+  bronuitval/partiële beschikbaarheid. Behoud de expliciete propagatie van budgetoverschrijding,
+  maar herstel de bestaande veilige fallback voor overige exceptions op beide paden.
+- [blocker] De productie-deployment configureert geen `HKH_HISTORICAL_TRUSTED_PROXY_ADDRESSES`:
+  de backend krijgt alleen het bestaande `hkh-runtime`-secret, de sleutel staat niet in
+  `deploy/secrets-cluster.env.example`/het sealed secret, terwijl de frontend-nginx wel
+  `X-Forwarded-For` naar de backend doorstuurt. In de huidige route wordt dus zonder expliciete
+  trustcontext het proxy/connection-IP als gedeelde bucket gebruikt in plaats van het gebruikers-IP.
+  Voeg een deployment-veilige trustconfiguratie (passend bij de werkelijke proxy-adressen/-ranges)
+  en de bijbehorende documentatie toe, zonder forwarded headers algemeen te vertrouwen.
+- Gerichte controle: `mvn -B --no-transfer-progress -Dtest=HistoricalSearchTest,OpenArchievenProtectionTest test`
+  slaagde met 49 tests, 0 failures en 0 errors. Het harnessbewijs voor de volledige verificatieset
+  is tree-gelijk aan de actuele HEAD.
