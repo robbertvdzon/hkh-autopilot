@@ -23,3 +23,13 @@ Het volledige vangnet is groen uitgevoerd: backend Maven verify (339 tests), geb
 analyse, tests (75 tests) en webbuild, plus beheerfrontend analyse en tests (35 tests). Er zijn
 geen productbestanden gewijzigd, geen echte externe bronnen aangesproken en geen secrets of
 persoonsgegevens aan fixtures of output toegevoegd.
+
+## Review
+
+- [blocker] Acceptance criterion 9 is niet volledig afgedekt: de backend-case op
+  `Hkh165HistoricalSearchSmokeContractTest.kt:150-165` test alleen `source_name`, `uuid` en
+  `original_source_url`; een ontbrekende status met resultaatindex en veldnaam ontbreekt.
+- [blocker] De Flutter-widgetcase op `hkh165_historical_search_smoke_contract_test.dart:96-123`
+  gebruikt een fake `HistoricalSearchSource` die al een geparste `HistoricalSearchResponse`
+  teruggeeft. De losse `BackendClient`-test parseert wel de route-respons, maar voert die niet door
+  naar de pagina. Daardoor is de beweerde route-naar-pagina smoke-keten niet geverifieerd.
