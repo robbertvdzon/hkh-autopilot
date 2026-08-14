@@ -39,7 +39,15 @@ behoudt de bestaande User-Agent, limiet, paginering en procesbrede rate limit. D
 voor Open Archieven afzonderlijk onderscheid tussen `TIMEOUT`, `HTTP_ERROR`, `INVALID_JSON` en
 `MISSING_REQUIRED_FIELDS`; de frontend toont daarvoor vaste, veilige meldingen. Andere
 transportproblemen blijven `TEMPORARILY_UNAVAILABLE`. Geen van deze foutstatussen toont een
-resultatentelling of ruwe bron- of exceptiondetails.
+resultatentelling of ruwe bron- of exceptiondetails. Per externe Open Archieven-paginabevraging
+schrijft de adapter daarnaast één operationeel logevent met uitsluitend `event=OPEN_ARCHIEVEN_SEARCH`,
+`source=OPEN_ARCHIEVEN`, de technische `outcome`, niet-negatieve `durationMs`, de HTTP-statusklasse
+(`1xx` t/m `5xx`) wanneer een HTTP-respons beschikbaar is, en `processedResultCount` voor een
+beschikbaar resultaat, inclusief `0` voor een geldig nulresultaat. Bij fouten zonder HTTP-respons
+blijft de statusklasse leeg en bij niet-beschikbare resultaten blijft de resultatentelling leeg.
+Zoekwaarden, namen, queryparameters, URL's, bronpayloads, identifiers, exceptiondetails en
+stacktraces komen niet in dit logevent terecht; er wordt geen zoekgeschiedenis of persistente
+loggingopslag toegevoegd.
 
 De rechtenvelden van elk resultaat worden uitsluitend uit expliciete rechtenmetadata van dat
 bronresultaat bepaald. Alleen `ALLOWED` en `RESTRICTED` worden herkend; ontbrekende, lege,

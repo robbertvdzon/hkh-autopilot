@@ -58,7 +58,14 @@
   blijft een beschikbaar nulresultaat. Een niet-2xx antwoord is `HTTP_ERROR`, ook wanneer de body
   geldige JSON bevat; een lege of onleesbare body is `INVALID_JSON`; ontbrekende, onjuiste, lege of
   tegenstrijdige verplichte velden zijn `MISSING_REQUIRED_FIELDS`. Andere transportproblemen
-  blijven `TEMPORARILY_UNAVAILABLE`. Het
+  blijven `TEMPORARILY_UNAVAILABLE`. Per externe Open Archieven-paginabevraging schrijft de adapter
+  precies één operationeel logevent met de vaste allowlist `event=OPEN_ARCHIEVEN_SEARCH`,
+  `source=OPEN_ARCHIEVEN`, technische `outcome`, niet-negatieve `durationMs`, `httpStatusClass`
+  (`1xx` t/m `5xx`) wanneer een HTTP-respons beschikbaar is en `processedResultCount` voor een
+  beschikbare pagina, inclusief `0` voor een geldig nulresultaat. Bij fouten zonder HTTP-respons blijft
+  de statusklasse leeg en bij niet-beschikbare pagina's blijft de verwerkte-resultatentelling leeg.
+  Zoekwaarden, namen, queryparameters, URL's, bronpayloads, identifiers, exceptiontekst en stacktraces
+  worden niet gelogd; er wordt geen zoekgeschiedenis of persistente loggingopslag toegevoegd. Het
   publieke zoekresultaat mapt uitsluitend expliciete `ALLOWED` en `RESTRICTED` rechtenwaarden;
   ontbrekende, lege, niet-herkende of tegenstrijdige waarden worden `UNKNOWN` en het vrije bronveld
   `rights` bepaalt geen gecontroleerde status. Het

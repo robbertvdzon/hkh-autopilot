@@ -6,12 +6,14 @@ import java.time.Instant
 import java.time.LocalDate
 import java.net.SocketTimeoutException
 import java.net.http.HttpTimeoutException
+import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeoutException
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpHeaders
 import org.springframework.http.client.JdkClientHttpRequestFactory
+import org.slf4j.LoggerFactory
 import org.springframework.web.client.RestClientResponseException
 import org.springframework.web.client.RestClient
 import org.springframework.web.util.UriComponentsBuilder
@@ -187,14 +189,11 @@ class EuropeanaSearchAdapter(
 }
 
 private fun Exception.transportStatus(): HistoricalTechnicalStatus = when {
-    this is OpenArchievenHttpError -> HistoricalTechnicalStatus.HTTP_ERROR
     this is RestClientResponseException -> HistoricalTechnicalStatus.HTTP_ERROR
     hasCause { it is SocketTimeoutException || it is HttpTimeoutException || it is TimeoutException } ->
         HistoricalTechnicalStatus.TIMEOUT
     else -> HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE
 }
-
-private class OpenArchievenHttpError : RuntimeException()
 
 private fun Throwable.hasCause(predicate: (Throwable) -> Boolean): Boolean {
     var current: Throwable? = this
@@ -213,8 +212,40 @@ class OpenArchievenSearchAdapter(
     private val configured: Boolean = true,
 ) : HistoricalSearchAdapter {
     override val source: HistoricalSearchSource = HistoricalSearchSource.OPEN_ARCHIEVEN
+    private val log = LoggerFactory.getLogger(OpenArchievenSearchAdapter::class.java)
 
     override fun search(query: HistoricalSearchQuery): HistoricalSearchPage {
+        val startedAt = System.nanoTime()
+        var outcome: HistoricalTechnicalStatus? = null
+        var httpStatusClass: String? = null
+        var processedResultCount: Int? = null
+
+        return try {
+            val page = searchPage(query) { statusCode ->
+                httpStatusClass = statusCode.toHttpStatusClass()
+            }
+            outcome = page.status
+            processedResultCount = page.results.size.takeIf {
+                page.status == HistoricalTechnicalStatus.AVAILABLE
+            }
+            page
+        } catch (_: Exception) {
+            outcome = HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE
+            unavailable(Instant.now(clock), HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE)
+        } finally {
+            logDiagnostic(
+                outcome = outcome ?: HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE,
+                durationMs = ((System.nanoTime() - startedAt) / 1_000_000L).coerceAtLeast(0L),
+                httpStatusClass = httpStatusClass,
+                processedResultCount = processedResultCount,
+            )
+        }
+    }
+
+    private fun searchPage(
+        query: HistoricalSearchQuery,
+        onHttpStatus: (Int) -> Unit,
+    ): HistoricalSearchPage {
         if (!configured) {
             return HistoricalSearchPage(source, emptyList(), 0, HistoricalTechnicalStatus.DISABLED,
                 "Open Archieven is niet geconfigureerd.")
@@ -234,13 +265,22 @@ class OpenArchievenSearchAdapter(
                 query.place?.let { uri = uri.queryParam("eventplace", it) }
                 uri.build().toUri()
             }.headers { headers -> headers.set(HttpHeaders.USER_AGENT, USER_AGENT) }
-                .retrieve()
-                .onStatus({ !it.is2xxSuccessful }) { _, _ -> throw OpenArchievenHttpError() }
-                .body(String::class.java)
+                .exchange { _, clientResponse ->
+                    OpenArchievenHttpResponse(
+                        statusCode = clientResponse.statusCode.value(),
+                        body = clientResponse.body.readAllBytes().toString(
+                            clientResponse.headers.contentType?.charset ?: StandardCharsets.UTF_8,
+                        ),
+                    )
+                }
         } catch (exception: Exception) {
             return unavailable(fetchedAt, exception.transportStatus())
         }
-        val body = response ?: return unavailable(fetchedAt, HistoricalTechnicalStatus.INVALID_JSON)
+        onHttpStatus(response.statusCode)
+        if (response.statusCode !in 200..299) {
+            return unavailable(fetchedAt, HistoricalTechnicalStatus.HTTP_ERROR)
+        }
+        val body = response.body
         if (body.isBlank()) return unavailable(fetchedAt, HistoricalTechnicalStatus.INVALID_JSON)
         val root = try {
             objectMapper.readTree(body)
@@ -252,6 +292,21 @@ class OpenArchievenSearchAdapter(
         } catch (_: Exception) {
             unavailable(fetchedAt, HistoricalTechnicalStatus.MISSING_REQUIRED_FIELDS)
         }
+    }
+
+    private fun logDiagnostic(
+        outcome: HistoricalTechnicalStatus,
+        durationMs: Long,
+        httpStatusClass: String?,
+        processedResultCount: Int?,
+    ) {
+        log.info(
+            "event=OPEN_ARCHIEVEN_SEARCH source=OPEN_ARCHIEVEN outcome={} durationMs={} httpStatusClass={} processedResultCount={}",
+            outcome.name,
+            durationMs,
+            httpStatusClass ?: "",
+            processedResultCount?.toString() ?: "",
+        )
     }
 
     private fun isHeemskerkSearch(query: HistoricalSearchQuery): Boolean =
@@ -362,6 +417,13 @@ class OpenArchievenSearchAdapter(
         else -> HistoricalPrivacyStatus.UNKNOWN
     }
 }
+
+private data class OpenArchievenHttpResponse(
+    val statusCode: Int,
+    val body: String,
+)
+
+private fun Int.toHttpStatusClass(): String? = takeIf { it in 100..599 }?.let { "${it / 100}xx" }
 
 /** Maps only the controlled rights values supplied by the result itself. */
 private fun parseHistoricalRights(value: String?): HistoricalRightsStatus = when (value?.trim()) {
