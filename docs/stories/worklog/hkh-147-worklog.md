@@ -88,3 +88,14 @@
 - Gerichte hercontrole vanuit `backend/`: `HistoricalSearchTest` geslaagd (42
   tests, 0 failures, 0 errors, 0 skips). De eerdere charset-bevinding is opgelost
   en veroorzaakt geen nieuwe reviewbevinding.
+
+## Vervolgreview nieuwste developer-run
+
+- [blocker] Het nieuwste `[FACTORY VERIFICATION EVIDENCE]`-blok in `.task.md`
+  rapporteert opnieuw `frontend-flutter-analyze`, `frontend-flutter-test` en
+  `frontend-flutter-build-web` als `skipped`. Daarmee ontbreekt geldig volledig
+  vangnetbewijs; de developer-worklogclaim dat deze checks lokaal groen waren is
+  geen vervanging voor harness-gemeten bewijs.
+- Gerichte hercontrole: `HistoricalSearchTest` geslaagd (42 tests, 0 failures,
+  0 errors, 0 skips). De response-charsetfix en de ISO-8859-1-regressietest zijn
+  aanwezig en veroorzaken geen nieuwe reviewbevinding.
