@@ -485,6 +485,7 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
   HistoricalSourceChoice? _source;
   Future<HistoricalSearchResponse>? _search;
   _CompletedHistoricalSearch? _lastCompletedSearch;
+  _HistoricalSearchContext? _lastRequestContext;
   _CompletedHistoricalSearch? _retryPreviousSearch;
   bool _retryInProgress = false;
   static const _limit = 100;
@@ -540,6 +541,10 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
           limit: _limit,
         );
     final previousSearch = isRetry ? _lastCompletedSearch : null;
+    // Keep only the normalized request context before starting the request.
+    // This also covers a first request that fails before a completed response
+    // can be stored, without retaining a response, history, or provider data.
+    _lastRequestContext = nextContext;
     final future = widget.source.loadHistoricalSearch(
       text: nextContext.text,
       place: nextContext.place,
@@ -589,11 +594,12 @@ class _HistoricalSearchPageState extends State<HistoricalSearchPage> {
     if (_retryInProgress) return;
     _retryInProgress = true;
     final previousSearch = _lastCompletedSearch;
-    if (previousSearch == null) {
+    final previousContext = previousSearch?.context ?? _lastRequestContext;
+    if (previousContext == null) {
       _runSearch(isRetry: true);
       return;
     }
-    _runSearch(context: previousSearch.context, isRetry: true);
+    _runSearch(context: previousContext, isRetry: true);
   }
 
   @override

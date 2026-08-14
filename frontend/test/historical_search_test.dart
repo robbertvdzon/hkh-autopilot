@@ -1070,6 +1070,61 @@ void main() {
   );
 
   testWidgets(
+    'retry after an initial transport failure reuses its request context',
+    (tester) async {
+      final initialRequest = Completer<HistoricalSearchResponse>();
+      final source = _CapturingHistoricalSource([
+        initialRequest.future,
+        Future.value(_HistoricalSearchResponseFactory.empty()),
+      ]);
+      await tester.pumpWidget(
+        MaterialApp(home: HistoricalSearchPage(source: source)),
+      );
+      await tester.enterText(find.bySemanticsLabel('Vrije tekst'), 'kasteel');
+      await tester.enterText(
+        find.bySemanticsLabel('Plek (optioneel)'),
+        'Heemskerk',
+      );
+      await tester.tap(find.byKey(const Key('historical-search-submit')));
+      await tester.pump();
+
+      initialRequest.completeError(StateError('temporary transport failure'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('historical-search-retry'), skipOffstage: false),
+        findsOneWidget,
+      );
+
+      await tester.enterText(
+        find.bySemanticsLabel('Vrije tekst'),
+        'gewijzigde zoekterm',
+      );
+      final retryButton = find.byKey(
+        const Key('historical-search-retry'),
+        skipOffstage: false,
+      );
+      tester.widget<OutlinedButton>(retryButton).onPressed!.call();
+      await tester.pumpAndSettle();
+
+      expect(source.calls, hasLength(2));
+      expect(source.calls[1].text, 'kasteel');
+      expect(source.calls[1].place, 'Heemskerk');
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(
+                const Key('historical-search-text'),
+                skipOffstage: false,
+              ),
+            )
+            .controller!
+            .text,
+        'gewijzigde zoekterm',
+      );
+    },
+  );
+
+  testWidgets(
     'successful retry replaces results and source statuses completely',
     (tester) async {
       final source = _CapturingHistoricalSource([
