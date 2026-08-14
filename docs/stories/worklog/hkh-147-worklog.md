@@ -66,3 +66,15 @@
 - Gerichte controle: `mvn -B --no-transfer-progress -Dtest=nl.vdzon.hkh.historicalsearch.HistoricalSearchTest test`
   geslaagd (42 tests, 0 failures/errors/skips). Dit heft het ontbrekende volledige
   factory-bewijs niet op.
+
+## Vervolgreview actuele run
+
+- [blocker] Het nieuwste `[FACTORY VERIFICATION EVIDENCE]`-blok in `.task.md`
+  rapporteert voor de actuele tree `8d84739e12b333a6ac609f62f540a18d79f76ba9`
+  nog steeds `frontend-flutter-analyze`, `frontend-flutter-test` en
+  `frontend-flutter-build-web` als `skipped`. Volgens de factory-regels is het
+  volledige vangnet daarmee ongeldig; de developer-worklogclaim dat deze checks
+  lokaal groen waren is geen vervanging voor harness-gemeten bewijs.
+- Gerichte hercontrole vanuit `backend/`: `HistoricalSearchTest` geslaagd (42
+  tests, 0 failures, 0 errors, 0 skips). De eerdere charset-bevinding is opgelost
+  en veroorzaakt geen nieuwe reviewbevinding.
