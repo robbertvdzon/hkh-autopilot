@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hkh_app/backend/backend_client.dart';
@@ -61,9 +59,6 @@ class _Hkh165SmokeSource implements HistoricalSearchSource {
   }
 }
 
-HistoricalSearchResponse _hkh165ResponseFrom(String json) =>
-    HistoricalSearchResponse.fromJson(jsonDecode(json) as Map<String, dynamic>);
-
 void main() {
   test(
     'BackendClient parses the synthetic public route contract unchanged',
@@ -94,10 +89,17 @@ void main() {
   );
 
   testWidgets(
-    'successful Heemskerk result is visible in the existing search page',
+    'successful public route response is visible in the existing search page',
     (tester) async {
-      final source = _Hkh165SmokeSource(
-        _hkh165ResponseFrom(_hkh165ValidRouteResponse),
+      final source = BackendClient(
+        'https://synthetic.example',
+        client: MockClient((request) async {
+          expect(request.url.path, '/api/historical-search');
+          expect(request.url.queryParameters['q'], 'Heemskerk');
+          expect(request.url.queryParameters['start'], '0');
+          expect(request.url.queryParameters['limit'], '100');
+          return http.Response(_hkh165ValidRouteResponse, 200);
+        }),
       );
       await tester.pumpWidget(
         MaterialApp(home: HistoricalSearchPage(source: source)),
@@ -110,7 +112,6 @@ void main() {
       await tester.tap(find.byKey(const Key('historical-search-submit')));
       await tester.pumpAndSettle();
 
-      expect(source.calls, 1);
       await tester.ensureVisible(find.text('Synthetisch Heemskerk-resultaat'));
       expect(find.text('Synthetisch Heemskerk-resultaat'), findsOneWidget);
       expect(find.text('Bronnaam: Synthetisch Archief'), findsOneWidget);

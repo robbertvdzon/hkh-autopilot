@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import org.springframework.http.client.JdkClientHttpRequestFactory
@@ -169,6 +170,29 @@ class Hkh165HistoricalSearchSmokeContractTest {
     }
 
     @Test
+    fun `missing normalized result status is diagnosed by result index and field`() {
+        val normalizedResponseWithoutStatus = """
+            {
+              "results": [{
+                "metadataRights": "ALLOWED",
+                "source_name": "Synthetisch Archief",
+                "stable_identifier": "hee:synthetic-1",
+                "original_source_url": "https://synthetic.example/items/record-1"
+              }],
+              "sources": [{"status": "AVAILABLE"}]
+            }
+        """.trimIndent()
+
+        val failure = assertFailsWith<AssertionError> {
+            assertVisibleOpenArchievenContract(normalizedResponseWithoutStatus)
+        }
+        assertTrue(
+            failure.message.orEmpty().contains("resultaat[0] mist technicalStatus"),
+            "ontbrekende status moet resultaatindex en veldnaam benoemen",
+        )
+    }
+
+    @Test
     fun `identical concurrent route searches use one upstream attempt and one budget slot`() {
         val entered = CountDownLatch(1)
         val release = CountDownLatch(1)
@@ -273,6 +297,11 @@ class Hkh165HistoricalSearchSmokeContractTest {
             "https://synthetic.example/items/record-1",
             result.get("original_source_url")?.asString(),
             "resultaat[0] mist de brongeleverde original_source_url",
+        )
+        assertEquals(
+            "AVAILABLE",
+            result.get("technicalStatus")?.asString()?.takeIf(String::isNotBlank),
+            "resultaat[0] mist technicalStatus (beschikbare status)",
         )
         assertEquals(
             "AVAILABLE",
