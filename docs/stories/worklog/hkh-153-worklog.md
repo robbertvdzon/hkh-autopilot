@@ -44,3 +44,15 @@ Verificatie: `backend/mvn -B --no-transfer-progress clean verify` (320 tests),
 `frontend/flutter build web`, `frontend-admin/flutter analyze` en
 `frontend-admin/flutter test` (35 tests) zijn allemaal geslaagd met exitcode 0,
 zonder failures of errors.
+
+## Reviewer (vervolgreview)
+
+- Beide eerdere blockers zijn opgelost: de retryactie is tijdens `retryInProgress`
+  niet interactief zichtbaar en de retry gebruikt ook na een eerste transportfout
+  de vóór de aanvraag vastgelegde context, onafhankelijk van latere veldwijzigingen.
+- Het nieuwste `[FACTORY VERIFICATION EVIDENCE]` is geldig voor de actuele tree
+  `71f6bbda8b9d18a0d928c61cbd13856fccc76f0a`; alle verplichte backend-, frontend-
+  en adminchecks zijn groen.
+- Gerichte controle: `flutter test test/historical_search_test.dart` geslaagd met
+  24 tests; `git diff --check` is schoon.
+- Geen nieuwe regressies gevonden in de vervolgdiff of de volledige story-diff.
