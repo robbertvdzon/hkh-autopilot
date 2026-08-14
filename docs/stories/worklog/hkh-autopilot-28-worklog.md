@@ -13,3 +13,8 @@ Stappenplan:
 
 Done / rationale:
 - Story-log aangemaakt zodat plan, voortgang en uitvoering onderdeel worden van de PR.
+
+Tester-verificatie:
+- Gerichte Flutter-run `flutter test test/hkh171_historical_result_card_test.dart test/hkh165_historical_search_smoke_contract_test.dart test/historical_search_test.dart` uitgevoerd: 30 tests, 0 failures/errors.
+- Geldige en ongeldige Open Archieven-kaarten, fail-closed metadata/statusweergave, linklabel/semantiek en behoud van nul-, deel-, fout- en retrysemantiek zijn groen.
+- Preview/E2E niet uitgevoerd: `.factory/verification.yaml` en `deployment.md` leveren geen preview-URL.
