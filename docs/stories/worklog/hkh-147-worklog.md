@@ -10,6 +10,10 @@
 
 ## Uitvoering
 
+- Review-follow-up uitgevoerd op de opnieuw aangeboden branch. De drie frontend-checks
+  zijn expliciet opnieuw uitgevoerd; daarnaast is de gemelde charset-regressie in de
+  statusbehoudende Open Archieven HTTP-afhandeling hersteld met een ISO-8859-1-test.
+
 - Developer-run gestart; storycontext en factory-instructies gecontroleerd.
 - `OpenArchievenSearchAdapter` logt per aanroep één vaste allowlist met bron,
   technische uitkomst, duur, HTTP-statusklasse en veilig verwerkte resultaatcount.
@@ -22,6 +26,10 @@
 - Volledig vangnet groen: backend `mvn -B --no-transfer-progress clean verify`
   (319 tests, 0 failures/errors), frontend analyze/test/webbuild en
   frontend-admin analyze/test allemaal exitcode 0.
+- Review-follow-up: gerichte `HistoricalSearchTest` groen met 42 tests; het volledige
+  backend-vangnet groen met 320 tests, 0 failures/errors; `frontend flutter analyze`,
+  `flutter test` (68 tests) en `flutter build web` groen; `frontend-admin flutter
+  analyze` en `flutter test` (35 tests) groen. Geen van de frontend-checks was skipped.
 
 ## Review
 

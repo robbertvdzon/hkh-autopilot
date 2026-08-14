@@ -4,6 +4,8 @@ import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
 import java.net.http.HttpClient
+import java.nio.charset.Charset
+import java.nio.charset.StandardCharsets
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -323,6 +325,31 @@ class HistoricalSearchTest {
             assertEquals(HistoricalTechnicalStatus.AVAILABLE, result.status)
             assertEquals(0, result.total)
             assertTrue(result.results.isEmpty())
+        } finally {
+            fixture.stop()
+        }
+    }
+
+    @Test
+    fun `open archieven decodes response body with the provider charset`() {
+        val fixture = startFixture(
+            """
+            {"response":{"number_found":1,"docs":[
+              {"source_name":"Historisch Archief é","uuid":"charset-record",
+               "original_source_url":"https://example.test/charset-record"}
+            ]}}
+            """.trimIndent(),
+            contentType = "application/json; charset=ISO-8859-1",
+            bodyCharset = Charset.forName("ISO-8859-1"),
+        )
+        try {
+            val result = OpenArchievenSearchAdapter(
+                RestClient.builder().baseUrl(fixture.baseUrl).build(),
+                rateLimiter = HistoricalSearchRateLimiter { },
+            ).search(HistoricalSearchQuery(text = "charset"))
+
+            assertEquals(HistoricalTechnicalStatus.AVAILABLE, result.status)
+            assertEquals("Historisch Archief é", result.results.single().sourceName)
         } finally {
             fixture.stop()
         }
@@ -1356,9 +1383,15 @@ class HistoricalSearchTest {
         retrievedAt = fixedClock().instant(),
     )
 
-    private fun startFixture(body: String, responseStatus: Int = 200, delayMillis: Long = 0): Fixture {
+    private fun startFixture(
+        body: String,
+        responseStatus: Int = 200,
+        delayMillis: Long = 0,
+        contentType: String = "application/json",
+        bodyCharset: Charset = StandardCharsets.UTF_8,
+    ): Fixture {
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
-        val fixture = Fixture(server, body, responseStatus, delayMillis)
+        val fixture = Fixture(server, body, responseStatus, delayMillis, contentType, bodyCharset)
         server.createContext("/") { exchange -> fixture.respond(exchange) }
         server.start()
         return fixture
@@ -1369,6 +1402,8 @@ class HistoricalSearchTest {
         private val body: String,
         private val responseStatus: Int,
         private val delayMillis: Long,
+        private val contentType: String,
+        private val bodyCharset: Charset,
     ) {
         val baseUrl: String get() = "http://127.0.0.1:${server.address.port}"
         var lastPath: String = ""
@@ -1378,7 +1413,8 @@ class HistoricalSearchTest {
             lastPath = exchange.requestURI.toString()
             lastUserAgent = exchange.requestHeaders.getFirst("User-Agent")
             if (delayMillis > 0) Thread.sleep(delayMillis)
-            val bytes = body.toByteArray()
+            val bytes = body.toByteArray(bodyCharset)
+            exchange.responseHeaders.set("Content-Type", contentType)
             exchange.sendResponseHeaders(responseStatus, bytes.size.toLong())
             exchange.responseBody.use { it.write(bytes) }
         }

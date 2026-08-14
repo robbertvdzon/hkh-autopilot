@@ -268,7 +268,9 @@ class OpenArchievenSearchAdapter(
                 .exchange { _, clientResponse ->
                     OpenArchievenHttpResponse(
                         statusCode = clientResponse.statusCode.value(),
-                        body = clientResponse.body.readAllBytes().toString(StandardCharsets.UTF_8),
+                        body = clientResponse.body.readAllBytes().toString(
+                            clientResponse.headers.contentType?.charset ?: StandardCharsets.UTF_8,
+                        ),
                     )
                 }
         } catch (exception: Exception) {
