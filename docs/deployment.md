@@ -29,5 +29,12 @@ peerfilter en geen publieke toegangsmethode. Bij een afwijkend OpenShift-podnetw
 waarde worden aangepast; algemene private-adresranges of ongesaneerde forwarded headers mogen
 niet worden geconfigureerd.
 
+Het Open Archieven-verzoekbudget en de responsecache zijn proceslokaal en tijdelijk: ze worden niet
+gedeeld tussen backendpods en slaan geen zoekgeschiedenis of ruwe providerpayloads op. De cacheduur
+is standaard 30 seconden en kan via `HKH_HISTORICAL_OPEN_ARCHIEVEN_CACHE_DURATION` worden ingesteld.
+De per-IP-identiteit gebruikt alleen forwarded informatie vanuit de expliciet vertrouwde proxy-peers
+in `HKH_HISTORICAL_TRUSTED_PROXY_ADDRESSES`; buiten die grens blijft het directe connection-IP
+leidend.
+
 Image-tags beginnen op `main`. Na iedere componentbuild vervangt GitHub Actions uitsluitend de
 bijbehorende tag door `sha-<commit>`, commit die manifestwijziging en laat ArgoCD de rollout doen.

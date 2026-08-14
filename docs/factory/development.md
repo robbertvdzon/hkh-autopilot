@@ -45,7 +45,8 @@
   genormaliseerde Europeana/Open Archieven-resultaten, bronkeuze, queryvalidatie, cursorpaginering,
   een geaggregeerde state (`RESULTS`, `NO_RESULTS`, `PARTIAL_AVAILABILITY` of `SOURCE_FAILURE`),
   per-bronstatus (`AVAILABLE`, `DISABLED`, `TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`; voor
-  Open Archieven daarnaast `TIMEOUT`, `HTTP_ERROR`, `INVALID_JSON` of `MISSING_REQUIRED_FIELDS`),
+  Open Archieven daarnaast `TIMEOUT`, `HTTP_ERROR`, `INVALID_JSON`, `MISSING_REQUIRED_FIELDS` of
+  `RATE_LIMITED`),
   fail-closed metadata/statusmapping en zonder opslag van zoekopdrachten of bronpayloads). Het
   Open Archieven-resultaat exposeert in de publieke JSON-respons de door de bron geleverde
   `source_name`, de veilige referentie `stable_identifier` (`hee:uuid`) en
@@ -58,7 +59,7 @@
   blijft een beschikbaar nulresultaat. Een niet-2xx antwoord is `HTTP_ERROR`, ook wanneer de body
   geldige JSON bevat; een lege of onleesbare body is `INVALID_JSON`; ontbrekende, onjuiste, lege of
   tegenstrijdige verplichte velden zijn `MISSING_REQUIRED_FIELDS`. Andere transportproblemen
-  blijven `TEMPORARILY_UNAVAILABLE`. Per externe Open Archieven-paginabevraging schrijft de adapter
+  blijven `TEMPORARILY_UNAVAILABLE`. Per daadwerkelijke Open Archieven-poging schrijft de adapter
   precies één operationeel logevent met de vaste allowlist `event=OPEN_ARCHIEVEN_SEARCH`,
   `source=OPEN_ARCHIEVEN`, technische `outcome`, niet-negatieve `durationMs`, `httpStatusClass`
   (`1xx` t/m `5xx`) wanneer een HTTP-respons beschikbaar is en `processedResultCount` voor een
@@ -66,6 +67,11 @@
   de statusklasse leeg en bij niet-beschikbare pagina's blijft de verwerkte-resultatentelling leeg.
   Zoekwaarden, namen, queryparameters, URL's, bronpayloads, identifiers, exceptiontekst en stacktraces
   worden niet gelogd; er wordt geen zoekgeschiedenis of persistente loggingopslag toegevoegd. Het
+  Open Archieven-verkeer heeft daarnaast een proceslokaal budget van maximaal 10 directe aanvragen
+  en maximaal 60 aanvragen per rollende minuut per gebruikers-IP. Een vertrouwde proxycontext mag
+  `X-Forwarded-For` leveren; zonder zo'n context gebruikt de backend het directe connection-IP.
+  Een budgetoverschrijding geeft HTTP 429 met alleen `RATE_LIMITED`; een upstream-429 blijft een
+  veilige bronstatus en krijgt hoogstens één toegestane retry. Het
   publieke zoekresultaat mapt uitsluitend expliciete `ALLOWED` en `RESTRICTED` rechtenwaarden;
   ontbrekende, lege, niet-herkende of tegenstrijdige waarden worden `UNKNOWN` en het vrije bronveld
   `rights` bepaalt geen gecontroleerde status. Het

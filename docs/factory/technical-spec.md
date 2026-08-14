@@ -441,7 +441,8 @@ migratie of afhankelijkheid op nieuws, record-intake, adminfunctionaliteit of de
 privacyclassificatie.
 
 - `HistoricalSearchContract.kt` bevat de brononafhankelijke `HistoricalSearchQuery`,
-  `HistoricalSearchResult`, `HistoricalSearchPage`, bron- en statusenums en
+  `HistoricalSearchResult`, `HistoricalSearchPage`, bron- en statusenums (waaronder
+  `RATE_LIMITED`) en
   `HistoricalSearchValidation`. `HistoricalSearchResult` bevat naast de bestaande metadata ook
   `place`, `relationships` en de drie contextstatussen `placeStatus`, `personStatus` en `eventStatus`, elk
   `AVAILABLE`, `MISSING`, `UNCERTAIN` of `UNAVAILABLE`. De normalisatie trimt lege waarden weg,
@@ -456,7 +457,7 @@ privacyclassificatie.
   limit, sources, state }`. `state` is `RESULTS`, `NO_RESULTS`, `PARTIAL_AVAILABILITY` of
   `SOURCE_FAILURE`; `sources` bevat voor elke geselecteerde bron de technische status
   (`AVAILABLE`, `DISABLED`, `TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`; voor Open Archieven
-  daarnaast `TIMEOUT`, `HTTP_ERROR`, `INVALID_JSON` of `MISSING_REQUIRED_FIELDS`), een veilige
+  daarnaast `TIMEOUT`, `HTTP_ERROR`, `INVALID_JSON`, `MISSING_REQUIRED_FIELDS` of `RATE_LIMITED`), een veilige
   korte melding en nullable `resultCount`/`heemskerkCount`-velden. Voor een beschikbare bron tellen deze
   velden alleen de veilig genormaliseerde resultaten in de huidige zichtbare `results`-pagina;
   voor een niet-beschikbare bron blijven ze `null`. Elk resultaat bevat de genormaliseerde metadata,
@@ -467,7 +468,8 @@ privacyclassificatie.
   `source.name`, `target.name`, `target.uri` en `target.link` behoudt. `stableUrl` blijft de link
   naar het oorspronkelijke zoekresultaat. Voor Open Archieven bevat de response daarnaast de
   expliciete snake_case-velden `source_name`, `stable_identifier` en `original_source_url`; de
-  identifier heeft voor deze adapter de vorm `hee:uuid`.
+  identifier heeft voor deze adapter de vorm `hee:uuid`. Een nieuw inkomend verzoek dat het lokale
+  Open Archieven-budget overschrijdt geeft HTTP 429 met alleen `{ "error": "RATE_LIMITED" }`.
 - `HistoricalSearchService` kiest één bron of beide bronnen, haalt providerpagina's op met een
   maximum van 100 records, en merge't beide bronstromen via cursors. De cursor telt ook provider-
   records zonder geldige URL mee, zodat volgende pagina's geen duplicaten of gaten krijgen. Een
@@ -503,24 +505,33 @@ privacyclassificatie.
   `RESTRICTED` wordt `RESTRICTED` en alles wat ontbreekt, leeg, niet-herkend of tegenstrijdig is
   wordt `UNKNOWN`. Het vrije `rights`- of `license`-veld wordt niet voor deze mapping gebruikt.
 - `OpenArchievenSearchAdapter` schrijft in een `finally`-pad precies één operationeel logevent per
-  externe paginabevraging. De logregel heeft uitsluitend de velden `event=OPEN_ARCHIEVEN_SEARCH`,
+  daadwerkelijke providerpoging. De logregel heeft uitsluitend de velden `event=OPEN_ARCHIEVEN_SEARCH`,
   `source=OPEN_ARCHIEVEN`, `outcome`, `durationMs`, `httpStatusClass` en `processedResultCount`.
   `outcome` gebruikt dezelfde technische status als de zoekpagina (`AVAILABLE`, `TIMEOUT`,
-  `HTTP_ERROR`, `INVALID_JSON`, `MISSING_REQUIRED_FIELDS`, `DISABLED` of een andere veilige
+  `HTTP_ERROR`, `INVALID_JSON`, `MISSING_REQUIRED_FIELDS`, `RATE_LIMITED`, `DISABLED` of een andere veilige
   transportstatus). `durationMs` is niet-negatief; `httpStatusClass` is `1xx` t/m `5xx` zodra
   een HTTP-respons beschikbaar is en blijft anders leeg. `processedResultCount` bevat alleen het aantal
   veilig genormaliseerde resultaten van een beschikbare pagina en is dus `0` voor een geldig
   nulresultaat; bij iedere fout of niet-beschikbare pagina blijft het leeg. Querywaarden, namen,
   volledige queryparameters, URLs, response-body's, bronrecordgegevens, identifiers, exceptiontekst
   en stacktraces worden niet als loggerargument of fallbackinhoud gebruikt. De logging is uitsluitend
-  operationeel en voegt geen zoekgeschiedenis, gebruikersprofiel, cache of persistente opslag toe.
+  operationeel en voegt geen zoekgeschiedenis, gebruikersprofiel of persistente opslag toe.
 - De Europeana-wskey komt uit `hkh.historical.europeana-wskey` / `HKH_EUROPEANA_WSKEY`. Een lege
   waarde markeert alleen Europeana als `DISABLED`; Open Archieven blijft onafhankelijk beschikbaar.
   De providerbasis-URL's zijn overschrijfbaar via `HKH_HISTORICAL_EUROPEANA_BASE_URL` en
   `HKH_HISTORICAL_OPEN_ARCHIEVEN_BASE_URL`, zodat tests fixtures/mockservers kunnen gebruiken.
+- `OpenArchievenSearchAdapter` gebruikt bij een actieve aanvraag een proceslokaal per-IP-budget van
+  maximaal 10 directe pogingen en 60 pogingen per rollende minuut. `HKH_HISTORICAL_TRUSTED_PROXY_ADDRESSES`
+  configureert de directe proxy-peers waarvoor `X-Forwarded-For` als client-IP mag gelden; buiten die
+  context is het directe connection-IP leidend. De cacheduur is configureerbaar via
+  `HKH_HISTORICAL_OPEN_ARCHIEVEN_CACHE_DURATION` (standaard `30s`); de cache is proceslokaal en
+  begrensd op 1.024 entries. Cachekeys bevatten bron, een SHA-256-digest van de volledige
+  genormaliseerde providercontext, offset, limiet en de vaste taalwaarde `nl`, zonder vrije
+  zoekwaarden. Alleen geldige `AVAILABLE`-pagina's worden gecachet en gelijktijdige identieke
+  cachemisses delen één in-flight aanvraag. Een cache-hit verbruikt geen nieuw providerbudget.
 - `FourPerSecondHistoricalRateLimiter` is één Spring-bean die alle Open Archieven-aanvragen deelt en
   minimaal 251 ms tussen permits afdwingt. De limiet is procesbreed, niet per eindgebruikers-IP of
-  per host. Er is geen cache en geen opslag van zoektermen, responses, media of persoonsgegevens.
+  per host. Er is geen persistente opslag van zoektermen, responses, media of persoonsgegevens.
 - De adapters vereisen een expliciete resultaatarray (`items` voor Europeana, `docs` voor Open
   Archieven). Voor Open Archieven zijn bovendien een object `response`, een niet-negatieve
   numerieke `number_found` en per document de verplichte velden `source_name`, veilige `uuid` en
