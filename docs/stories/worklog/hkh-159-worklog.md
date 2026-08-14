@@ -111,3 +111,14 @@ Nieuwe developer-run:
 - Volledig vangnet: Maven 334 tests, frontend 72 tests en frontend-admin 36 tests, plus beide
   analyzes en `flutter build web`; alles slaagde met exitcode 0. De OpenShift-overlay renderde
   succesvol en `git diff --check` is groen.
+
+Review huidige ronde:
+- De laatste Android/deploymentfix is gecontroleerd tegen de volledige `main...HEAD`-diff. De APK
+  gebruikt nu dezelfde publieke frontend-route als de deployment (`build-apk.yml`), en de twee
+  frontend-nginx-proxies blijven `/api` en `/actuator` naar de private backendservice doorsturen.
+- De eerdere bevindingen over cachekey-serialisatie, exceptionfallbacks, proxytrust en de publieke
+  backend-Route zijn opnieuw gecontroleerd als opgelost; de nieuwste developer-evidence is
+  revisiongebonden aan de actuele HEAD-tree `d6d29ad2818c40dc108a0df9d5ad11910734b2d9`.
+- Gerichte controle: `mvn -B --no-transfer-progress
+  -Dtest=OpenArchievenProtectionTest,HistoricalSearchTest,DeploymentTrustBoundaryTest test`
+  slaagde met 56 tests, 0 failures en 0 errors.
