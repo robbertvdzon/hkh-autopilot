@@ -75,3 +75,14 @@ Vervolgreview:
 - De eerdere cachekey- en exceptionbevindingen zijn gecontroleerd als opgelost. Het gerichte backend-
   controlevangnet slaagde opnieuw met 52 tests; `git diff --check` en de OpenShift-kustomize-render
   slaagden eveneens.
+
+Huidige developer-run:
+- Het backend-Route-manifest is uit de gedeployde base verwijderd; de webclients gebruiken
+  same-origin proxying zodat verkeer niet om de frontend/adminproxy heen kan.
+- `backend-ingress` beperkt backendverkeer tot de frontend- en adminproxy-pods. Beide nginx-configs
+  zetten de door de OpenShift-router aangeleverde laatste forwarded-hop om naar één waarde voordat
+  die naar de backend gaat.
+- Documentatie en de productie-buildconfiguratie zijn hiermee in overeenstemming gebracht.
+- Eindcontrole groen: volledig vangnet met Maven 333 tests, frontend 72 tests en frontend-admin 36
+  tests, plus beide analyzes en de frontend-webbuild; alle commando's exitcode 0 zonder failures of
+  errors. De OpenShift-overlay is gerenderd en `git diff --check` is groen.

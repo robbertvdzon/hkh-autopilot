@@ -38,11 +38,13 @@ Google-login blijft bewust uitgeschakeld zolang zowel `HKH_GOOGLE_CLIENT_ID` als
 `HKH_ADMIN_ALLOWED_EMAILS` leeg zijn. Voor echte login moeten dezelfde Google web-client-ID in
 het clustersecret en in de GitHub Actions-variable `GOOGLE_CLIENT_ID` staan.
 
-De backend vertrouwt `X-Forwarded-For` alleen wanneer de directe peer binnen de expliciete
-productie-proxyconfiguratie valt. `deploy/base/backend-config.yaml` gebruikt hiervoor de
-OpenShift-pod-CIDR `10.128.0.0/14`, waarin de frontend-nginx draait; pas deze ConfigMap aan als de
-werkelijke cluster-pod-CIDR anders is. Gebruik geen algemene private-adresrange en vertrouw geen
-forwarded headers buiten deze expliciete proxycontext.
+De backend heeft geen publieke OpenShift-Route. `backend-ingress` laat alleen verkeer van de
+frontend- en adminproxy-pods toe; de proxies zetten de door de OpenShift-router aangeleverde laatste
+forwarded-hop om naar één `X-Forwarded-For`-waarde. De backend vertrouwt die header bovendien alleen
+voor directe peers binnen de expliciete proxyconfiguratie. `deploy/base/backend-config.yaml` gebruikt
+hiervoor de OpenShift-pod-CIDR `10.128.0.0/14`, waarin de proxy-pods draaien; pas deze ConfigMap aan
+als het werkelijke cluster-podnetwerk anders is. Gebruik geen algemene private-adresrange en
+vertrouw geen forwarded headers buiten deze proxycontext.
 
 ## Controleren en installeren
 

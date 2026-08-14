@@ -31,17 +31,6 @@ patches:
     name: hkh-runtime
     version: v1alpha1
 - patch: |-
-    $patch: delete
-    apiVersion: route.openshift.io/v1
-    kind: Route
-    metadata:
-      name: backend
-  target:
-    group: route.openshift.io
-    kind: Route
-    name: backend
-    version: v1
-- patch: |-
     - op: replace
       path: /spec/host
       value: hkh-autopilot-acceptance.vdzonsoftware.nl
