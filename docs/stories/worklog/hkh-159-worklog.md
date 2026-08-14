@@ -64,3 +64,14 @@ Review:
   slaagde met 52 tests, 0 failures en 0 errors. Het volledige vangnet slaagde daarna met 330
   backendtests, 72 frontendtests en 36 frontend-admin-tests, naast de drie analyse/buildstappen,
   allemaal exitcode 0.
+
+Vervolgreview:
+- [blocker] De nieuwe `HKH_HISTORICAL_TRUSTED_PROXY_ADDRESSES=10.128.0.0/14` vertrouwt het volledige
+  OpenShift-podnetwerk, niet uitsluitend de frontend-proxy. De publieke `backend`-Route blijft
+  bestaan en OpenShift-router-/andere pod-peers vallen daardoor binnen dezelfde trust-range; een
+  aangeleverde `X-Forwarded-For` kan de budgetbucket alsnog naar een gekozen IP verplaatsen.
+  Beperk de trustcontext tot de werkelijke proxy-peers of sluit de directe backend-Route af en
+  zorg dat de proxy de forwarded-header overschrijft/sanitiseert.
+- De eerdere cachekey- en exceptionbevindingen zijn gecontroleerd als opgelost. Het gerichte backend-
+  controlevangnet slaagde opnieuw met 52 tests; `git diff --check` en de OpenShift-kustomize-render
+  slaagden eveneens.
