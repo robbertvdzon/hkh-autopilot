@@ -2,6 +2,7 @@ package nl.vdzon.hkh.historicalsearch.api
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.Instant
+import jakarta.servlet.http.HttpServletRequest
 import nl.vdzon.hkh.historicalsearch.HistoricalPrivacyStatus
 import nl.vdzon.hkh.historicalsearch.HistoricalRightsStatus
 import nl.vdzon.hkh.historicalsearch.HistoricalSearchOutcome
@@ -10,6 +11,12 @@ import nl.vdzon.hkh.historicalsearch.HistoricalSearchService
 import nl.vdzon.hkh.historicalsearch.HistoricalSearchValidation
 import nl.vdzon.hkh.historicalsearch.HistoricalTechnicalStatus
 import nl.vdzon.hkh.historicalsearch.HistoricalSearchSource
+import nl.vdzon.hkh.historicalsearch.HistoricalClientIpResolver
+import nl.vdzon.hkh.historicalsearch.HistoricalSearchRequestBudget
+import nl.vdzon.hkh.historicalsearch.AllowAllHistoricalSearchRequestBudget
+import nl.vdzon.hkh.historicalsearch.HistoricalSearchRequestBudgetExceededException
+import nl.vdzon.hkh.historicalsearch.HistoricalSearchRequestContext
+import nl.vdzon.hkh.historicalsearch.HistoricalSearchRequestIdentity
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
@@ -82,7 +89,11 @@ data class HistoricalSearchErrorResponse(val error: String)
 
 @RestController
 @RequestMapping("/api/historical-search")
-class HistoricalSearchController(private val service: HistoricalSearchService) {
+class HistoricalSearchController(
+    private val service: HistoricalSearchService,
+    private val requestBudget: HistoricalSearchRequestBudget = AllowAllHistoricalSearchRequestBudget,
+    private val clientIpResolver: HistoricalClientIpResolver = HistoricalClientIpResolver(),
+) {
     @GetMapping
     fun search(
         @RequestParam(required = false) q: String?,
@@ -94,11 +105,19 @@ class HistoricalSearchController(private val service: HistoricalSearchService) {
         @RequestParam(required = false) source: String?,
         @RequestParam(defaultValue = "0") start: Int,
         @RequestParam(defaultValue = "100") limit: Int,
+        request: HttpServletRequest,
     ): ResponseEntity<Any> {
         val query = runCatching {
             HistoricalSearchValidation.normalize(q, place, person, event, fromYear, toYear, source, start, limit)
         }.getOrElse { return ResponseEntity.badRequest().body(HistoricalSearchErrorResponse(it.message ?: "Ongeldige zoekopdracht.")) }
-        return ResponseEntity.ok(service.search(query).toResponse())
+        return try {
+            val identity = HistoricalSearchRequestIdentity(clientIpResolver.resolve(request), requestBudget)
+            HistoricalSearchRequestContext.withIdentity(identity) {
+                ResponseEntity.ok(service.search(query).toResponse())
+            }
+        } catch (_: HistoricalSearchRequestBudgetExceededException) {
+            ResponseEntity.status(429).body(HistoricalSearchErrorResponse("RATE_LIMITED"))
+        }
     }
 }
 

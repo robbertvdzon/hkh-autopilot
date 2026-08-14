@@ -401,6 +401,8 @@ String _historicalSourceStatus(String status) => switch (status) {
   'HTTP_ERROR' => 'Open Archieven gaf een fout bij het opvragen',
   'INVALID_JSON' => 'Open Archieven stuurde een onleesbaar antwoord',
   'MISSING_REQUIRED_FIELDS' => 'Open Archieven stuurde een onvolledig antwoord',
+  'RATE_LIMITED' =>
+    'Open Archieven is tijdelijk niet beschikbaar door verzoekbeperking',
   _ => 'Onbekend',
 };
 

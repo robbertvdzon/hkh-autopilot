@@ -19,6 +19,7 @@ enum class HistoricalTechnicalStatus {
     HTTP_ERROR,
     INVALID_JSON,
     MISSING_REQUIRED_FIELDS,
+    RATE_LIMITED,
 }
 
 enum class HistoricalRightsStatus {
@@ -166,6 +167,7 @@ object HistoricalSourceMessages {
     const val OPEN_ARCHIEVEN_HTTP_ERROR = "Open Archieven gaf een fout bij het opvragen."
     const val OPEN_ARCHIEVEN_INVALID_JSON = "Open Archieven stuurde een onleesbaar antwoord."
     const val OPEN_ARCHIEVEN_MISSING_REQUIRED_FIELDS = "Open Archieven stuurde een onvolledig antwoord."
+    const val OPEN_ARCHIEVEN_RATE_LIMITED = "Open Archieven is tijdelijk niet beschikbaar door verzoekbeperking."
 
     private val knownSafeMessages = setOf(
         "Europeana vereist een vrije zoekterm, persoon, plek of gebeurtenis.",
@@ -189,6 +191,7 @@ object HistoricalSourceMessages {
         HistoricalTechnicalStatus.HTTP_ERROR -> OPEN_ARCHIEVEN_HTTP_ERROR
         HistoricalTechnicalStatus.INVALID_JSON -> OPEN_ARCHIEVEN_INVALID_JSON
         HistoricalTechnicalStatus.MISSING_REQUIRED_FIELDS -> OPEN_ARCHIEVEN_MISSING_REQUIRED_FIELDS
+        HistoricalTechnicalStatus.RATE_LIMITED -> OPEN_ARCHIEVEN_RATE_LIMITED
     }
 }
 
@@ -206,6 +209,43 @@ interface HistoricalSearchAdapter {
     val source: HistoricalSearchSource
 
     fun search(query: HistoricalSearchQuery): HistoricalSearchPage
+}
+
+/** A process-local budget for actual Open Archieven attempts. */
+fun interface HistoricalSearchRequestBudget {
+    fun tryAcquire(clientIp: String): Boolean
+}
+
+object AllowAllHistoricalSearchRequestBudget : HistoricalSearchRequestBudget {
+    override fun tryAcquire(clientIp: String): Boolean = true
+}
+
+/** Raised only for the first attempt of a new incoming request, so the controller can return 429. */
+class HistoricalSearchRequestBudgetExceededException : RuntimeException()
+
+/**
+ * Request-local identity. It is deliberately not persisted and is only read by the Open Archieven
+ * adapter immediately before an external attempt.
+ */
+data class HistoricalSearchRequestIdentity(
+    val clientIp: String,
+    val budget: HistoricalSearchRequestBudget,
+)
+
+object HistoricalSearchRequestContext {
+    private val current = ThreadLocal<HistoricalSearchRequestIdentity?>()
+
+    fun <T> withIdentity(identity: HistoricalSearchRequestIdentity, block: () -> T): T {
+        val previous = current.get()
+        current.set(identity)
+        return try {
+            block()
+        } finally {
+            if (previous == null) current.remove() else current.set(previous)
+        }
+    }
+
+    fun current(): HistoricalSearchRequestIdentity? = current.get()
 }
 
 object HistoricalSearchValidation {
