@@ -244,17 +244,17 @@ class OpenArchievenSearchAdapter(
 
     /** Exposed for contract tests; the digest is the only representation retained by the cache. */
     fun cacheKeyFor(query: HistoricalSearchQuery): OpenArchievenCacheKey {
-        val normalized = listOf(
-            "source=${source.name}",
-            "language=nl",
-            "text=${cacheContextValue(query.text)}",
-            "place=${cacheContextValue(query.place)}",
-            "person=${cacheContextValue(query.person)}",
-            "event=${cacheContextValue(query.event)}",
-            "fromYear=${query.fromYear ?: "<null>"}",
-            "toYear=${query.toYear ?: "<null>"}",
-            "archive_code=${if (isHeemskerkSearch(query)) "hee" else "<none>"}",
-        ).joinToString("|")
+        val normalized = buildString {
+            appendCacheContextValue(source.name)
+            appendCacheContextValue("nl")
+            appendCacheContextValue(cacheContextValue(query.text))
+            appendCacheContextValue(cacheContextValue(query.place))
+            appendCacheContextValue(cacheContextValue(query.person))
+            appendCacheContextValue(cacheContextValue(query.event))
+            appendCacheContextValue(query.fromYear?.toString())
+            appendCacheContextValue(query.toYear?.toString())
+            appendCacheContextValue(if (isHeemskerkSearch(query)) "hee" else null)
+        }
         return OpenArchievenCacheKey(
             source = source,
             normalizedContextDigest = sha256Hex(normalized),
@@ -432,7 +432,20 @@ class OpenArchievenSearchAdapter(
         ?.trim()
         ?.lowercase(java.util.Locale.ROOT)
         ?.takeIf(String::isNotEmpty)
-        ?: "<null>"
+        ?: ""
+
+    /**
+     * Adds a length-prefixed, nullable field. The length makes separators in user input harmless,
+     * while the explicit null marker prevents null and an empty string from sharing a key.
+     */
+    private fun StringBuilder.appendCacheContextValue(value: String?) {
+        if (value == null) {
+            append("N;")
+            return
+        }
+        val bytes = value.toByteArray(StandardCharsets.UTF_8)
+        append("V").append(bytes.size).append(':').append(value).append(';')
+    }
 
     private fun retryAfter(raw: String?): Duration? {
         val value = raw?.trim()?.takeIf(String::isNotEmpty) ?: return null

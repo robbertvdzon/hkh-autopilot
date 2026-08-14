@@ -24,6 +24,13 @@ class HistoricalSearchService(
                 adapter?.search(query.copy(start = 0, limit = 100))
             } catch (exception: HistoricalSearchRequestBudgetExceededException) {
                 throw exception
+            } catch (_: Exception) {
+                HistoricalSearchPage(
+                    source = source,
+                    results = emptyList(),
+                    total = 0,
+                    status = HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE,
+                )
             } ?: HistoricalSearchPage(
                     source = source,
                     results = emptyList(),
@@ -171,6 +178,13 @@ private class HistoricalSearchCursor(
                 adapter?.search(query.copy(start = nextSourceStart, limit = 100))
             } catch (exception: HistoricalSearchRequestBudgetExceededException) {
                 throw exception
+            } catch (_: Exception) {
+                HistoricalSearchPage(
+                    source = initialPage.source,
+                    results = emptyList(),
+                    total = 0,
+                    status = HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE,
+                )
             }
             if (nextPage == null || nextPage.status != HistoricalTechnicalStatus.AVAILABLE) {
                 currentStatus = nextPage?.status ?: HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE

@@ -20,5 +20,11 @@ Voor de publieke historische zoekroute moet `HKH_EUROPEANA_WSKEY` server-side in
 worden gezet om Europeana te activeren. Zonder die waarde blijft de route beschikbaar met Open
 Archieven als bron; de wskey wordt niet naar de frontend of API-responses doorgegeven.
 
+De publieke frontend-proxy geeft `X-Forwarded-For` door aan de backend. De backend gebruikt die header
+alleen voor directe peers binnen de expliciete productie-proxy-CIDR in
+`deploy/base/backend-config.yaml` (`10.128.0.0/14`). Deze waarde moet bij een afwijkende
+OpenShift-podnetwork worden aangepast; een algemene private-adresrange of onbetrouwde forwarded
+headers mag niet worden geconfigureerd.
+
 Image-tags beginnen op `main`. Na iedere componentbuild vervangt GitHub Actions uitsluitend de
 bijbehorende tag door `sha-<commit>`, commit die manifestwijziging en laat ArgoCD de rollout doen.

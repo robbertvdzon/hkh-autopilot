@@ -77,10 +77,10 @@ class HistoricalClientIpResolver(
     trustedProxyAddresses: Set<String> = emptySet(),
     private val forwardedHeaderName: String = "X-Forwarded-For",
 ) {
-    private val trusted = trustedProxyAddresses.mapNotNull(::normalizeIp).toSet()
+    private val trusted = trustedProxyAddresses.mapNotNull(::parseTrustedNetwork)
 
     fun resolve(request: HttpServletRequest): String =
-        if (normalizeIp(request.remoteAddr) in trusted) {
+        if (normalizeAddress(request.remoteAddr)?.let { address -> trusted.any { it.contains(address) } } == true) {
             forwardedClientIp(request.getHeader(forwardedHeaderName)) ?: directIp(request.remoteAddr)
         } else {
             directIp(request.remoteAddr)
@@ -104,12 +104,46 @@ class HistoricalClientIpResolver(
         return normalizeIp(withoutPort)
     }
 
-    private fun normalizeIp(value: String?): String? {
+    private data class TrustedNetwork(
+        val address: InetAddress,
+        val prefixLength: Int,
+    ) {
+        fun contains(candidate: InetAddress): Boolean {
+            val networkBytes = address.address
+            val candidateBytes = candidate.address
+            if (networkBytes.size != candidateBytes.size) return false
+            val completeBytes = prefixLength / 8
+            if (!networkBytes.copyOf(completeBytes).contentEquals(candidateBytes.copyOf(completeBytes))) return false
+            val remainingBits = prefixLength % 8
+            if (remainingBits == 0) return true
+            val mask = (0xff shl (8 - remainingBits)) and 0xff
+            return (networkBytes[completeBytes].toInt() and mask) ==
+                (candidateBytes[completeBytes].toInt() and mask)
+        }
+    }
+
+    private fun parseTrustedNetwork(raw: String): TrustedNetwork? {
+        val value = raw.trim()
+        if (value.isEmpty()) return null
+        val slash = value.indexOf('/')
+        val addressText = if (slash >= 0) value.substring(0, slash) else value
+        val address = normalizeAddress(addressText) ?: return null
+        val prefixLength = if (slash >= 0) {
+            value.substring(slash + 1).toIntOrNull()?.takeIf { it in 0..address.address.size * 8 } ?: return null
+        } else {
+            address.address.size * 8
+        }
+        return TrustedNetwork(address, prefixLength)
+    }
+
+    private fun normalizeIp(value: String?): String? = normalizeAddress(value)?.hostAddress?.lowercase(Locale.ROOT)
+
+    private fun normalizeAddress(value: String?): InetAddress? {
         val candidate = value?.trim()?.removePrefix("[")?.removeSuffix("]") ?: return null
         if (candidate.isEmpty() || candidate.any { it == '/' || it == '%' } ||
             !(candidate.all { it.isDigit() || it in ".:" || it in 'a'..'f' || it in 'A'..'F' })
         ) return null
-        return runCatching { InetAddress.getByName(candidate).hostAddress.lowercase(Locale.ROOT) }.getOrNull()
+        return runCatching { InetAddress.getByName(candidate) }.getOrNull()
     }
 }
 

@@ -95,6 +95,9 @@ class OpenArchievenProtectionTest {
         assertNotEquals(first, adapter.cacheKeyFor(HistoricalSearchQuery(text = "Jan de Vries", start = 1, limit = 20)))
         assertNotEquals(first, adapter.cacheKeyFor(HistoricalSearchQuery(text = "Jan de Vries", place = "Beverwijk", limit = 20)))
         assertNotEquals(first, adapter.cacheKeyFor(HistoricalSearchQuery(text = "Jan de Vries", place = "Heemskerk", limit = 21)))
+        val separatorInText = adapter.cacheKeyFor(HistoricalSearchQuery(text = "a|place=b"))
+        val separatorInPlace = adapter.cacheKeyFor(HistoricalSearchQuery(text = "a", place = "b|place=<null>"))
+        assertNotEquals(separatorInText, separatorInPlace)
         assertEquals("nl", first.language)
         assertTrue(first.isPrivacySafe())
         assertFalse(first.toString().contains("Jan", ignoreCase = true))
@@ -130,6 +133,22 @@ class OpenArchievenProtectionTest {
         }
         assertEquals("198.51.100.10", resolver.resolve(trusted))
         assertEquals("198.51.100.20", resolver.resolve(untrusted))
+    }
+
+    @Test
+    fun `forwarded IP is trusted for an explicitly configured proxy CIDR only`() {
+        val resolver = HistoricalClientIpResolver(setOf("10.128.0.0/14"))
+        val trusted = MockHttpServletRequest().apply {
+            remoteAddr = "10.129.1.2"
+            addHeader("X-Forwarded-For", "198.51.100.10")
+        }
+        val outsideRange = MockHttpServletRequest().apply {
+            remoteAddr = "10.132.0.1"
+            addHeader("X-Forwarded-For", "198.51.100.10")
+        }
+
+        assertEquals("198.51.100.10", resolver.resolve(trusted))
+        assertEquals("10.132.0.1", resolver.resolve(outsideRange))
     }
 
     @Test

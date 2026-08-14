@@ -22,6 +22,8 @@ spec:
           envFrom:
             - secretRef:
                 name: hkh-runtime
+            - configMapRef:
+                name: hkh-backend-config
           env:
             - name: JAVA_TOOL_OPTIONS
               value: -XX:MaxRAMPercentage=70.0

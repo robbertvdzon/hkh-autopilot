@@ -5,6 +5,7 @@ resources:
   - database-persistence.yaml
   - database-statefulset.yaml
   - backend-deployment.yaml
+  - backend-config.yaml
   - backend-service.yaml
   - backend-route.yaml
   - frontend-deployment.yaml
