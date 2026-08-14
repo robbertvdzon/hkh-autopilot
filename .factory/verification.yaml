@@ -18,6 +18,7 @@ commands:
   - id: frontend-flutter-analyze
     pathPrefixes:
       - frontend/
+      - docs/stories/worklog/
       - .factory/verification.yaml
       - .github/workflows/verify.yml
     argv: [flutter, analyze]
@@ -26,6 +27,7 @@ commands:
   - id: frontend-flutter-test
     pathPrefixes:
       - frontend/
+      - docs/stories/worklog/
       - .factory/verification.yaml
       - .github/workflows/verify.yml
     argv: [flutter, test]
@@ -34,6 +36,7 @@ commands:
   - id: frontend-flutter-build-web
     pathPrefixes:
       - frontend/
+      - docs/stories/worklog/
       - .factory/verification.yaml
       - .github/workflows/verify.yml
     argv: [flutter, build, web]

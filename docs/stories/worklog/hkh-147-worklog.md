@@ -10,6 +10,21 @@
 
 ## Uitvoering
 
+- Developer-run 2026-08-14 gestart na reviewafwijzing. De bestaande
+  Open Archieven-allowlistlogging, charsetfix en privacytests zijn opnieuw
+  gecontroleerd. Omdat de story geen frontendcode wijzigt, zijn de drie
+  gebruikersfrontend-commando's in `.factory/verification.yaml` aanvullend
+  gekoppeld aan `docs/stories/worklog/`, naar het bestaande patroon voor het
+  adminfrontend, zodat het verplichte vangnet na deze run niet als `skipped`
+  wordt geregistreerd.
+- Gerichte `HistoricalSearchTest` geslaagd met 42 tests, 0 failures, 0 errors
+  en 0 skips.
+- Volledig vangnet geslaagd: backend `mvn -B --no-transfer-progress clean verify`
+  met 320 tests; `frontend` `flutter analyze`, `flutter test` met 68 tests en
+  `flutter build web`; `frontend-admin` `flutter analyze` en `flutter test` met
+  35 tests. Alle zes commando's eindigden met exitcode 0, zonder failures,
+  errors of skips.
+
 - Actuele developer-run uitgevoerd op de bestaande implementatie na de eerdere
   reviewafwijzing. De gerichte `HistoricalSearchTest`-run slaagde met 42 tests;
   de response-charsetfix en privacy-allowlisttests zijn aanwezig en groen.
