@@ -83,6 +83,16 @@ flutter build web --dart-define=API_BASE_URL=https://test.example
 
 The web build is written to `build/web/`. `API_BASE_URL` is configuration, not a secret.
 
+The repeatable public-chain smoke contract is in
+`test/hkh165_historical_search_smoke_contract_test.dart`. It uses a synthetic route response and
+the existing `HistoricalSearchPage` to verify a valid Open Archieven result plus the distinct zero,
+partial-availability and complete-source-failure states. It does not call a real provider and is
+included automatically by `flutter test`; run it directly with:
+
+```bash
+flutter test test/hkh165_historical_search_smoke_contract_test.dart
+```
+
 ## Accessible homepage statuses
 
 The service and latest-news flows expose one polite `SemanticsRole.status` node for each current

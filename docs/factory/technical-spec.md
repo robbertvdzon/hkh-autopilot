@@ -532,6 +532,12 @@ privacyclassificatie.
 - `FourPerSecondHistoricalRateLimiter` is één Spring-bean die alle Open Archieven-aanvragen deelt en
   minimaal 251 ms tussen permits afdwingt. De limiet is procesbreed, niet per eindgebruikers-IP of
   per host. Er is geen persistente opslag van zoektermen, responses, media of persoonsgegevens.
+- De story-brede smoke-contracttest
+  `Hkh165HistoricalSearchSmokeContractTest` gebruikt een lokale `HttpServer` met minimale
+  synthetische fixtures en bouwt de publieke route met dezelfde adapters, cache en request-budget-
+  componenten op. Zij controleert de geldige Heemskerk-mapping, nulresultaat, gedeeltelijke en
+  volledige bronuitval, uitgeschakelde Europeana, veldgerichte foutdiagnose en één upstream-aanvraag
+  voor identieke gelijktijdige zoekcontexten. De test draait automatisch onder Maven `verify`.
 - De adapters vereisen een expliciete resultaatarray (`items` voor Europeana, `docs` voor Open
   Archieven). Voor Open Archieven zijn bovendien een object `response`, een niet-negatieve
   numerieke `number_found` en per document de verplichte velden `source_name`, veilige `uuid` en
@@ -633,6 +639,12 @@ nieuwe poging. `_retryInProgress` verhindert een tweede aanvraag. Een respons me
 `SOURCE_FAILURE` of een transportfout blijft de vorige geldige uitkomst beschikbaar en worden de
 nieuwe bronstatus of vaste transportfout afzonderlijk weergegeven. Zonder eerdere resultaten valt
 de weergave terug op de bestaande volledige-bronuitvalstaat met retry- en aanpasacties.
+
+De aanvullende Flutter-smoke-contracttest
+`frontend/test/hkh165_historical_search_smoke_contract_test.dart` voert een synthetische respons
+door `BackendClient` en `HistoricalSearchPage`. Zij controleert de zichtbaarheid van een geldig
+Open Archieven-resultaat en het onderscheid tussen nulresultaat, gedeeltelijke beschikbaarheid en
+volledige bronuitval; `flutter test` neemt de test automatisch mee.
 
 ## Publieke recorddetailpagina (gebruikersfrontend)
 

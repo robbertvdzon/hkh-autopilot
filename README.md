@@ -128,4 +128,15 @@ Het volledige repositoryvangnet, gelijk aan `.factory/verification.yaml`, is:
 (cd frontend-admin && flutter test)
 ```
 
+De reproduceerbare smoke-contractset voor de publieke Heemskerk-zoekketen draait automatisch mee
+met deze pipeline. De gerichte backendtest is `Hkh165HistoricalSearchSmokeContractTest`; de
+Flutter-tegenhanger staat in
+[`frontend/test/hkh165_historical_search_smoke_contract_test.dart`](frontend/test/hkh165_historical_search_smoke_contract_test.dart).
+Beide gebruiken uitsluitend synthetische fixtures en lokale mocks; gericht uitvoeren kan met:
+
+```bash
+(cd backend && mvn -B --no-transfer-progress -Dtest=Hkh165HistoricalSearchSmokeContractTest test)
+(cd frontend && flutter test test/hkh165_historical_search_smoke_contract_test.dart)
+```
+
 Echte secrets, lokale overrides, buildoutput en IDE-bestanden worden niet gecommit.

@@ -216,6 +216,29 @@ when `Retry-After` is a usable delta or RFC 1123 date no more than two seconds i
 unusable or longer delay is not retried. The route has no public language parameter: the cache key
 uses the fixed language value `nl`, while the provider request keeps the existing parameter contract.
 
+### Reproducible smoke contract
+
+The public Heemskerk search chain has a story-level smoke contract in
+`backend/src/test/kotlin/nl/vdzon/hkh/historicalsearch/Hkh165HistoricalSearchSmokeContractTest.kt`
+and `frontend/test/hkh165_historical_search_smoke_contract_test.dart`. The backend test exercises
+the public `GET /api/historical-search` route against a local `HttpServer`; the Flutter test passes
+the same kind of synthetic public-route response through `BackendClient` and the existing
+`HistoricalSearchPage`.
+
+The contract covers a valid Open Archieven result with provider-supplied identity and permanent
+URL, a valid empty response, partial and complete source failure, Europeana disabled without a
+key, field-specific fail-closed assertions, and concurrent identical requests sharing one
+upstream attempt and budget slot. Fixtures contain only synthetic values. No real provider,
+account, token, database data or browser automation is required, and the normal Maven/Flutter
+pipeline picks these tests up automatically.
+
+Run the focused checks with:
+
+```bash
+mvn -B --no-transfer-progress -f backend/pom.xml -Dtest=Hkh165HistoricalSearchSmokeContractTest test
+cd frontend && flutter test test/hkh165_historical_search_smoke_contract_test.dart
+```
+
 For each result, `metadataRights` and `objectMediaRights` are mapped independently from explicit
 provider rights fields. The public search adapters recognize only `ALLOWED` and `RESTRICTED`; blank,
 missing, unrecognized or contradictory values become `UNKNOWN`. The free-text `rights`/`license`
