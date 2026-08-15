@@ -533,6 +533,38 @@ Vervolgacties zijn semantische buttons met zichtbare focus; terugnavigatie gaat 
 detailweergave en daarna naar de oorspronkelijke resultatenlijst. De uitbreiding introduceert geen
 opslag van zoekopdrachten, bronpayloads, media of klikgeschiedenis.
 
+## Historische bronstatus in beheer (beheerfrontend)
+
+De beveiligde beheerfrontend heeft naast nieuws- en recordintakebeheer een aparte zoekweergave voor
+het bestaande genormaliseerde historische zoekresultaatcontract. De weergave gebruikt
+`GET /api/admin/historical-search` met dezelfde zoekparameters als de publieke route en hergebruikt
+de bestaande admin-authenticatie. De publieke zoekroute, bronkeuze, paginering, deelresultaten,
+foutstatussen en retrygedrag veranderen hierdoor niet; deze beheerroute is geen nieuwe
+publicatieroute.
+
+Per resultaat toont de beheerder alleen veilige, door de bron geleverde identiteit: bronnaam,
+stabiele identifier en permanente bronlink wanneer die aanwezig, geldig en consistent zijn met de
+genormaliseerde bronvelden. De API bevat daarnaast de technische bronstatus; de weergave toont
+afzonderlijk bronverificatie, metadatarechten, privacy, publieke vrijgave en object-/mediarechten.
+Elke status heeft een leesbare toelichting. De statussen zijn `CONFIRMED` (bevestigd), `UNKNOWN`
+(onbekend), `REJECTED` (afgewezen) en `NOT_APPLICABLE` (niet van toepassing).
+
+De beoordeling is serverzijdig en deterministisch. Bronverificatie is `CONFIRMED` alleen bij een
+beschikbare bron met veilige en onderling consistente bronnaam, identifier en bronlink;
+ongeldige/tegenstrijdige identiteitsmetadata is `REJECTED`, ontbrekende of technisch niet
+vaststelbare informatie is `UNKNOWN`. Metadatarechten en privacy volgen uitsluitend de bestaande
+expliciete statusvelden: `ALLOWED`/`CLEAR` bevestigt, `RESTRICTED`/`BLOCKED` wijst af en ontbrekende
+of onbekende waarden blijven onbekend. Object-/mediarechten blijven een afzonderlijke beoordeling.
+Publieke vrijgave is alleen `CONFIRMED` wanneer bronverificatie, metadatarechten, privacy en beide
+veilige identiteitsvelden bevestigd zijn; onbekend, afgewezen of ontbrekend blokkeert de vrijgave.
+`NOT_APPLICABLE` geeft nooit toestemming.
+
+Ruwe providerpayloads, titels, zoekgeschiedenis, extra persoonsgegevens en niet-expliciete relaties
+of rechtenclaims worden niet in dit admincontract opgenomen. Status, blokkade en reden zijn tekstueel
+beschikbaar in de Flutter-semantiekboom; statuskleuren zijn aanvullend en voldoen aan minimaal
+4,5:1 contrast. De beheerweergave ondersteunt laden, fouten, lege resultaten en resultaten met een
+live tekstuele telling.
+
 ## Publieke recorddetailpagina en externe bronverificatie
 
 Naast de bestaande beheerfrontend heeft de gebruikersfrontend nu een publieke recorddetailpagina
