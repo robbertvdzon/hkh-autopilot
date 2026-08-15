@@ -970,10 +970,9 @@ class _HistoricalResults extends StatelessWidget {
         ? ''
         : ' Nieuwe bronfout: ${_sourceMessagesLabel(retryFailureSources.map(_historicalSourceMessage).toList(growable: false))}';
     final fullStatusLabel = '$statusLabel$retryLabel$retryFailureLabel';
-    final interpretationLabels = response.sources
-        .where((source) => source.source == 'OPEN_ARCHIEVEN')
-        .map(_historicalSourceInterpretation)
-        .toList(growable: false);
+    final interpretationLabels = _historicalInterpretationLabels(
+      response.sources,
+    );
     final accessibleStatusLabel =
         '$fullStatusLabel'
         '${interpretationLabels.isEmpty ? '' : ' ${interpretationLabels.join(' ')}'}';
@@ -1247,10 +1246,7 @@ class _HistoricalError extends StatelessWidget {
         .where((source) => source.status != 'AVAILABLE')
         .map(_historicalSourceMessage)
         .toList(growable: false);
-    final interpretationLabels = sources
-        .where((source) => source.source == 'OPEN_ARCHIEVEN')
-        .map(_historicalSourceInterpretation)
-        .toList(growable: false);
+    final interpretationLabels = _historicalInterpretationLabels(sources);
     final label = retryInProgress
         ? 'Historische zoekresultaten worden geladen.'
         : 'Geen historische bronnen konden worden geraadpleegd.${_sourceMessagesLabel(sourceMessages)}'
@@ -1279,11 +1275,7 @@ class _HistoricalError extends StatelessWidget {
                 'Geen historische bronnen konden worden geraadpleegd.',
               ),
               ...sourceMessages.map(Text.new),
-              ...sources
-                  .where((source) => source.source == 'OPEN_ARCHIEVEN')
-                  .map(
-                    (source) => Text(_historicalSourceInterpretation(source)),
-                  ),
+              ...interpretationLabels.map(Text.new),
             ],
           ),
         ),
@@ -1409,6 +1401,20 @@ String _historicalSourceInterpretation(HistoricalSourceStatus source) {
     return 'Zoekinterpretatie: niet beschikbaar.';
   }
   return 'Zoekinterpretatie: ${semantics.join(', ')}.';
+}
+
+List<String> _historicalInterpretationLabels(
+  Iterable<HistoricalSourceStatus> sources,
+) {
+  final openArchievenSources = sources
+      .where((source) => source.source == 'OPEN_ARCHIEVEN')
+      .toList(growable: false);
+  if (openArchievenSources.isEmpty) {
+    return const ['Zoekinterpretatie: niet beschikbaar.'];
+  }
+  return openArchievenSources
+      .map(_historicalSourceInterpretation)
+      .toList(growable: false);
 }
 
 String _sourceMessagesLabel(List<String> messages) =>

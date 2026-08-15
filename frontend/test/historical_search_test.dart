@@ -301,6 +301,48 @@ void main() {
     },
   );
 
+  testWidgets(
+    'shows a neutral interpretation for an explicit Europeana request',
+    (tester) async {
+      final source = _CapturingHistoricalSource([
+        Future.value(
+          const HistoricalSearchResponse(
+            results: [],
+            total: 0,
+            start: 0,
+            limit: 100,
+            state: 'NO_RESULTS',
+            sources: [
+              HistoricalSourceStatus(source: 'EUROPEANA', status: 'AVAILABLE'),
+            ],
+          ),
+        ),
+      ]);
+      await tester.pumpWidget(
+        MaterialApp(home: HistoricalSearchPage(source: source)),
+      );
+
+      await tester.tap(
+        find.byType(DropdownButtonFormField<HistoricalSourceChoice>),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Europeana').last);
+      await tester.enterText(
+        find.byKey(const Key('historical-search-text')),
+        'Heemskerk',
+      );
+      await tester.tap(find.byKey(const Key('historical-search-submit')));
+      await tester.pumpAndSettle();
+
+      expect(source.calls.single.source, HistoricalSourceChoice.europeana);
+      expect(
+        find.text('Zoekinterpretatie: niet beschikbaar.', skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Heemskerk (plaats)'), findsNothing);
+    },
+  );
+
   testWidgets('shows fixed safe Open Archieven messages for each new status', (
     tester,
   ) async {
