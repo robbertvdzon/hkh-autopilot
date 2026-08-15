@@ -57,6 +57,15 @@ Zoekwaarden, namen, queryparameters, URL's, bronpayloads, identifiers, exception
 stacktraces komen niet in dit logevent terecht; er wordt geen zoekgeschiedenis of persistente
 loggingopslag toegevoegd.
 
+De bronstatus van een werkelijk uitgevoerde Open Archieven-aanvraag bevat daarnaast nullable
+`querySemantics`: uitsluitend de semantische providerparameters die het adapterverzoek werkelijk
+bevatte, zoals `name` of `eventplace`. Technische parameters zoals `archive_code`, paginering en
+rate limiting worden hierin niet opgenomen. De gebruikersfrontend toont per Open Archieven-bron
+deze waarden als `Zoekinterpretatie: naam (name).` of `Zoekinterpretatie: plaats (eventplace).`;
+als Open Archieven niet is bevraagd of de semantiek niet betrouwbaar bekend is, toont zij
+`Zoekinterpretatie: niet beschikbaar.`. De interpretatie wordt nooit afgeleid uit de zoekterm,
+resultaatmetadata, titel, URL of een andere bron.
+
 Open Archieven wordt daarnaast beschermd met een proceslokaal per-IP-verzoekbudget: maximaal 10
 directe aanvragen en maximaal 60 toegestane aanvragen per rollende minuut. Alleen een expliciet
 vertrouwde proxy mag `X-Forwarded-For` voor het gebruikers-IP aanleveren; anders gebruikt de backend

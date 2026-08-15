@@ -39,6 +39,13 @@ count for the current visible page. It shows a separate `Lokale Heemskerk-indica
 plaatsmetadata` only for certain, explicitly available place metadata; the indication is never
 presented as historical proof. Available empty sources show `0`, while disabled, temporarily
 unavailable or invalid sources show no numeric count. Available result cards also offer `Context bekijken`.
+Each source status also carries nullable `querySemantics` for Open Archieven: the semantic provider
+parameters actually present in the adapter request, such as `name` or `eventplace`. Technical
+parameters such as `archive_code`, pagination and rate limiting are excluded. The page renders
+these values per source as `Zoekinterpretatie: naam (name).` or `Zoekinterpretatie: plaats
+(eventplace).`; when Open Archieven was not queried or the semantics are unknown, it renders the
+neutral text `Zoekinterpretatie: niet beschikbaar.`. The interpretation is never inferred from the
+search term, result metadata, title or URL.
 The retry action is also available for partial availability when at least one selected source has
 failed, and for retryable transport errors or `SOURCE_FAILURE`. Before each retryable request the
 page keeps one normalized snapshot of the request context (all search filters, source choice,
@@ -106,7 +113,9 @@ The service and latest-news flows expose one polite `SemanticsRole.status` node 
 state. The historical search route uses the same single status node for loading, results, no
 results, partial availability and complete source failure. Its labels include safe source messages,
 the available-source count for the current visible page and the explicitly labeled Heemskerk
-place-metadata indication where applicable. Their labels are:
+place-metadata indication where applicable. They also include the per-source query interpretation or
+the neutral `Zoekinterpretatie: niet beschikbaar.` text; this remains textually available and is not
+communicated through color or icon alone. Their labels are:
 
 - service: `De historische omgeving wordt voorbereid.`, `De HKH-service is niet bereikbaar.` and
   `Service beschikbaar.`;

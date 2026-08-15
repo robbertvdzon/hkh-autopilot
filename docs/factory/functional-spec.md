@@ -407,6 +407,16 @@ antwoord is `HTTP_ERROR`, onafhankelijk van de HTTP-body, en een lege of niet al
 respons is `INVALID_JSON`. Een lege `docs`-lijst met `number_found: 0` is juist `AVAILABLE` met
 `NO_RESULTS` wanneer alle bronnen leeg zijn.
 
+Elke bronstatus kan nullable `querySemantics` bevatten. Voor Open Archieven is dit uitsluitend de
+lijst semantische providerparameters die het adapterverzoek werkelijk bevatte, bijvoorbeeld `name`
+of `eventplace`; `archive_code`, paginering, rate limiting en andere technische parameters tellen
+niet mee. De waarde wordt per bron doorgegeven en wordt niet afgeleid uit de zoekterm, titel, URL,
+resultaatmetadata of een algemene aanname over Heemskerk. Wanneer Open Archieven niet is bevraagd
+of de gebruikte semantiek niet betrouwbaar kan worden vastgesteld, is de waarde onbekend en toont
+de gebruikersroute de vaste neutrale tekst `Zoekinterpretatie: niet beschikbaar.`. Herkende velden
+worden tekstueel getoond als Nederlandse label plus providerparameter, zoals `naam (name)` en
+`plaats (eventplace)`.
+
 Naast de procesbrede egresslimiet geldt voor Open Archieven een proceslokaal verzoekbudget per
 gebruikers-IP: maximaal 10 directe pogingen als burst en maximaal 60 toegestane pogingen per
 rollende minuut. Automatische retries tellen mee als pogingen. Het gebruikers-IP wordt alleen uit
@@ -501,6 +511,13 @@ genormaliseerde bronnaam en bronhouder, identifier, oorspronkelijke bron-URL, se
 privacystatus. Ontbrekende of onbeschikbare context wordt als `Niet beschikbaar` getoond; onzekere
 of tegenstrijdige context als `Onzeker`. De detailweergave herhaalt de geaggregeerde zoekstatus en
 de status van de bron van het geopende resultaat.
+
+Naast de bronstatus toont de resultatenweergave per bron de werkelijk gebruikte Open Archieven-
+querysemantiek. Alleen semantische providerparameters uit `querySemantics` worden benoemd, met een
+herkenbaar Nederlands label en de providerparameter, bijvoorbeeld `naam (name)` of `plaats
+(eventplace)`. Technische parameters en informatie uit de zoekterm, resultaten, titel of URL worden
+niet als interpretatie getoond. Bij een andere bron, een niet-uitgevoerde Open Archieven-aanvraag of
+onbetrouwbaar vastgestelde semantiek verschijnt de vaste tekst `Zoekinterpretatie: niet beschikbaar.`.
 
 Wanneer het resultaat een of meer volledige relaties uit de expliciete brondata bevat, toont de
 detailweergave daarnaast de afzonderlijke sectie `Bronvastgelegde relatie`. Iedere kaart toont het
@@ -738,6 +755,10 @@ veilige meldingen, beschikbare-resultaten-
 merging, uitsluitend beschikbare bijdragen aan `total`, uitval tijdens paginering en de effectieve
 offset, per-bron `resultCount`/`heemskerkCount` voor volledige, lege, gedeeltelijke en falende
 bronbeschikbaarheid, contextvelden en de vier contextstatussen. `HistoricalSearchTest` dekt daarnaast
+de doorgegeven `querySemantics` en controleert dat alleen daadwerkelijk gebruikte Open Archieven-
+providerparameters worden opgenomen, zonder technische parameters of zoekwaarden. De frontendtest
+legt naam-, plaats- en neutrale interpretaties vast en controleert dat de zichtbare tekst overeenkomt
+met de uitgaande semantiek; een expliciete Europeana-keuze toont de neutrale tekst.
 de één-event-allowlist, de afwezigheid van zoektermen, persoonsnamen, queryparameters, bronpayloads,
 identifiers en foutdetails in de applicatieloguitvoer, expliciete plaatsmetadata, ontbrekende/onzekere
 context, exacte genormaliseerde relaties, periode-overlap zonder

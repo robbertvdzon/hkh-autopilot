@@ -134,6 +134,15 @@ counts only results with `placeStatus == AVAILABLE` whose explicit place metadat
 after trim, Unicode-NFKC normalization, whitespace collapse and case-insensitive comparison. A
 successful empty source reports both values as `0`; an unavailable source reports both as `null`.
 The Heemskerk value is displayed as a place-metadata indication, never as historical proof. The
+same source entry exposes nullable `querySemantics` for Open Archieven, containing only the
+semantic provider parameters actually present in the adapter request, for example `name` and
+`eventplace`. Technical parameters such as `archive_code`, pagination and rate limiting are not
+included. The field is carried per source through both normalized API responses; it is `null` when
+Open Archieven was not queried or the request semantics cannot be established reliably. The user
+frontend renders recognized values with Dutch labels and provider parameters, such as
+`Zoekinterpretatie: naam (name).` and `Zoekinterpretatie: plaats (eventplace).`, and otherwise
+renders `Zoekinterpretatie: niet beschikbaar.`. No interpretation is inferred from the search term,
+result metadata, title or URL.
 five Open Archieven diagnostic statuses have fixed frontend messages: `Open Archieven reageerde
 niet op tijd`, `Open Archieven gaf een fout bij het opvragen`, `Open Archieven stuurde een
 onleesbaar antwoord`, `Open Archieven stuurde een onvolledig antwoord` and `Open Archieven is tijdelijk

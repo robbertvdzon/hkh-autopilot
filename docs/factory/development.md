@@ -52,6 +52,14 @@
   `source_name`, de veilige referentie `stable_identifier` (`hee:uuid`) en
   `original_source_url`; voor een Heemskerk-zoekopdracht worden `name=Heemskerk` en
   `archive_code=hee` afzonderlijk meegestuurd. De bronlink wordt nooit lokaal geconstrueerd.
+  Per bron bevat de genormaliseerde response nullable `querySemantics` met uitsluitend de
+  semantische providerparameters die het Open Archieven-adapterverzoek werkelijk gebruikte, zoals
+  `name` en `eventplace`. Technische parameters zoals `archive_code`, paginering en rate limiting
+  worden uitgesloten. Als Open Archieven niet is bevraagd of de semantiek niet betrouwbaar kan
+  worden vastgesteld, blijft dit veld `null`; de frontend toont dan
+  `Zoekinterpretatie: niet beschikbaar.`. Herkende waarden worden per bron tekstueel getoond met
+  Nederlandse labels en de providerparameter, bijvoorbeeld `naam (name)` of `plaats (eventplace)`;
+  er wordt niets afgeleid uit zoekterm, metadata, titel of URL.
   Een Open Archieven-respons is alleen geldig met een object `response`, een array `docs`, een
   niet-negatieve numerieke `number_found` en verplichte, niet-lege `source_name`, `uuid` en
   absolute HTTP(S)-`original_source_url` per document; ontbrekende, lege, onveilige of
@@ -123,6 +131,10 @@
   zichtbaar, wordt dubbele activatie geblokkeerd en vervangt een geldige retry de vorige uitkomst
   volledig. Een transportfout of `SOURCE_FAILURE` behoudt geldige deelresultaten en meldt de nieuwe
   fout afzonderlijk, zonder ruwe payloads, exceptionteksten of zoekgeschiedenis in client-state.
+  De zoekweergave toont daarnaast per bron de werkelijk gebruikte Open Archieven-semantiek via
+  `querySemantics`; zonder Open Archieven-aanvraag of zonder betrouwbare semantiek verschijnt de
+  vaste neutrale tekst `Zoekinterpretatie: niet beschikbaar.`. Technische providerparameters worden
+  niet als inhoudelijke interpretatie gepresenteerd.
   Alle zoekstatussen gebruiken één `SemanticsRole.status`-node en de zichtbare laadindicator is
   semantisch uitgesloten. `lib/historical/historical_context_detail.dart` bevat de contextdetailweergave, de aparte
   sectie `Bronvastgelegde relatie` voor providerclaims en de begrensde afgeleide relatiebepaling;
