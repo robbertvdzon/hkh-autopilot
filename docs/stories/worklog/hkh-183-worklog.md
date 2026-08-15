@@ -17,3 +17,7 @@ Done / rationale:
 - `querySemantics` is nullable per bron en loopt via backendpagina, service, publieke/adminbronstatus en Flutter-parser naar de zoekweergave. De UI gebruikt vaste Nederlandse labels met de providerparameter en toont anders `Zoekinterpretatie: niet beschikbaar.`.
 - Tests dekken naam-, plaats- en neutrale interpretatie en controleren zowel uitgaande filters als zichtbare tekst.
 - Vangnet groen: backend `mvn -B --no-transfer-progress clean verify` (356 tests), frontend `flutter analyze`, `flutter test` (82 tests), `flutter build web`, frontend-admin `flutter analyze` en `flutter test` (38 tests).
+
+Review:
+- [blocker] Bij een expliciete Europeana-bron bevat de API alleen de Europeana-status. De frontend bouwt de interpretatie uitsluitend uit `response.sources` met `source == 'OPEN_ARCHIEVEN'` (`frontend/lib/historical/historical_search.dart:973-976` en `:1250-1253`). Daardoor wordt bij een zoekopdracht waarvoor geen Open Archieven-verzoek is uitgevoerd geen `Zoekinterpretatie: niet beschikbaar.` getoond, terwijl de story dat expliciet vereist. Reproductie: kies `Europeana`, voer een geldige zoekopdracht uit, en controleer dat er geen neutrale interpretatiemelding verschijnt; toon ook in dit pad de vaste neutrale melding zonder naam-/plaatsclaim.
+- Gerichte checks: backend `HistoricalSearchTest` (46 tests) en frontend `historical_search_test.dart` (26 tests) groen.
