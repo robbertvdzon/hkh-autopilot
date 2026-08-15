@@ -75,6 +75,28 @@ class HistoricalAdminStatusContractTest {
     }
 
     @Test
+    fun `stable identifier that contradicts source record id is rejected and withheld`() {
+        val result = completeResult().copy(stableIdentifier = "hee:record-2")
+
+        val status = HistoricalAdminStatusContract.evaluate(result)
+
+        assertEquals(HistoricalAdminStatus.REJECTED, status.sourceVerification.status)
+        assertEquals(HistoricalAdminStatus.REJECTED, status.publicRelease.status)
+        assertEquals(null, HistoricalAdminStatusContract.safeStableIdentifier(result))
+    }
+
+    @Test
+    fun `original source url that contradicts stable url is rejected and withheld`() {
+        val result = completeResult().copy(originalSourceUrl = "https://source.example/record-2")
+
+        val status = HistoricalAdminStatusContract.evaluate(result)
+
+        assertEquals(HistoricalAdminStatus.REJECTED, status.sourceVerification.status)
+        assertEquals(HistoricalAdminStatus.REJECTED, status.publicRelease.status)
+        assertEquals(null, HistoricalAdminStatusContract.safeOriginalSourceUrl(result))
+    }
+
+    @Test
     fun `object media rights stay separate and do not grant release`() {
         val status = HistoricalAdminStatusContract.evaluate(
             completeResult().copy(objectMediaRights = HistoricalRightsStatus.RESTRICTED),
@@ -95,8 +117,8 @@ class HistoricalAdminStatusContractTest {
 
     private fun completeResult() = HistoricalSearchResult(
         source = HistoricalSearchSource.OPEN_ARCHIEVEN,
-        sourceRecordId = "internal-source-id-must-not-be-used-as-fallback",
-        stableUrl = "https://source.example/legacy-link",
+        sourceRecordId = "hee:record-1",
+        stableUrl = "https://source.example/record-1",
         title = "Historische titel",
         description = "Historische beschrijving",
         place = null,

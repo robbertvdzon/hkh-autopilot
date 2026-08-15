@@ -10,6 +10,7 @@ Stappenplan:
 [x]: implement requested changes
 [x]: run relevant tests
 [x]: update story-log with results
+[x]: resolve review blocker on contradictory provider identity metadata
 
 Done / rationale:
 - Factory-instructies, taakcontext en technische ontwikkelrichtlijnen gelezen.
@@ -17,18 +18,22 @@ Done / rationale:
 - Het serverzijdige admin-statuscontract, de auth-afgeschermde historische adminroute en de
   Flutter-beheerweergave zijn toegevoegd. Alleen brongeleverde, veilige identiteit wordt teruggegeven;
   statussen en leesbare redenen worden deterministisch uit het bestaande contract afgeleid.
-- Gerichte backendtests (10 tests) en Flutter-admin tests (3 tests) zijn groen uitgevoerd.
+- Gerichte backendtests (14 tests) en de bestaande Flutter-admin tests (3 tests) zijn groen uitgevoerd.
 - Het volledige factory-vangnet is groen: backend `mvn -B --no-transfer-progress clean verify`
-  (350 tests), frontend analyze/test (79 tests)/webbuild en frontend-admin analyze/test (38 tests),
+  (354 tests), frontend analyze/test (79 tests)/webbuild en frontend-admin analyze/test (38 tests),
   allemaal met exitcode 0 en zonder failures/errors.
 - Zelfreview tegen de acceptance criteria uitgevoerd: ontbrekende waarden blijven UNKNOWN, expliciet
   beperkte of ongeldige waarden worden REJECTED, NOT_APPLICABLE is representeerbaar, object-/media-
   rechten blijven gescheiden en publieke vrijgave vereist uitsluitend de expliciete bevestigingen en
   veilige bronidentiteit.
+- De review-blocker is opgelost door `stableIdentifier == sourceRecordId` en
+  `originalSourceUrl == stableUrl` serverzijdig te eisen voordat bronverificatie of publieke vrijgave
+  kan worden bevestigd. Tegenstrijdige velden worden niet teruggegeven.
+- Unit- en controllerdekking toegevoegd voor beide mismatch-richtingen.
 
-## Review
+## Review / opvolging
 
-- [blocker] `HistoricalAdminStatusContract` controleert `stableIdentifier` en
+- [resolved blocker] `HistoricalAdminStatusContract` controleerde `stableIdentifier` en
   `originalSourceUrl` alleen afzonderlijk op syntactische veiligheid. De bestaande
   genormaliseerde Open Archieven-contractcontrole vereist daarnaast dat deze velden gelijk zijn aan
   respectievelijk `sourceRecordId` en `stableUrl`. Bij bijvoorbeeld `stableIdentifier = hee:record-2`
@@ -36,6 +41,5 @@ Done / rationale:
   vrijgavestatus toch `CONFIRMED` en worden de tegenstrijdige waarden geretourneerd. Dit schendt de
   fail-closed acceptance voor tegenstrijdige bronmetadata; voeg de consistentiecontrole serverzijdig
   toe en dek beide mismatch-richtingen met controller/statuscontracttests.
-- Gerichte backendcontrole uitgevoerd: `AdminHistoricalSearchControllerTest` en
-  `HistoricalAdminStatusContractTest` samen 10 tests groen; het verplichte factory-vangnet staat in
-  de task-context als revisiongebonden groen bewijs.
+- Gerichte backendcontrole met de nieuwe mismatchgevallen: 14 tests groen; daarna is het volledige
+  factory-vangnet uitgevoerd.

@@ -20,11 +20,7 @@ class AdminHistoricalSearchControllerTest {
         .standaloneSetup(
             AdminHistoricalSearchController(
                 HistoricalSearchService(listOf(FixtureHistoricalAdminAdapter())),
-                AdminAuthenticator(
-                    AdminAuthConfig("test-client", "admin@example.com"),
-                    GoogleIdTokenVerifier { GoogleIdentity("admin@example.com", true) },
-                    PreviewRuntimeConfig(false, "", "jdbc:postgresql://localhost/hkh", ""),
-                ),
+                adminAuthenticator(),
             ),
         )
         .build()
@@ -64,11 +60,7 @@ class AdminHistoricalSearchControllerTest {
     fun `invalid provider identity is not returned and status is fail closed`() {
         val controller = AdminHistoricalSearchController(
             HistoricalSearchService(listOf(FixtureHistoricalAdminAdapter().copyInvalid())),
-            AdminAuthenticator(
-                AdminAuthConfig("test-client", "admin@example.com"),
-                GoogleIdTokenVerifier { GoogleIdentity("admin@example.com", true) },
-                PreviewRuntimeConfig(false, "", "jdbc:postgresql://localhost/hkh", ""),
-            ),
+            adminAuthenticator(),
         )
         val invalidMockMvc = MockMvcBuilders.standaloneSetup(controller).build()
 
@@ -81,10 +73,52 @@ class AdminHistoricalSearchControllerTest {
             .andExpect(jsonPath("$.results[0].sourceVerificationStatus").value("REJECTED"))
             .andExpect(jsonPath("$.results[0].sourceVerificationReason").value(containsString("ongeldige")))
     }
+
+    @Test
+    fun `contradictory provider identifier is not returned and blocks release`() {
+        val controller = AdminHistoricalSearchController(
+            HistoricalSearchService(
+                listOf(FixtureHistoricalAdminAdapter(stableIdentifier = "hee:record-2")),
+            ),
+            adminAuthenticator(),
+        )
+
+        MockMvcBuilders.standaloneSetup(controller).build()
+            .perform(get("/api/admin/historical-search").header("Authorization", "Bearer valid-token"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.results[0].stable_identifier").doesNotExist())
+            .andExpect(jsonPath("$.results[0].sourceVerificationStatus").value("REJECTED"))
+            .andExpect(jsonPath("$.results[0].publicReleaseStatus").value("REJECTED"))
+    }
+
+    @Test
+    fun `contradictory provider url is not returned and blocks release`() {
+        val controller = AdminHistoricalSearchController(
+            HistoricalSearchService(
+                listOf(FixtureHistoricalAdminAdapter(originalSourceUrl = "https://source.example/record-2")),
+            ),
+            adminAuthenticator(),
+        )
+
+        MockMvcBuilders.standaloneSetup(controller).build()
+            .perform(get("/api/admin/historical-search").header("Authorization", "Bearer valid-token"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.results[0].original_source_url").doesNotExist())
+            .andExpect(jsonPath("$.results[0].sourceVerificationStatus").value("REJECTED"))
+            .andExpect(jsonPath("$.results[0].publicReleaseStatus").value("REJECTED"))
+    }
 }
+
+private fun adminAuthenticator() = AdminAuthenticator(
+    AdminAuthConfig("test-client", "admin@example.com"),
+    GoogleIdTokenVerifier { GoogleIdentity("admin@example.com", true) },
+    PreviewRuntimeConfig(false, "", "jdbc:postgresql://localhost/hkh", ""),
+)
 
 private data class FixtureHistoricalAdminAdapter(
     val invalid: Boolean = false,
+    val stableIdentifier: String = "hee:record-1",
+    val originalSourceUrl: String = "https://source.example/record-1",
 ) : HistoricalSearchAdapter {
     override val source = HistoricalSearchSource.OPEN_ARCHIEVEN
 
@@ -95,8 +129,8 @@ private data class FixtureHistoricalAdminAdapter(
         results = listOf(
             HistoricalSearchResult(
                 source = source,
-                sourceRecordId = "provider-internal-id",
-                stableUrl = "https://legacy.example/do-not-use",
+                sourceRecordId = "hee:record-1",
+                stableUrl = "https://source.example/record-1",
                 title = "Raw title must not escape",
                 description = "Raw description must not escape",
                 person = "Raw person must not escape",
@@ -112,8 +146,8 @@ private data class FixtureHistoricalAdminAdapter(
                 objectMediaRights = HistoricalRightsStatus.ALLOWED,
                 privacyStatus = HistoricalPrivacyStatus.CLEAR,
                 sourceName = if (invalid) "\u0000raw" else "Synthetisch Archief",
-                stableIdentifier = if (invalid) "" else "hee:record-1",
-                originalSourceUrl = if (invalid) "javascript:alert(1)" else "https://source.example/record-1",
+                stableIdentifier = if (invalid) "" else stableIdentifier,
+                originalSourceUrl = if (invalid) "javascript:alert(1)" else originalSourceUrl,
             ),
         ),
         total = 1,

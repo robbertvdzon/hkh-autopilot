@@ -36,8 +36,8 @@ object HistoricalAdminStatusContract {
             sourceVerification,
             metadataRights,
             privacy,
-            result.stableIdentifier.isValidStableIdentifier(),
-            result.originalSourceUrl.isValidHttpUrl(),
+            safeStableIdentifier(result) != null,
+            safeOriginalSourceUrl(result) != null,
         )
         return HistoricalAdminResultStatus(
             sourceVerification = sourceVerification,
@@ -51,10 +51,14 @@ object HistoricalAdminStatusContract {
     fun safeSourceName(result: HistoricalSearchResult): String? = result.sourceName.asSafeText(500)
 
     fun safeStableIdentifier(result: HistoricalSearchResult): String? =
-        result.stableIdentifier?.takeIf { it.isValidStableIdentifier() }?.asSafeText(500)
+        result.stableIdentifier
+            ?.takeIf { it.isValidStableIdentifier() && it == result.sourceRecordId }
+            ?.asSafeText(500)
 
     fun safeOriginalSourceUrl(result: HistoricalSearchResult): String? =
-        result.originalSourceUrl?.takeIf { it.isValidHttpUrl() }?.asHttpUrl()
+        result.originalSourceUrl
+            ?.takeIf { it.isValidHttpUrl() && it == result.stableUrl }
+            ?.asHttpUrl()
 
     private fun sourceVerification(result: HistoricalSearchResult): HistoricalAdminStatusValue {
         if (result.technicalStatus in setOf(
@@ -70,16 +74,16 @@ object HistoricalAdminStatusContract {
         }
         val hasInvalidIdentity = listOf(
             result.sourceName to result.sourceName.asSafeText(500),
-            result.stableIdentifier to result.stableIdentifier?.takeIf { it.isValidStableIdentifier() }?.asSafeText(500),
-            result.originalSourceUrl to result.originalSourceUrl?.takeIf { it.isValidHttpUrl() }?.asHttpUrl(),
+            result.stableIdentifier to safeStableIdentifier(result),
+            result.originalSourceUrl to safeOriginalSourceUrl(result),
         ).any { (raw, safe) -> !raw.isNullOrBlank() && safe == null }
         if (hasInvalidIdentity) {
             return rejected("De bron heeft ongeldige of tegenstrijdige identiteitsmetadata geleverd.")
         }
         return if (
             result.sourceName.asSafeText(500) != null &&
-            result.stableIdentifier.isValidStableIdentifier() &&
-            result.originalSourceUrl.isValidHttpUrl()
+            safeStableIdentifier(result) != null &&
+            safeOriginalSourceUrl(result) != null
         ) {
             confirmed("De bronnaam, stabiele identifier en permanente bronlink zijn door de bron geleverd.")
         } else {
