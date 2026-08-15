@@ -10,7 +10,7 @@ images:
   newTag: sha-9e87990
 - name: backend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-backend
-  newTag: sha-9e87990
+  newTag: sha-54c4aaf
 - name: frontend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-frontend
-  newTag: sha-e36e0b8
+  newTag: sha-54c4aaf
