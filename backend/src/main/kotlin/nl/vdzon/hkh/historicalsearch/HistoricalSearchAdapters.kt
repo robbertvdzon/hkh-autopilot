@@ -358,23 +358,17 @@ class OpenArchievenSearchAdapter(
             ?: return HistoricalSearchPage(source, emptyList(), 0, HistoricalTechnicalStatus.INVALID_RESPONSE,
                 "Open Archieven vereist een zoekterm, persoon of gebeurtenis.")
         var retry = false
+        val request = buildOpenArchievenRequest(query, name)
         while (true) {
             if (!reserveAttempt(retry)) {
-                return unavailable(Instant.now(clock), HistoricalTechnicalStatus.RATE_LIMITED)
+                return unavailable(Instant.now(clock), HistoricalTechnicalStatus.RATE_LIMITED, request.querySemantics)
             }
             rateLimiter.awaitPermit()
             val fetchedAt = Instant.now(clock)
             onAttempt()
             val response = try {
-                restClient.get().uri { builder ->
-                    var uri = UriComponentsBuilder.fromUri(builder.build()).path("/records/search.json")
-                        .queryParam("name", name)
-                        .queryParam("number_show", query.limit.coerceAtMost(100))
-                        .queryParam("start", query.start)
-                    if (isHeemskerkSearch(query)) uri = uri.queryParam("archive_code", "hee")
-                    query.place?.let { uri = uri.queryParam("eventplace", it) }
-                    uri.build().toUri()
-                }.headers { headers -> headers.set(HttpHeaders.USER_AGENT, USER_AGENT) }
+                restClient.get().uri(request.uri)
+                    .headers { headers -> headers.set(HttpHeaders.USER_AGENT, USER_AGENT) }
                     .exchange { _, clientResponse ->
                         OpenArchievenHttpResponse(
                             statusCode = clientResponse.statusCode.value(),
@@ -385,7 +379,7 @@ class OpenArchievenSearchAdapter(
                         )
                     }
             } catch (exception: Exception) {
-                return unavailable(fetchedAt, exception.transportStatus())
+                return unavailable(fetchedAt, exception.transportStatus(), request.querySemantics)
             }
             onHttpStatus(response.statusCode)
             if (response.statusCode == 429) {
@@ -397,24 +391,43 @@ class OpenArchievenSearchAdapter(
                         continue
                     }
                 }
-                return unavailable(fetchedAt, HistoricalTechnicalStatus.RATE_LIMITED)
+                return unavailable(fetchedAt, HistoricalTechnicalStatus.RATE_LIMITED, request.querySemantics)
             }
             if (response.statusCode !in 200..299) {
-                return unavailable(fetchedAt, HistoricalTechnicalStatus.HTTP_ERROR)
+                return unavailable(fetchedAt, HistoricalTechnicalStatus.HTTP_ERROR, request.querySemantics)
             }
             val body = response.body
-            if (body.isBlank()) return unavailable(fetchedAt, HistoricalTechnicalStatus.INVALID_JSON)
+            if (body.isBlank()) return unavailable(fetchedAt, HistoricalTechnicalStatus.INVALID_JSON, request.querySemantics)
             val root = try {
                 objectMapper.readTree(body)
             } catch (_: Exception) {
-                return unavailable(fetchedAt, HistoricalTechnicalStatus.INVALID_JSON)
+                return unavailable(fetchedAt, HistoricalTechnicalStatus.INVALID_JSON, request.querySemantics)
             }
             return try {
-                parse(root, fetchedAt)
+                parse(root, fetchedAt, request.querySemantics)
             } catch (_: Exception) {
-                unavailable(fetchedAt, HistoricalTechnicalStatus.MISSING_REQUIRED_FIELDS)
+                unavailable(fetchedAt, HistoricalTechnicalStatus.MISSING_REQUIRED_FIELDS, request.querySemantics)
             }
         }
+    }
+
+    private fun buildOpenArchievenRequest(
+        query: HistoricalSearchQuery,
+        name: String,
+    ): OpenArchievenRequest {
+        var uri = UriComponentsBuilder.fromPath("/records/search.json")
+            .queryParam("number_show", query.limit.coerceAtMost(100))
+            .queryParam("start", query.start)
+        val semantics = buildList {
+            uri = uri.queryParam("name", name)
+            add("name")
+            query.place?.let {
+                uri = uri.queryParam("eventplace", it)
+                add("eventplace")
+            }
+        }
+        if (isHeemskerkSearch(query)) uri = uri.queryParam("archive_code", "hee")
+        return OpenArchievenRequest(uri.build().toUri(), semantics)
     }
 
     private fun reserveAttempt(retry: Boolean): Boolean {
@@ -495,13 +508,14 @@ class OpenArchievenSearchAdapter(
         return (term + year).trim()
     }
 
-    private fun parse(root: JsonNode, retrievedAt: Instant): HistoricalSearchPage {
+    private fun parse(root: JsonNode, retrievedAt: Instant, querySemantics: List<String>): HistoricalSearchPage {
         if (root.get("error_code") != null || root.get("error_description") != null) {
             return HistoricalSearchPage(
                 source = source,
                 results = emptyList(),
                 total = 0,
                 status = HistoricalTechnicalStatus.MISSING_REQUIRED_FIELDS,
+                querySemantics = querySemantics,
             )
         }
         val response = root.get("response")?.takeIf(JsonNode::isObject)
@@ -568,12 +582,18 @@ class OpenArchievenSearchAdapter(
             ).failClosedMetadata()
         }
         return HistoricalSearchPage(
-            source, results, total.coerceAtLeast(0), HistoricalTechnicalStatus.AVAILABLE, consumed = rawDocs.size,
+            source, results, total.coerceAtLeast(0), HistoricalTechnicalStatus.AVAILABLE,
+            consumed = rawDocs.size, querySemantics = querySemantics,
         )
     }
 
-    private fun unavailable(at: Instant, status: HistoricalTechnicalStatus = HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE) =
-        HistoricalSearchPage(source, emptyList(), 0, status, "Open Archieven kon niet worden bevraagd.")
+    private fun unavailable(
+        at: Instant,
+        status: HistoricalTechnicalStatus = HistoricalTechnicalStatus.TEMPORARILY_UNAVAILABLE,
+        querySemantics: List<String>? = null,
+    ) = HistoricalSearchPage(
+        source, emptyList(), 0, status, "Open Archieven kon niet worden bevraagd.", querySemantics = querySemantics,
+    )
 
     private fun explicitPrivacy(value: String?): HistoricalPrivacyStatus = when (value?.trim()?.uppercase()) {
         "CLEAR", "PUBLIC", "NO_PERSONAL_DATA", "NO_PERSONS" -> HistoricalPrivacyStatus.CLEAR
@@ -586,6 +606,11 @@ private data class OpenArchievenHttpResponse(
     val statusCode: Int,
     val body: String,
     val retryAfter: String?,
+)
+
+private data class OpenArchievenRequest(
+    val uri: java.net.URI,
+    val querySemantics: List<String>,
 )
 
 private fun Int.toHttpStatusClass(): String? = takeIf { it in 100..599 }?.let { "${it / 100}xx" }

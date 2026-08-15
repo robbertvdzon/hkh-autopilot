@@ -389,6 +389,7 @@ class HistoricalSourceStatus {
     this.message,
     this.resultCount,
     this.heemskerkCount,
+    this.querySemantics,
   });
 
   factory HistoricalSourceStatus.fromJson(Map<String, dynamic> json) =>
@@ -398,6 +399,11 @@ class HistoricalSourceStatus {
         message: json['message'] as String?,
         resultCount: json['resultCount'] as int?,
         heemskerkCount: json['heemskerkCount'] as int?,
+        querySemantics: json['querySemantics'] is List
+            ? (json['querySemantics'] as List).whereType<String>().toList(
+                growable: false,
+              )
+            : null,
       );
 
   final String source;
@@ -405,6 +411,7 @@ class HistoricalSourceStatus {
   final String? message;
   final int? resultCount;
   final int? heemskerkCount;
+  final List<String>? querySemantics;
 }
 
 class HistoricalSearchResponse {
@@ -963,6 +970,13 @@ class _HistoricalResults extends StatelessWidget {
         ? ''
         : ' Nieuwe bronfout: ${_sourceMessagesLabel(retryFailureSources.map(_historicalSourceMessage).toList(growable: false))}';
     final fullStatusLabel = '$statusLabel$retryLabel$retryFailureLabel';
+    final interpretationLabels = response.sources
+        .where((source) => source.source == 'OPEN_ARCHIEVEN')
+        .map(_historicalSourceInterpretation)
+        .toList(growable: false);
+    final accessibleStatusLabel =
+        '$fullStatusLabel'
+        '${interpretationLabels.isEmpty ? '' : ' ${interpretationLabels.join(' ')}'}';
     final canRetry =
         onRetry != null &&
         !retryInProgress &&
@@ -972,7 +986,7 @@ class _HistoricalResults extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _HistoricalStatus(
-            label: fullStatusLabel,
+            label: accessibleStatusLabel,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -988,6 +1002,7 @@ class _HistoricalResults extends StatelessWidget {
                   ),
                 const Text('Geen historische resultaten gevonden.'),
                 ...sourceSummaries.map(Text.new),
+                ...interpretationLabels.map(Text.new),
                 if (retryFailureSources.isNotEmpty) ...[
                   const Text('Melding van de nieuwe poging:'),
                   ...retryFailureSources.map(
@@ -1005,7 +1020,7 @@ class _HistoricalResults extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _HistoricalStatus(
-          label: fullStatusLabel,
+          label: accessibleStatusLabel,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -1025,6 +1040,7 @@ class _HistoricalResults extends StatelessWidget {
                 ),
               Text('${response.total} historische resultaten'),
               ...sourceSummaries.map(Text.new),
+              ...interpretationLabels.map(Text.new),
               if (retryFailureSources.isNotEmpty) ...[
                 const Text('Melding van de nieuwe poging:'),
                 ...retryFailureSources.map(
@@ -1231,10 +1247,15 @@ class _HistoricalError extends StatelessWidget {
         .where((source) => source.status != 'AVAILABLE')
         .map(_historicalSourceMessage)
         .toList(growable: false);
+    final interpretationLabels = sources
+        .where((source) => source.source == 'OPEN_ARCHIEVEN')
+        .map(_historicalSourceInterpretation)
+        .toList(growable: false);
     final label = retryInProgress
         ? 'Historische zoekresultaten worden geladen.'
         : 'Geen historische bronnen konden worden geraadpleegd.${_sourceMessagesLabel(sourceMessages)}'
-              '${retryFailureMessage == null ? '' : ' $retryFailureMessage'}';
+              '${retryFailureMessage == null ? '' : ' $retryFailureMessage'}'
+              '${interpretationLabels.isEmpty ? '' : ' ${interpretationLabels.join(' ')}'}';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1258,6 +1279,11 @@ class _HistoricalError extends StatelessWidget {
                 'Geen historische bronnen konden worden geraadpleegd.',
               ),
               ...sourceMessages.map(Text.new),
+              ...sources
+                  .where((source) => source.source == 'OPEN_ARCHIEVEN')
+                  .map(
+                    (source) => Text(_historicalSourceInterpretation(source)),
+                  ),
             ],
           ),
         ),
@@ -1362,6 +1388,28 @@ String _historicalSourceName(HistoricalSourceStatus source) =>
       'OPEN_ARCHIEVEN' => 'Open Archieven',
       _ => source.source,
     };
+
+const _historicalQuerySemanticLabels = <String, String>{
+  'name': 'naam',
+  'eventplace': 'plaats',
+  'birthplace': 'geboorteplaats',
+};
+
+String _historicalSourceInterpretation(HistoricalSourceStatus source) {
+  if (source.source != 'OPEN_ARCHIEVEN') return '';
+  final semantics = source.querySemantics
+      ?.map((parameter) {
+        final label = _historicalQuerySemanticLabels[parameter];
+        return label == null ? null : '$label ($parameter)';
+      })
+      .whereType<String>()
+      .toSet()
+      .toList(growable: false);
+  if (semantics == null || semantics.isEmpty) {
+    return 'Zoekinterpretatie: niet beschikbaar.';
+  }
+  return 'Zoekinterpretatie: ${semantics.join(', ')}.';
+}
 
 String _sourceMessagesLabel(List<String> messages) =>
     messages.isEmpty ? '' : ' ${messages.join(' ')}';

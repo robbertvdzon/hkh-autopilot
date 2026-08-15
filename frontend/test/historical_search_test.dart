@@ -133,6 +133,22 @@ class _CapturingHistoricalSource implements HistoricalSearchSource {
   }
 }
 
+HistoricalSearchResponse _querySemanticsResponse(List<String>? semantics) =>
+    HistoricalSearchResponse(
+      results: const [],
+      total: 0,
+      start: 0,
+      limit: 100,
+      state: 'NO_RESULTS',
+      sources: [
+        HistoricalSourceStatus(
+          source: 'OPEN_ARCHIEVEN',
+          status: 'AVAILABLE',
+          querySemantics: semantics,
+        ),
+      ],
+    );
+
 void main() {
   test('sends normalized historical filters and pagination', () async {
     final client = BackendClient(
@@ -184,6 +200,7 @@ void main() {
           'message': null,
           'resultCount': 0,
           'heemskerkCount': 0,
+          'querySemantics': ['name', 'eventplace'],
         },
         {
           'source': 'OPEN_ARCHIEVEN',
@@ -197,9 +214,92 @@ void main() {
 
     expect(response.sources[0].resultCount, 0);
     expect(response.sources[0].heemskerkCount, 0);
+    expect(response.sources[0].querySemantics, ['name', 'eventplace']);
     expect(response.sources[1].resultCount, isNull);
     expect(response.sources[1].heemskerkCount, isNull);
+    expect(response.sources[1].querySemantics, isNull);
   });
+
+  testWidgets('shows the provider name interpretation for a name request', (
+    tester,
+  ) async {
+    final source = _CapturingHistoricalSource([
+      Future.value(_querySemanticsResponse(const ['name'])),
+    ]);
+    await tester.pumpWidget(
+      MaterialApp(home: HistoricalSearchPage(source: source)),
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('historical-search-text')),
+      'Anna',
+    );
+    await tester.ensureVisible(
+      find.byKey(const Key('historical-search-submit')),
+    );
+    await tester.tap(find.byKey(const Key('historical-search-submit')));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(source.calls.single.text, 'Anna');
+    expect(source.calls.single.place, isNull);
+    expect(find.text('Zoekinterpretatie: naam (name).'), findsOneWidget);
+  });
+
+  testWidgets('shows every provider field used for a place request', (
+    tester,
+  ) async {
+    final source = _CapturingHistoricalSource([
+      Future.value(_querySemanticsResponse(const ['name', 'eventplace'])),
+    ]);
+    await tester.pumpWidget(
+      MaterialApp(home: HistoricalSearchPage(source: source)),
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('historical-search-place')),
+      'Beverwijk',
+    );
+    await tester.ensureVisible(
+      find.byKey(const Key('historical-search-submit')),
+    );
+    await tester.tap(find.byKey(const Key('historical-search-submit')));
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(source.calls.single.place, 'Beverwijk');
+    expect(
+      find.text('Zoekinterpretatie: naam (name), plaats (eventplace).'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'shows a neutral interpretation when no Open Archieven request ran',
+    (tester) async {
+      final source = _CapturingHistoricalSource([
+        Future.value(_querySemanticsResponse(null)),
+      ]);
+      await tester.pumpWidget(
+        MaterialApp(home: HistoricalSearchPage(source: source)),
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('historical-search-text')),
+        'Heemskerk',
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('historical-search-submit')),
+      );
+      await tester.tap(find.byKey(const Key('historical-search-submit')));
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(source.calls.single.text, 'Heemskerk');
+      expect(find.text('Zoekinterpretatie: niet beschikbaar.'), findsOneWidget);
+      expect(find.textContaining('Heemskerk (plaats)'), findsNothing);
+    },
+  );
 
   testWidgets('shows fixed safe Open Archieven messages for each new status', (
     tester,
@@ -1396,7 +1496,7 @@ void main() {
 
       final statusNodes = find.semantics
           .byPredicate(
-            (node) => node.label == '1 historische resultaten geladen.',
+            (node) => node.label.contains('1 historische resultaten geladen.'),
           )
           .evaluate()
           .toList();

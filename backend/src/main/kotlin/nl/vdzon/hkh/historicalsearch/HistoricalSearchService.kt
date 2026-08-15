@@ -160,6 +160,7 @@ private class HistoricalSearchCursor(
         source = initialPage.source,
         status = currentStatus,
         message = HistoricalSourceMessages.safe(currentStatus, currentMessage),
+        querySemantics = initialPage.querySemantics,
     )
 
     fun totalContribution(): Int = if (currentStatus == HistoricalTechnicalStatus.AVAILABLE) {

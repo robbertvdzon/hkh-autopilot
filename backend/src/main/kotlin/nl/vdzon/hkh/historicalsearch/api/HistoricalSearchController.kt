@@ -74,6 +74,7 @@ data class HistoricalSearchSourceStatusResponse(
     val message: String?,
     val resultCount: Int?,
     val heemskerkCount: Int?,
+    val querySemantics: List<String>?,
 )
 
 data class HistoricalSearchResponse(
@@ -161,6 +162,7 @@ private fun HistoricalSearchOutcome.toResponse() = HistoricalSearchResponse(
             message = it.message,
             resultCount = it.resultCount,
             heemskerkCount = it.heemskerkCount,
+            querySemantics = it.querySemantics,
         )
     },
     state = state.name,

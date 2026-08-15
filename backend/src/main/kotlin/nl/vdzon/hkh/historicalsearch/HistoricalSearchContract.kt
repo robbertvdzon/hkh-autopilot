@@ -135,6 +135,8 @@ data class HistoricalSourceStatus(
     val resultCount: Int? = null,
     /** Count of visible results with a certain, normalized Heemskerk place value. */
     val heemskerkCount: Int? = null,
+    /** Provider parameters actually used by an Open Archieven request, or null when unknown. */
+    val querySemantics: List<String>? = null,
 )
 
 fun HistoricalSearchResult.isHeemskerkPlaceIndicator(): Boolean =
@@ -203,6 +205,8 @@ data class HistoricalSearchPage(
     val message: String? = null,
     /** Number of provider records consumed by this page, including filtered records. */
     val consumed: Int = results.size,
+    /** Provider parameters actually used by this page's Open Archieven request. */
+    val querySemantics: List<String>? = null,
 )
 
 interface HistoricalSearchAdapter {
