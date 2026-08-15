@@ -132,6 +132,7 @@ private fun HistoricalSearchOutcome.toAdminResponse() = HistoricalAdminSearchRes
             message = it.message,
             resultCount = it.resultCount,
             heemskerkCount = it.heemskerkCount,
+            querySemantics = it.querySemantics,
         )
     },
     state = state.name,

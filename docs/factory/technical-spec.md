@@ -459,8 +459,14 @@ privacyclassificatie.
   (`AVAILABLE`, `DISABLED`, `TEMPORARILY_UNAVAILABLE` of `INVALID_RESPONSE`; voor Open Archieven
   daarnaast `TIMEOUT`, `HTTP_ERROR`, `INVALID_JSON`, `MISSING_REQUIRED_FIELDS` of `RATE_LIMITED`), een veilige
   korte melding en nullable `resultCount`/`heemskerkCount`-velden. Voor een beschikbare bron tellen deze
-  velden alleen de veilig genormaliseerde resultaten in de huidige zichtbare `results`-pagina;
-  voor een niet-beschikbare bron blijven ze `null`. Elk resultaat bevat de genormaliseerde metadata,
+  telvelden alleen de veilig genormaliseerde resultaten in de huidige zichtbare `results`-pagina; voor
+  een niet-beschikbare bron blijven beide `null`. Een
+  Open Archieven-bronstatus bevat daarnaast nullable `querySemantics`: alleen de semantische
+  providerparameters die het adapterverzoek daadwerkelijk gebruikte, zoals `name` en `eventplace`;
+  technische parameters zoals `archive_code`, `number_show`, `start` en rate limiting worden niet
+  opgenomen. De lijst komt rechtstreeks uit het opgebouwde adapterverzoek, is per bron en wordt
+  `null` wanneer Open Archieven niet is bevraagd of de semantiek niet betrouwbaar vaststaat. Elk
+  resultaat bevat de genormaliseerde metadata,
   de server-side UTC `retrievedAt`, de
   contextvelden/statussen en afzonderlijke technische, metadatarechten-, object-/mediarechten- en
   privacystatussen. De API-controller exposeert deze velden als `place`, `placeStatus`,
@@ -618,6 +624,11 @@ de vier Open Archieven-diagnosestatussen worden gemapt naar de vaste meldingen `
 reageerde niet op tijd`, `Open Archieven gaf een fout bij het opvragen`, `Open Archieven stuurde een
 onleesbaar antwoord` en `Open Archieven stuurde een onvolledig antwoord`. Ruwe provider- of
 exceptioninhoud wordt nooit gerenderd;
+naast de bronstatus toont de pagina per Open Archieven-bron de herkende `querySemantics` als
+`Zoekinterpretatie: naam (name).` of `Zoekinterpretatie: plaats (eventplace).`. Bij een andere
+bron, een niet-uitgevoerde Open Archieven-aanvraag of onbekende semantiek toont zij
+`Zoekinterpretatie: niet beschikbaar.`. Deze tekst wordt niet afgeleid uit zoekterm,
+resultaatmetadata, titel of URL.
 externe bronknoppen
 hebben een tekstueel label dat het openen van een externe bron in een nieuw tabblad aankondigt.
 

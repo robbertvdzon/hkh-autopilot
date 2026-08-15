@@ -268,6 +268,7 @@ class HistoricalSearchTest {
             assertEquals("Jan%201900-1910", params.getFirst("name"))
             assertEquals("Heemskerk", params.getFirst("eventplace"))
             assertEquals("hee", params.getFirst("archive_code"))
+            assertEquals(listOf("name", "eventplace"), result.querySemantics)
             assertEquals("100", params.getFirst("number_show"))
             assertEquals("0", params.getFirst("start"))
             assertEquals("HKH-Autopilot-HistoricalSearch/1.0", fixture.lastUserAgent)
@@ -302,6 +303,7 @@ class HistoricalSearchTest {
             val params = UriComponentsBuilder.fromUriString(fixture.lastPath).build().queryParams
             assertEquals("Heemskerk", params.getFirst("name"))
             assertEquals("hee", params.getFirst("archive_code"))
+            assertEquals(listOf("name"), result.querySemantics)
             assertEquals("Noord-Hollands Archief", result.results.single().sourceName)
             assertEquals("hee:9f3a", result.results.single().stableIdentifier)
             assertEquals("hee:9f3a", result.results.single().sourceRecordId)
@@ -328,6 +330,20 @@ class HistoricalSearchTest {
         } finally {
             fixture.stop()
         }
+    }
+
+    @Test
+    fun `open archieven leaves query semantics neutral when no request can be executed`() {
+        val adapter = OpenArchievenSearchAdapter(
+            RestClient.builder().baseUrl("https://example.test").build(),
+            rateLimiter = HistoricalSearchRateLimiter { },
+            configured = false,
+        )
+
+        val page = adapter.search(HistoricalSearchQuery(text = "Heemskerk"))
+
+        assertEquals(HistoricalTechnicalStatus.DISABLED, page.status)
+        assertEquals(null, page.querySemantics)
     }
 
     @Test
@@ -1164,6 +1180,33 @@ class HistoricalSearchTest {
                 .andExpect(jsonPath("$.results").isEmpty)
                 .andExpect(jsonPath("$.state").value("SOURCE_FAILURE"))
         }
+    }
+
+    @Test
+    fun `controller exposes only adapter query semantics per source`() {
+        val adapter = object : HistoricalSearchAdapter {
+            override val source = HistoricalSearchSource.OPEN_ARCHIEVEN
+
+            override fun search(query: HistoricalSearchQuery) = HistoricalSearchPage(
+                source = source,
+                results = emptyList(),
+                total = 0,
+                status = HistoricalTechnicalStatus.AVAILABLE,
+                querySemantics = listOf("name", "eventplace"),
+            )
+        }
+        val mockMvc = MockMvcBuilders
+            .standaloneSetup(HistoricalSearchController(HistoricalSearchService(listOf(adapter))))
+            .build()
+
+        mockMvc.perform(
+            get("/api/historical-search")
+                .param("q", "Beverwijk")
+                .param("place", "Beverwijk")
+                .param("source", "OPEN_ARCHIEVEN"),
+        ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.sources[0].querySemantics[0]").value("name"))
+            .andExpect(jsonPath("$.sources[0].querySemantics[1]").value("eventplace"))
     }
 
     @Test
