@@ -8,6 +8,8 @@ import 'config/app_config.dart';
 import 'google_signin_button_stub.dart'
     if (dart.library.html) 'google_signin_button_web.dart'
     as google_button;
+import 'historical/admin_historical_search.dart';
+import 'historical/admin_historical_search_view.dart';
 import 'news/admin_latest_news.dart';
 import 'recordintake/admin_record_intake.dart';
 import 'recordintake/record_intake_form.dart';
@@ -26,6 +28,7 @@ void main() {
       sessionSource: sessionSource,
       newsSource: AdminLatestNewsClient(AppConfig.apiBaseUrl),
       recordIntakeSource: AdminRecordIntakeClient(AppConfig.apiBaseUrl),
+      historicalSearchSource: AdminHistoricalSearchClient(AppConfig.apiBaseUrl),
     ),
   );
 }
@@ -35,6 +38,7 @@ class HkhAdminApp extends StatelessWidget {
     required this.sessionSource,
     required this.newsSource,
     required this.recordIntakeSource,
+    this.historicalSearchSource,
     this.googleButtonBuilder,
     super.key,
   });
@@ -42,6 +46,7 @@ class HkhAdminApp extends StatelessWidget {
   final AdminSessionSource sessionSource;
   final AdminLatestNewsSource newsSource;
   final AdminRecordIntakeSource recordIntakeSource;
+  final AdminHistoricalSearchSource? historicalSearchSource;
   final Widget Function()? googleButtonBuilder;
 
   @override
@@ -57,6 +62,7 @@ class HkhAdminApp extends StatelessWidget {
         sessionSource: sessionSource,
         newsSource: newsSource,
         recordIntakeSource: recordIntakeSource,
+        historicalSearchSource: historicalSearchSource,
         googleButtonBuilder:
             googleButtonBuilder ?? google_button.renderGoogleButton,
       ),
@@ -69,6 +75,7 @@ class AdminGate extends StatefulWidget {
     required this.sessionSource,
     required this.newsSource,
     required this.recordIntakeSource,
+    this.historicalSearchSource,
     required this.googleButtonBuilder,
     super.key,
   });
@@ -76,6 +83,7 @@ class AdminGate extends StatefulWidget {
   final AdminSessionSource sessionSource;
   final AdminLatestNewsSource newsSource;
   final AdminRecordIntakeSource recordIntakeSource;
+  final AdminHistoricalSearchSource? historicalSearchSource;
   final Widget Function() googleButtonBuilder;
 
   @override
@@ -166,6 +174,7 @@ class _AdminGateState extends State<AdminGate> {
         identity: identity,
         newsSource: widget.newsSource,
         recordIntakeSource: widget.recordIntakeSource,
+        historicalSearchSource: widget.historicalSearchSource,
         onSignOut: _signOut,
       );
     }
@@ -250,12 +259,14 @@ class _AdminHome extends StatefulWidget {
     required this.identity,
     required this.newsSource,
     required this.recordIntakeSource,
+    this.historicalSearchSource,
     required this.onSignOut,
   });
 
   final AdminIdentity identity;
   final AdminLatestNewsSource newsSource;
   final AdminRecordIntakeSource recordIntakeSource;
+  final AdminHistoricalSearchSource? historicalSearchSource;
   final VoidCallback onSignOut;
 
   @override
@@ -417,6 +428,15 @@ class _AdminHomeState extends State<_AdminHome> {
                     identity: widget.identity,
                     recordIntakeSource: widget.recordIntakeSource,
                   ),
+                  if (widget.historicalSearchSource != null) ...[
+                    const SizedBox(height: 32),
+                    const Divider(),
+                    const SizedBox(height: 32),
+                    AdminHistoricalSearchView(
+                      identity: widget.identity,
+                      source: widget.historicalSearchSource!,
+                    ),
+                  ],
                 ],
               ),
             ),
