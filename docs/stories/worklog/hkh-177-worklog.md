@@ -43,3 +43,13 @@ Done / rationale:
   toe en dek beide mismatch-richtingen met controller/statuscontracttests.
 - Gerichte backendcontrole met de nieuwe mismatchgevallen: 14 tests groen; daarna is het volledige
   factory-vangnet uitgevoerd.
+
+## Vervolgreview
+
+- [resolved] De eerdere blocker over tegenstrijdige `stableIdentifier`/`sourceRecordId`- en
+  `originalSourceUrl`/`stableUrl`-waarden is opgelost. Beide mismatch-richtingen worden serverzijdig
+  afgewezen, veilige identiteitsvelden worden niet geretourneerd en publieke vrijgave wordt geblokkeerd.
+- Gerichte hercontrole: `HistoricalAdminStatusContractTest` en
+  `AdminHistoricalSearchControllerTest` — 14 tests groen, 0 failures/errors.
+- Het nieuwste factory-verificatiebewijs is groen en de gemeten worktree-tree komt overeen met de actuele
+  branch-tree.
