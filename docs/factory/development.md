@@ -90,7 +90,14 @@
   nullable `resultCount` en `heemskerkCount` voor de huidige zichtbare pagina. Alleen zekere,
   expliciete plaatsmetadata die na NFKC-, witruimte- en hoofdletternormalisatie exact `Heemskerk`
   is, telt mee; niet-beschikbare bronnen krijgen geen numerieke telling en de indicatie wordt niet
-  als historisch bewijs gepresenteerd;
+  als historisch bewijs gepresenteerd. Dezelfde module biedt voor beheerders ook
+  `GET /api/admin/historical-search`, achter `AdminAuthenticator`, met hetzelfde genormaliseerde
+  zoekcontract en verzoekbudget. `HistoricalAdminStatusContract` geeft uitsluitend veilige,
+  brongeleverde en met `sourceRecordId`/`stableUrl` consistente identiteitsvelden terug en leidt
+  afzonderlijke `CONFIRMED`/`UNKNOWN`/`REJECTED`/`NOT_APPLICABLE`-statussen met redenen af voor
+  bronverificatie, metadatarechten, privacy, publieke vrijgave en object-/mediarechten. Ruwe
+  payloads, extra persoonsgegevens, zoekgeschiedenis en afgeleide relaties of rechtenclaims blijven
+  buiten de response;
 - `historical_context_detail.dart` kan daarnaast nieuwe zoekingangen aanbieden voor expliciete,
   niet-lege en zekere plaats-, persoons- en gebeurteniswaarden en voor een geldige expliciete periode
   met twee geordende viercijferige jaren. De gate vereist technische status `AVAILABLE`,
@@ -134,7 +141,11 @@
   "Externe bronverificatie" (leest `GET /api/records/{localIdentifier}` via de nieuwe
   `RecordPublicSource` op `BackendClient`), inclusief een conditionele externe-linkopener
   (`external_link_launcher.dart`, nieuwe dependency `web: ^1.1.0`);
-- `frontend-admin/`: afzonderlijke Flutter-webbeheerapp en widgettests;
+- `frontend-admin/`: afzonderlijke Flutter-webbeheerapp en widgettests; naast nieuws- en
+  recordintakebeheer bevat deze `lib/historical/admin_historical_search.dart` en
+  `admin_historical_search_view.dart` voor de auth-afgeschermde historische zoekstatusweergave.
+  De view toont bronidentiteit en alle status-/redenvelden tekstueel, met minimaal 4,5:1 contrast en
+  zonder ruwe bronpayloads;
 - `deploy/`: OpenShift-, Kustomize- en ArgoCD-manifests;
 - `.factory/verification.yaml`: machine-leesbaar, revisiongebonden verificatievangnet.
 

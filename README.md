@@ -75,6 +75,13 @@ aanvullende broninformatie en bepaalt geen gecontroleerde status. Kaart en detai
 metadatarechten en object-/mediarechten afzonderlijk, met een semantische, toetsenbordbedienbare
 uitleg dat beide statussen onafhankelijk zijn en dat `UNKNOWN` geen toestemming of weigering betekent.
 
+De afzonderlijke beheerfrontend biedt daarnaast een geauthenticeerde historische statusweergave via
+`GET /api/admin/historical-search`. Per resultaat toont zij veilige bronidentiteit en tekstuele,
+serverzijdig bepaalde statussen voor bronverificatie, metadatarechten, privacy, publieke vrijgave en
+object-/mediarechten. Publieke vrijgave is alleen bevestigd als alle vereiste bron-, rechten-,
+privacy- en identiteitsvoorwaarden bevestigd zijn; ruwe bronpayloads en afgeleide claims worden niet
+getoond of opgeslagen.
+
 De publieke resultaatkaart toont alleen resultaten met een geldige stabiele identifier en absolute
 HTTP(S)-bron-URL. Voor Open Archieven zijn daarvoor de door de bron geleverde `source_name`, `uuid`
 en `original_source_url` alle drie verplicht; ontbrekende, lege of tegenstrijdige waarden leveren

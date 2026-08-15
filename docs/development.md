@@ -223,6 +223,16 @@ when `Retry-After` is a usable delta or RFC 1123 date no more than two seconds i
 unusable or longer delay is not retried. The route has no public language parameter: the cache key
 uses the fixed language value `nl`, while the provider request keeps the existing parameter contract.
 
+The same `nl.vdzon.hkh.historicalsearch` module also exposes the authenticated admin route
+`GET /api/admin/historical-search`. It reuses the public query contract, validation, source service,
+request budget and safe source statuses after `AdminAuthenticator` authentication. Each result is
+mapped by `HistoricalAdminStatusContract` to safe provider identity fields and separate textual
+statuses/reasons for source verification, metadata rights, privacy, public release and object/media
+rights. Provider identity is returned only when safe and consistent with the normalized identity;
+public release is confirmed only when source verification, metadata rights, privacy and both identity
+fields are confirmed. Raw provider payloads, extra personal data, search history and inferred
+relationships/rights claims are not returned or stored.
+
 ### Reproducible smoke contract
 
 The public Heemskerk search chain has a story-level smoke contract in
@@ -325,6 +335,18 @@ no metadata about a possibly earlier publication leaks. The toggle button expose
 `aria-expanded`/`aria-controls`. It is unrelated to the existing discover block and does not feed
 or consume its results. See [factory/technical-spec.md](factory/technical-spec.md) for
 implementation details.
+
+## Admin frontend
+
+The separate `frontend-admin` application uses the existing authenticated session and now includes
+the historical source-status view. `AdminHistoricalSearchClient` calls
+`GET /api/admin/historical-search`; `AdminHistoricalSearchView` renders safe source name,
+identifier and permanent link values when present, plus text labels and non-empty reasons for the
+four derived statuses. The view also keeps object/media rights separate from metadata rights and
+privacy, uses a live result count for loading/error/result feedback, and keeps status information
+available in Flutter semantics rather than relying on color. The dedicated admin widget tests cover
+status labels/reasons, blocked release, safe identity handling and the minimum 4.5:1 status-color
+contrast.
 
 Run the frontend checks with:
 

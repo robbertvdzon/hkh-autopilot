@@ -562,6 +562,34 @@ privacyclassificatie.
   volgorde. Periode-overlap is uitsluitend een annotatie op een bestaande relatie. Deze uitkomst
   staat los van de providerrelaties in `HistoricalSearchResult.relationships`.
 
+## Beveiligde historische beheerroute
+
+`AdminHistoricalSearchController` registreert in dezelfde `historicalsearch`-module de
+authenticatie-afgeschermde route `GET /api/admin/historical-search`. De route accepteert `q`,
+`place`, `person`, `event`, `fromYear`, `toYear`, `source`, `start` en `limit`, gebruikt dezelfde
+queryvalidatie, `HistoricalSearchService`, client-IP-/verzoekbudgetgrens en veilige bronstatussen
+als de publieke route, en hergebruikt `AdminAuthenticator` (inclusief de bestaande previewheader).
+Een ongeldige query geeft HTTP 400; een overschreden Open Archieven-budget geeft HTTP 429 met alleen
+`RATE_LIMITED`.
+
+`HistoricalAdminStatusContract` evalueert ieder genormaliseerd resultaat serverzijdig en zonder
+opslag. Het contract geeft alleen veilige, door de bron geleverde `source_name`,
+`stable_identifier` en `original_source_url` terug wanneer deze syntactisch geldig zijn; de
+identifier en bronlink moeten bovendien gelijk zijn aan de genormaliseerde `sourceRecordId`/
+`stableUrl`. De response bevat daarnaast `technicalStatus` en
+voor bronverificatie, metadatarechten, privacy, publieke vrijgave en object-/mediarechten telkens
+een statusveld en een niet-lege reden, in het envelope `results`, `total`, `start`, `limit`,
+`sources` en `state`. Statuswaarden zijn `CONFIRMED`, `UNKNOWN`, `REJECTED` en `NOT_APPLICABLE`.
+
+De bronstatusmapping is fail-closed: ongeldige, onleesbare, ontbrekende of tegenstrijdige
+identiteitsmetadata wordt afgewezen of onbekend volgens de technische situatie. Rechten en privacy
+worden uitsluitend uit de bestaande expliciete statusvelden afgeleid; `rights`, titels, URL's,
+zoektermen en relaties worden niet gebruikt om claims te construeren. Publieke vrijgave wordt alleen
+`CONFIRMED` wanneer bronverificatie, metadatarechten, privacy en beide veilige identiteitsvelden
+bevestigd zijn. Er worden geen ruwe bronpayloads, extra persoonsgegevens, zoekgeschiedenis of
+afgeleide relaties opgeslagen, gelogd of geretourneerd. De module declareert hiervoor de expliciete
+`auth`-afhankelijkheid in `package-info.java`.
+
 ## Publieke historische zoekfrontend
 
 `frontend/lib/historical/historical_search.dart` bevat `HistoricalSearchPage`,
@@ -652,6 +680,24 @@ De aanvullende Flutter-smoke-contracttest
 door `BackendClient` en `HistoricalSearchPage`. Zij controleert de zichtbaarheid van een geldig
 Open Archieven-resultaat en het onderscheid tussen nulresultaat, gedeeltelijke beschikbaarheid en
 volledige bronuitval; `flutter test` neemt de test automatisch mee.
+
+## Historische beheerfrontend
+
+`frontend-admin/lib/historical/admin_historical_search.dart` bevat het geïnjecteerde
+`AdminHistoricalSearchSource`, de HTTP-client en de JSON-modellen voor de adminrespons.
+`AdminHistoricalSearchView` in `admin_historical_search_view.dart` rendert een zoekveld, laad-/fout- en
+lege staten, een live resultaatcount en per resultaat de veilige identiteit plus tekstuele status- en
+redenregels. De vier statuswaarden worden naar de Nederlandse labels `Bevestigd`, `Onbekend`,
+`Afgewezen` en `Niet van toepassing` gemapt; object-/mediarechten blijven zichtbaar als afzonderlijk
+bestaand veld. `Semantics`-containers maken elke status en reden tekstueel beschikbaar, terwijl de
+vaste statuskleuren op een witte achtergrond minimaal 4,5:1 contrast bieden.
+
+De view wordt na authenticatie in `frontend-admin/lib/main.dart` aan de bestaande beheerhome
+toegevoegd en gebruikt dezelfde `AdminIdentity.requestHeaders`; er is geen apart tokenveld. De
+gerichte tests staan in `backend/src/test/kotlin/nl/vdzon/hkh/historicalsearch/` en
+`frontend-admin/test/admin_historical_search_test.dart`. Ze dekken auth, statusmapping, veilige en
+tegenstrijdige bronidentiteit, tekstuele redenen, blokkering van publieke vrijgave, semantiek en
+contrast.
 
 ## Publieke recorddetailpagina (gebruikersfrontend)
 
