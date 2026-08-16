@@ -112,7 +112,7 @@ class HistoricalSearchConfiguration(
         val requestFactory = JdkClientHttpRequestFactory()
         requestFactory.setReadTimeout(timeout)
         return RestClient.builder()
-            .baseUrl(baseUrl)
+            .baseUrl(baseUrl.trimEnd('/') + "/")
             .requestFactory(requestFactory)
             .build()
     }
@@ -457,7 +457,10 @@ class OpenArchievenSearchAdapter(
         query: HistoricalSearchQuery,
         name: String,
     ): OpenArchievenRequest {
-        var uri = UriComponentsBuilder.fromPath(searchPath)
+        // Keep this path relative to the configured base URL. A leading slash would make
+        // RestClient resolve against the host root and drop the API version in a base URL such
+        // as https://api.openarchieven.nl/1.1.
+        var uri = UriComponentsBuilder.fromPath(searchPath.removePrefix("/"))
             .queryParam(numberShowParameter, query.limit.coerceAtMost(100))
             .queryParam(startParameter, query.start)
         val semantics = buildList {
