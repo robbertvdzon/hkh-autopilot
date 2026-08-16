@@ -224,4 +224,15 @@ build met een expliciete testbackend, bijvoorbeeld
   uitvoeren kan met `mvn -B --no-transfer-progress -f backend/pom.xml
   -Dtest=Hkh165HistoricalSearchSmokeContractTest test` en `flutter test
   test/hkh165_historical_search_smoke_contract_test.dart`.
+- De aanvullende statusmatrix voor de publieke Open Archieven-flow staat in
+  `backend/src/test/kotlin/nl/vdzon/hkh/historicalsearch/Hkh189HistoricalSearchContractTest.kt`
+  en `frontend/test/hkh189_historical_search_contract_test.dart`. Deze controleert met lokale of
+  synthetische fixtures geldige en lege responses, gedeeltelijke beschikbaarheid, timeout, HTTP
+  5xx, ongeldig JSON, ontbrekende of tegenstrijdige verplichte velden en ontbrekende rechten/privacy-
+  metadata. Per scenario worden state, bronstatus, totaal/per-bron tellingen, bronidentiteit,
+  exacte bronlink, veilige fout-/metadataweergave en kaartzichtbaarheid gecontroleerd. Gericht
+  uitvoeren kan met `mvn -B --no-transfer-progress -f backend/pom.xml
+  -Dtest=Hkh189HistoricalSearchContractTest test` en `flutter test
+  test/hkh189_historical_search_contract_test.dart`; beide tests spreken geen echte externe bron
+  aan.
 - Geen echte secrets, persoonsgegevens, buildoutput of lokale overrides versioneren.

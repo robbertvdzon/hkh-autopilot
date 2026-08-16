@@ -107,6 +107,17 @@ included automatically by `flutter test`; run it directly with:
 flutter test test/hkh165_historical_search_smoke_contract_test.dart
 ```
 
+The broader status matrix is in `test/hkh189_historical_search_contract_test.dart`. It verifies
+valid and empty responses, partial availability, timeout, HTTP error, invalid JSON, missing or
+contradictory required fields, and missing rights/privacy metadata. The test asserts aggregate and
+per-source statuses and counts, safe `Onbekend` mapping and metadata redaction, provider identity
+and exact source links, safe failure messages, and card visibility. It uses only synthetic responses
+and is included automatically by `flutter test`; run it directly with:
+
+```bash
+flutter test test/hkh189_historical_search_contract_test.dart
+```
+
 ## Accessible homepage statuses
 
 The service and latest-news flows expose one polite `SemanticsRole.status` node for each current

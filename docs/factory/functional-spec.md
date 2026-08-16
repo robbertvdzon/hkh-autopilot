@@ -789,6 +789,17 @@ contractfouten en single-flight/verzoekbudget bij identieke gelijktijdige zoekac
 wijzigen geen gebruikersfunctionaliteit en vereisen geen echte bron, account, token of handmatige
 configuratie; de bestaande testpipeline voert ze automatisch uit.
 
+De aanvullende statusmatrix voor deze publieke flow staat in
+`backend/src/test/kotlin/nl/vdzon/hkh/historicalsearch/Hkh189HistoricalSearchContractTest.kt`
+en `frontend/test/hkh189_historical_search_contract_test.dart`. De backendmatrix gebruikt een
+lokale HTTP-fixture voor geldige en lege Open Archieven-responses, gedeeltelijke beschikbaarheid,
+timeout, HTTP 5xx, ongeldig JSON, ontbrekende of tegenstrijdige verplichte velden en ontbrekende
+rechten-/privacymetadata. De Fluttermatrix gebruikt synthetische route-responses en controleert
+dezelfde publieke contractgrenzen: geaggregeerde state, bronstatus, totale en per-bron tellingen,
+bronidentiteit en exacte bronlink, veilige `Onbekend`-/foutweergave, redactie van inhoudelijke
+metadata en kaartzichtbaarheid. De fixtures zijn lokaal of synthetisch, bevatten geen echte
+providerpayloads en worden na iedere backendcase vrijgegeven.
+
 De publieke recorddetailpagina en externe bronverificatie zijn gedekt met backend unit-,
 integratie- en Flutter widget-/semantiektests: `RecordPublicStatusResolverTest` dekt alle
 statusovergangen (inclusief het zelfherstellende gedrag), `RecordPublicApiIntegrationTest`
