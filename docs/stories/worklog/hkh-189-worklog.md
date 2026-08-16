@@ -47,3 +47,14 @@ Done / rationale:
   webbuild groen; frontend-admin analyze en 39 tests groen.
 - Zelfreview afgerond: geen conflictmarkers, geen nieuwe secrets of providerpayloads, fixtures blijven
   lokaal/synthetisch en de wijzigingen zijn uncommitted gelaten voor de factory.
+
+## Reviewer vervolgreview
+
+- De eerdere blocker is opgelost: de Flutter-matrix assert nu per scenario expliciet state, totaal,
+  bronstatus en `resultCount`/`heemskerkCount`, inclusief nullable tellingen bij bronfouten, en
+  controleert de zichtbare status-/tellingsteksten en kaartzichtbaarheid.
+- Gerichte verificatie opnieuw uitgevoerd: backend `Hkh189HistoricalSearchContractTest` (3 tests)
+  en Flutter `hkh189_historical_search_contract_test.dart` zijn groen, zonder failures of errors.
+- De factory-verification evidence is aanwezig en groen voor de door de developer-run geteste tree;
+  de enige reviewwijziging daarna is deze toegestane worklognotitie. Er zijn geen nieuwe regressies
+  door de fix gevonden.
