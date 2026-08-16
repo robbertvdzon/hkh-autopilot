@@ -43,6 +43,16 @@ Productie en acceptatie gebruiken dezelfde niet-geheime, versioneerde configurat
 - De bestaande parametersemantiek, statuswaarden, caching, rate limiting, verzoekbudgetten en veilige logging worden niet inhoudelijk gewijzigd.
 - Een configuratieoverschrijving mag lokaal of in tests blijven bestaan, maar mag de gedeelde productie- en acceptatieconfiguratie niet verschillend maken.
 
+## Vastlegging
+
+De gedeelde configuratie staat in `deploy/base/open-archieven-config.yaml` en wordt zonder override
+geërfd door `deploy/overlays/openshift` (productie) en `deploy/overlays/acceptance` (acceptatie).
+De backenddeployment importeert de ConfigMap via `envFrom`. De pariteitstest
+`Hkh195OpenArchievenConfigurationContractTest` rendert beide effectieve overlays en vergelijkt
+endpoint, zoekpad, parameter-mapping, feature-instellingen, syntactische geldigheid en
+secretsafety met één canoniek contract. Fixture- en mock-overschrijvingen blijven beperkt tot lokaal
+gebruik en tests.
+
 ## Eindsamenvatting
 
 Opgeleverd voor `hkh-autopilot-32`:

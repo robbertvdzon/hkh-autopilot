@@ -34,6 +34,12 @@ overschrijven waarden uit het bestand; `HKH_SECRETS_FILE` kan naar een andere lo
   van directe vertrouwde proxies. Alleen vanuit deze peers wordt `X-Forwarded-For` gebruikt voor het
   per-IP Open Archieven-budget; leeg betekent dat altijd het directe connection-IP leidend is.
 
+De gedeelde productie- en acceptatie-instellingen voor Open Archieven zijn geen secrets en staan
+versioneerd in `deploy/base/open-archieven-config.yaml`; zij horen niet in een secrets-file. De
+OpenShift- en acceptatie-overlay nemen deze ConfigMap ongewijzigd over. De hierboven genoemde
+Open Archieven-basis-URI blijft alleen een lokale/testoverride voor fixture- of mockservers en mag
+de gedeelde deploymentconfiguratie niet verschillend maken.
+
 De gebruikersfrontend gebruikt geen secret voor zijn backendadres. Geef een openbaar adres tijdens
 build/run door met `--dart-define=API_BASE_URL=https://...`; standaard is
 `http://localhost:8080`. Zet nooit echte waarden, tokens, persoonsgegevens of de inhoud van

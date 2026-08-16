@@ -36,6 +36,28 @@ Voor de publieke route `GET /api/historical-search` kan de Europeana-bron worden
 gegenereerd. Zonder deze server-side waarde blijft Open Archieven beschikbaar; zet de wskey nooit
 in frontendconfiguratie, manifests, logs of API-responses.
 
+## Open Archieven-configuratie
+
+`deploy/base/open-archieven-config.yaml` is de gedeelde, niet-geheime ConfigMap voor Open Archieven.
+Zowel `deploy/overlays/openshift` (productie) als `deploy/overlays/acceptance` neemt deze resource
+zonder configuratiepatch over. De vastgelegde waarden zijn endpoint
+`https://api.openarchieven.nl/1.1`, pad `/records/search.json`, parameters `name`, `eventplace`,
+`number_show`, `start` en `archive_code` met `hee` voor Heemskerk, plus `10s` timeout, `30s`
+cacheduur, `251ms` rate-limitinterval, maximaal `60` pogingen per rollende minuut, burst `10` en
+refill `1.0` per seconde. Europeana blijft onafhankelijk: zonder `HKH_EUROPEANA_WSKEY` wordt alleen
+die bron uitgeschakeld.
+
+Controleer de effectieve deploymentconfiguratie met:
+
+```bash
+kubectl kustomize deploy/overlays/openshift
+kubectl kustomize deploy/overlays/acceptance
+```
+
+De contracttest `Hkh195OpenArchievenConfigurationContractTest` voert dezelfde pariteitscontrole
+geautomatiseerd uit. Lokale fixture- of mock-endpoints mogen via runtime-overrides worden gebruikt,
+maar worden niet in deze overlays vastgelegd.
+
 Google-login blijft bewust uitgeschakeld zolang zowel `HKH_GOOGLE_CLIENT_ID` als
 `HKH_ADMIN_ALLOWED_EMAILS` leeg zijn. Voor echte login moeten dezelfde Google web-client-ID in
 het clustersecret en in de GitHub Actions-variable `GOOGLE_CLIENT_ID` staan.

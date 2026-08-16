@@ -407,6 +407,15 @@ antwoord is `HTTP_ERROR`, onafhankelijk van de HTTP-body, en een lege of niet al
 respons is `INVALID_JSON`. Een lege `docs`-lijst met `number_found: 0` is juist `AVAILABLE` met
 `NO_RESULTS` wanneer alle bronnen leeg zijn.
 
+Voor productie en acceptatie is dit zoekcontract vastgelegd als één gedeelde, niet-geheime
+ConfigMap in `deploy/base/open-archieven-config.yaml`. Beide overlays erven deze ConfigMap zonder
+override. De canonieke waarden zijn endpoint `https://api.openarchieven.nl/1.1`, pad
+`/records/search.json`, parameter-namen `name`, `eventplace`, `number_show`, `start` en
+`archive_code`, de Heemskerk-waarde `hee`, timeout `10s`, cacheduur `30s`, rate-limitinterval
+`251ms`, budget `60` per rollende minuut, burst `10` en refill `1.0` per seconde. Dit is een
+deploymentpariteitsgarantie; lokale fixture- en mock-URL's mogen alleen buiten productie en
+acceptatie worden gebruikt. De configuratie bevat geen secrets of zoekpayloads.
+
 Elke bronstatus kan nullable `querySemantics` bevatten. Voor Open Archieven is dit uitsluitend de
 lijst semantische providerparameters die het adapterverzoek werkelijk bevatte, bijvoorbeeld `name`
 of `eventplace`; `archive_code`, paginering, rate limiting en andere technische parameters tellen

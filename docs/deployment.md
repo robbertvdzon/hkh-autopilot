@@ -21,6 +21,25 @@ Voor de publieke historische zoekroute moet `HKH_EUROPEANA_WSKEY` server-side in
 worden gezet om Europeana te activeren. Zonder die waarde blijft de route beschikbaar met Open
 Archieven als bron; de wskey wordt niet naar de frontend of API-responses doorgegeven.
 
+## Open Archieven-configuratie
+
+De niet-geheime, versioneerde configuratie staat centraal in
+[`deploy/base/open-archieven-config.yaml`](../deploy/base/open-archieven-config.yaml). Zowel de
+productie-overlay (`deploy/overlays/openshift`) als de acceptatie-overlay
+(`deploy/overlays/acceptance`) erft deze ConfigMap; geen van beide overlays mag de effectieve
+configuratie afzonderlijk overschrijven. De pariteit omvat endpoint
+`https://api.openarchieven.nl/1.1`, pad `/records/search.json`, parameter-mapping
+`name`/`eventplace`/`number_show`/`start`, Heemskerk-mapping `archive_code=hee`, timeout `10s`,
+cacheduur `30s`, rate-limitinterval `251ms`, en budgetwaarden `60` per rollende minuut, burst `10`
+en refill `1.0` per seconde.
+
+De backend laadt deze waarden via de ConfigMap-variabelen met prefix
+`HKH_HISTORICAL_OPEN_ARCHIEVEN_`. De configuratie bevat geen secrets, zoekwaarden of
+providerpayloads. Lokale fixture- en mock-overrides blijven toegestaan voor tests en lokaal draaien,
+maar horen niet in de productie- of acceptatie-overlay. De pariteitstest
+`Hkh195OpenArchievenConfigurationContractTest` rendert beide effectieve overlays en vergelijkt ze
+afzonderlijk met het canonieke contract.
+
 De frontend- en adminproxy zetten de laatste, door de OpenShift-router aangeleverde forwarded-hop
 om naar één `X-Forwarded-For`-waarde. De backend gebruikt die header alleen voor proxy-pods; de
 NetworkPolicy `backend-ingress` blokkeert overige pod- en directe route-ingress. De expliciete

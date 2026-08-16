@@ -211,6 +211,23 @@ normalized provider context, page offset, page limit and the fixed language valu
 values are never retained in the key. Only valid normalized `AVAILABLE` pages are cached, and
 identical concurrent misses share one in-flight provider request. Cache hits bypass the provider
 request budget.
+
+### Deployment configuration parity
+
+Production and acceptance use the same versioned, non-secret Open Archieven configuration from
+[`deploy/base/open-archieven-config.yaml`](../deploy/base/open-archieven-config.yaml). The
+`deploy/overlays/openshift` and `deploy/overlays/acceptance` overlays inherit that ConfigMap without
+an environment-specific patch. It fixes the endpoint `https://api.openarchieven.nl/1.1`, request
+path `/records/search.json`, the provider parameters `name`, `eventplace`, `number_show`, `start`,
+and the Heemskerk `archive_code=hee` mapping, together with the existing 10-second timeout, 30-second
+cache, 251-millisecond rate-limit interval, and request-budget settings (60 per rolling minute,
+burst 10, refill 1.0 per second). Europeana remains independently disabled when its server-side
+wskey is absent. Local fixture/mock overrides are for local or test execution only.
+
+The backend deployment imports the ConfigMap through `envFrom`. The contract test
+`Hkh195OpenArchievenConfigurationContractTest` renders both effective overlays with Kustomize and
+checks endpoint, path, parameters, feature settings, syntax and secret-safety against one canonical
+contract.
 Its response contract requires an object `response` with an array `docs` and a non-negative numeric
 `number_found`. The count must agree with whether the page is empty and cannot be smaller than the
 page size. A non-2xx response is `HTTP_ERROR` regardless of its body; an empty or unreadable body
