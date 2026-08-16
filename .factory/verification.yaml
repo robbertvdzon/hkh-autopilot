@@ -4,6 +4,7 @@ commands:
     pathPrefixes:
       - backend/
       - frontend/
+      - deploy/
       - secrets.env.example
       - .factory/verification.yaml
       - .github/workflows/verify.yml

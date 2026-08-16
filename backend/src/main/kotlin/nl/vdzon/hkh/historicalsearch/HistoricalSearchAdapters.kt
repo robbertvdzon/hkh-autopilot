@@ -34,19 +34,47 @@ class HistoricalSearchConfiguration(
     private val europeanaWskey: String,
     @param:Value("\${hkh.historical.open-archieven-base-url:https://api.openarchieven.nl/1.1}")
     private val openArchievenBaseUrl: String,
+    @param:Value("\${hkh.historical.open-archieven-search-path:/records/search.json}")
+    private val openArchievenSearchPath: String,
+    @param:Value("\${hkh.historical.open-archieven-name-parameter:name}")
+    private val openArchievenNameParameter: String,
+    @param:Value("\${hkh.historical.open-archieven-eventplace-parameter:eventplace}")
+    private val openArchievenEventplaceParameter: String,
+    @param:Value("\${hkh.historical.open-archieven-number-show-parameter:number_show}")
+    private val openArchievenNumberShowParameter: String,
+    @param:Value("\${hkh.historical.open-archieven-start-parameter:start}")
+    private val openArchievenStartParameter: String,
+    @param:Value("\${hkh.historical.open-archieven-archive-code-parameter:archive_code}")
+    private val openArchievenArchiveCodeParameter: String,
+    @param:Value("\${hkh.historical.open-archieven-heemskerk-archive-code:hee}")
+    private val openArchievenHeemskerkArchiveCode: String,
     @param:Value("\${hkh.historical.open-archieven-timeout:10s}")
     private val openArchievenTimeout: Duration,
     @param:Value("\${hkh.historical.open-archieven-cache-duration:30s}")
     private val openArchievenCacheDuration: Duration,
+    @param:Value("\${hkh.historical.open-archieven-rate-limit-interval:251ms}")
+    private val openArchievenRateLimitInterval: Duration,
+    @param:Value("\${hkh.historical.open-archieven-budget-per-minute:60}")
+    private val openArchievenBudgetPerMinute: Int,
+    @param:Value("\${hkh.historical.open-archieven-budget-burst-capacity:10}")
+    private val openArchievenBudgetBurstCapacity: Int,
+    @param:Value("\${hkh.historical.open-archieven-budget-refill-per-second:1.0}")
+    private val openArchievenBudgetRefillPerSecond: Double,
     @param:Value("\${hkh.historical.trusted-proxy-addresses:}")
     private val trustedProxyAddresses: String,
 ) {
     @Bean
-    fun historicalSearchRateLimiter(): HistoricalSearchRateLimiter = FourPerSecondHistoricalRateLimiter()
+    fun historicalSearchRateLimiter(): HistoricalSearchRateLimiter = FourPerSecondHistoricalRateLimiter(
+        intervalNanos = openArchievenRateLimitInterval.toNanos(),
+    )
 
     @Bean
     fun historicalSearchRequestBudget(): HistoricalSearchRequestBudget =
-        SlidingWindowHistoricalSearchRequestBudget()
+        SlidingWindowHistoricalSearchRequestBudget(
+            maxPerMinute = openArchievenBudgetPerMinute,
+            burstCapacity = openArchievenBudgetBurstCapacity,
+            refillPerSecond = openArchievenBudgetRefillPerSecond,
+        )
 
     @Bean
     fun openArchievenResponseCache(): OpenArchievenResponseCache =
@@ -71,6 +99,13 @@ class HistoricalSearchConfiguration(
             configured = openArchievenBaseUrl.isNotBlank(),
             requestBudget = historicalSearchRequestBudget(),
             responseCache = openArchievenResponseCache(),
+            searchPath = openArchievenSearchPath,
+            nameParameter = openArchievenNameParameter,
+            eventplaceParameter = openArchievenEventplaceParameter,
+            numberShowParameter = openArchievenNumberShowParameter,
+            startParameter = openArchievenStartParameter,
+            archiveCodeParameter = openArchievenArchiveCodeParameter,
+            heemskerkArchiveCode = openArchievenHeemskerkArchiveCode,
         )
 
     private fun openArchievenRestClient(baseUrl: String, timeout: Duration): RestClient {
@@ -237,6 +272,13 @@ class OpenArchievenSearchAdapter(
     private val retrySleeper: (Duration) -> Unit = { duration ->
         if (!duration.isZero) Thread.sleep(duration.toMillis())
     },
+    private val searchPath: String = "/records/search.json",
+    private val nameParameter: String = "name",
+    private val eventplaceParameter: String = "eventplace",
+    private val numberShowParameter: String = "number_show",
+    private val startParameter: String = "start",
+    private val archiveCodeParameter: String = "archive_code",
+    private val heemskerkArchiveCode: String = "hee",
 ) : HistoricalSearchAdapter {
     override val source: HistoricalSearchSource = HistoricalSearchSource.OPEN_ARCHIEVEN
     private val log = LoggerFactory.getLogger(OpenArchievenSearchAdapter::class.java)
@@ -415,18 +457,18 @@ class OpenArchievenSearchAdapter(
         query: HistoricalSearchQuery,
         name: String,
     ): OpenArchievenRequest {
-        var uri = UriComponentsBuilder.fromPath("/records/search.json")
-            .queryParam("number_show", query.limit.coerceAtMost(100))
-            .queryParam("start", query.start)
+        var uri = UriComponentsBuilder.fromPath(searchPath)
+            .queryParam(numberShowParameter, query.limit.coerceAtMost(100))
+            .queryParam(startParameter, query.start)
         val semantics = buildList {
-            uri = uri.queryParam("name", name)
-            add("name")
+            uri = uri.queryParam(nameParameter, name)
+            add(nameParameter)
             query.place?.let {
-                uri = uri.queryParam("eventplace", it)
-                add("eventplace")
+                uri = uri.queryParam(eventplaceParameter, it)
+                add(eventplaceParameter)
             }
         }
-        if (isHeemskerkSearch(query)) uri = uri.queryParam("archive_code", "hee")
+        if (isHeemskerkSearch(query)) uri = uri.queryParam(archiveCodeParameter, heemskerkArchiveCode)
         return OpenArchievenRequest(uri.build().toUri(), semantics)
     }
 
