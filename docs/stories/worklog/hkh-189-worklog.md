@@ -21,3 +21,14 @@ Done / rationale:
   frontend-admin 39 tests plus analyze.
 - Zelfreview afgerond: geen conflictmarkers, geen secrets/providerpayloads in publieke asserts,
   fixtures stoppen in `finally` en alle wijzigingen blijven uncommitted.
+
+## [REVIEWER]
+
+- Factory-verificatie gecontroleerd: aanwezig en groen voor de actuele HEAD/tree; gerichte backend-
+  en Flutter-contracttests zijn eveneens groen.
+- [blocker] De nieuwe Flutter-matrix (`frontend/test/hkh189_historical_search_contract_test.dart`,
+  regels 88-296) zet `state`, bronstatus en tellingen in de synthetische responses, maar de
+  assertions controleren die waarden niet. De diagnostiek bevat alleen de scenarionaam en
+  kaartzichtbaarheid; bij een regressie in de weergegeven toestand of telling blijven de tests
+  groen. Voeg per case expliciete verwachte state, bronstatus en totale/per-bron telling toe en
+  assert die aan de publieke UI-/contractgrens, inclusief de null-tellingen bij bronfouten.
