@@ -101,6 +101,16 @@ void main() {
               ),
             ],
           ),
+          expectedState: 'RESULTS',
+          expectedTotal: 1,
+          expectedSources: const [
+            _Hkh189ExpectedSource(
+              source: 'OPEN_ARCHIEVEN',
+              status: 'AVAILABLE',
+              resultCount: 1,
+              heemskerkCount: 0,
+            ),
+          ],
           cardVisible: true,
           expectedText: 'Bronnaam: Synthetisch Archief',
         ),
@@ -118,6 +128,16 @@ void main() {
               ),
             ],
           ),
+          expectedState: 'NO_RESULTS',
+          expectedTotal: 0,
+          expectedSources: const [
+            _Hkh189ExpectedSource(
+              source: 'OPEN_ARCHIEVEN',
+              status: 'AVAILABLE',
+              resultCount: 0,
+              heemskerkCount: 0,
+            ),
+          ],
           cardVisible: false,
           expectedText: 'Geen historische resultaten gevonden.',
         ),
@@ -140,6 +160,20 @@ void main() {
               ),
             ],
           ),
+          expectedState: 'PARTIAL_AVAILABILITY',
+          expectedTotal: 1,
+          expectedSources: const [
+            _Hkh189ExpectedSource(
+              source: 'EUROPEANA',
+              status: 'TEMPORARILY_UNAVAILABLE',
+            ),
+            _Hkh189ExpectedSource(
+              source: 'OPEN_ARCHIEVEN',
+              status: 'AVAILABLE',
+              resultCount: 1,
+              heemskerkCount: 1,
+            ),
+          ],
           cardVisible: true,
           expectedText: 'Europeana: tijdelijk niet beschikbaar.',
         ),
@@ -157,6 +191,15 @@ void main() {
               ),
             ],
           ),
+          expectedState: 'RESULTS',
+          expectedTotal: 1,
+          expectedSources: const [
+            _Hkh189ExpectedSource(
+              source: 'OPEN_ARCHIEVEN',
+              status: 'AVAILABLE',
+              resultCount: 1,
+            ),
+          ],
           cardVisible: true,
           expectedText: 'Metadatarechten: Onbekend',
           forbiddenText: 'provider-secret-title',
@@ -179,7 +222,15 @@ void main() {
 
         final diagnostic =
             '${matrixCase.name}: '
-            'verwachte kaartzichtbaarheid=${matrixCase.cardVisible}';
+            'verwachte state=${matrixCase.expectedState}, '
+            'totaal=${matrixCase.expectedTotal}, '
+            'bronnen=${matrixCase.expectedSources}, '
+            'kaartzichtbaarheid=${matrixCase.cardVisible}';
+        _expectHkh189ResponseContract(
+          matrixCase.response,
+          matrixCase,
+          diagnostic,
+        );
         expect(
           find.text(matrixCase.expectedText, skipOffstage: false),
           findsOneWidget,
@@ -193,6 +244,35 @@ void main() {
           matrixCase.cardVisible ? findsOneWidget : findsNothing,
           reason: diagnostic,
         );
+        if (matrixCase.expectedState == 'NO_RESULTS') {
+          expect(
+            find.text(
+              'Geen historische resultaten gevonden.',
+              skipOffstage: false,
+            ),
+            findsOneWidget,
+            reason: diagnostic,
+          );
+        } else {
+          expect(
+            find.text(
+              '${matrixCase.expectedTotal} historische resultaten',
+              skipOffstage: false,
+            ),
+            findsOneWidget,
+            reason: diagnostic,
+          );
+        }
+        for (final expectedSource in matrixCase.expectedSources) {
+          expect(
+            find.text(
+              _hkh189VisibleSourceSummary(expectedSource),
+              skipOffstage: false,
+            ),
+            findsOneWidget,
+            reason: '$diagnostic; zichtbare bronstatus/telling',
+          );
+        }
         if (matrixCase.cardVisible) {
           expect(
             find.text('Bronidentifier: hee:synthetic-189', skipOffstage: false),
@@ -236,16 +316,22 @@ void main() {
   testWidgets(
     'frontend renders safe messages for every source failure status',
     (tester) async {
-      const failureCases = <MapEntry<String, String>>[
-        MapEntry('TIMEOUT', 'Open Archieven reageerde niet op tijd.'),
-        MapEntry('HTTP_ERROR', 'Open Archieven gaf een fout bij het opvragen.'),
-        MapEntry(
-          'INVALID_JSON',
-          'Open Archieven stuurde een onleesbaar antwoord.',
+      const failureCases = <_Hkh189FailureCase>[
+        _Hkh189FailureCase(
+          status: 'TIMEOUT',
+          message: 'Open Archieven reageerde niet op tijd.',
         ),
-        MapEntry(
-          'MISSING_REQUIRED_FIELDS',
-          'Open Archieven stuurde een onvolledig antwoord.',
+        _Hkh189FailureCase(
+          status: 'HTTP_ERROR',
+          message: 'Open Archieven gaf een fout bij het opvragen.',
+        ),
+        _Hkh189FailureCase(
+          status: 'INVALID_JSON',
+          message: 'Open Archieven stuurde een onleesbaar antwoord.',
+        ),
+        _Hkh189FailureCase(
+          status: 'MISSING_REQUIRED_FIELDS',
+          message: 'Open Archieven stuurde een onvolledig antwoord.',
         ),
       ];
 
@@ -256,7 +342,7 @@ void main() {
           sources: [
             HistoricalSourceStatus(
               source: 'OPEN_ARCHIEVEN',
-              status: failureCase.key,
+              status: failureCase.status,
               message: 'provider-secret-diagnostic',
             ),
           ],
@@ -270,9 +356,29 @@ void main() {
         await tester.pumpAndSettle();
 
         final diagnostic =
-            '${failureCase.key}: verwachte bronfout zonder kaart';
+            '${failureCase.status}: verwachte state=SOURCE_FAILURE, '
+            'totaal=0, bronstatus=${failureCase.status}, telling=null, '
+            'kaartzichtbaarheid=false';
+        _expectHkh189ResponseContract(
+          response,
+          _Hkh189UiCase(
+            name: failureCase.status,
+            response: response,
+            expectedState: 'SOURCE_FAILURE',
+            expectedTotal: 0,
+            expectedSources: [
+              _Hkh189ExpectedSource(
+                source: 'OPEN_ARCHIEVEN',
+                status: failureCase.status,
+              ),
+            ],
+            cardVisible: false,
+            expectedText: failureCase.message,
+          ),
+          diagnostic,
+        );
         expect(
-          find.text(failureCase.value, skipOffstage: false),
+          find.text(failureCase.message, skipOffstage: false),
           findsOneWidget,
           reason: diagnostic,
         );
@@ -302,6 +408,9 @@ class _Hkh189UiCase {
   const _Hkh189UiCase({
     required this.name,
     required this.response,
+    required this.expectedState,
+    required this.expectedTotal,
+    required this.expectedSources,
     required this.cardVisible,
     required this.expectedText,
     this.forbiddenText,
@@ -309,9 +418,87 @@ class _Hkh189UiCase {
 
   final String name;
   final HistoricalSearchResponse response;
+  final String expectedState;
+  final int expectedTotal;
+  final List<_Hkh189ExpectedSource> expectedSources;
   final bool cardVisible;
   final String expectedText;
   final String? forbiddenText;
+}
+
+class _Hkh189ExpectedSource {
+  const _Hkh189ExpectedSource({
+    required this.source,
+    required this.status,
+    this.resultCount,
+    this.heemskerkCount,
+  });
+
+  final String source;
+  final String status;
+  final int? resultCount;
+  final int? heemskerkCount;
+}
+
+class _Hkh189FailureCase {
+  const _Hkh189FailureCase({required this.status, required this.message});
+
+  final String status;
+  final String message;
+}
+
+void _expectHkh189ResponseContract(
+  HistoricalSearchResponse response,
+  _Hkh189UiCase matrixCase,
+  String diagnostic,
+) {
+  expect(response.state, matrixCase.expectedState, reason: diagnostic);
+  expect(response.total, matrixCase.expectedTotal, reason: diagnostic);
+  expect(
+    response.sources,
+    hasLength(matrixCase.expectedSources.length),
+    reason: diagnostic,
+  );
+  for (final expectedSource in matrixCase.expectedSources) {
+    final actualSource = response.sources.singleWhere(
+      (source) => source.source == expectedSource.source,
+      orElse: () => throw TestFailure(
+        '$diagnostic; bron ${expectedSource.source} ontbreekt',
+      ),
+    );
+    expect(actualSource.status, expectedSource.status, reason: diagnostic);
+    expect(
+      actualSource.resultCount,
+      expectedSource.resultCount,
+      reason: '$diagnostic; resultCount voor ${expectedSource.source}',
+    );
+    expect(
+      actualSource.heemskerkCount,
+      expectedSource.heemskerkCount,
+      reason: '$diagnostic; heemskerkCount voor ${expectedSource.source}',
+    );
+  }
+}
+
+String _hkh189VisibleSourceSummary(_Hkh189ExpectedSource source) {
+  final name = switch (source.source) {
+    'EUROPEANA' => 'Europeana',
+    'OPEN_ARCHIEVEN' => 'Open Archieven',
+    _ => source.source,
+  };
+  if (source.status != 'AVAILABLE') {
+    final message = switch (source.status) {
+      'TEMPORARILY_UNAVAILABLE' => 'tijdelijk niet beschikbaar',
+      _ => 'niet beschikbaar',
+    };
+    return '$name: $message.';
+  }
+  if (source.resultCount == null || source.heemskerkCount == null) {
+    return '$name: beschikbaar.';
+  }
+  return '$name: beschikbaar, ${source.resultCount} resultaten. '
+      'Lokale Heemskerk-indicatie op basis van plaatsmetadata: '
+      '${source.heemskerkCount} (geen historisch bewijs).';
 }
 
 HistoricalSearchResponse _hkh189Response({

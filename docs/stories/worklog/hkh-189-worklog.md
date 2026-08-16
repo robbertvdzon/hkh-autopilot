@@ -32,3 +32,18 @@ Done / rationale:
   kaartzichtbaarheid; bij een regressie in de weergegeven toestand of telling blijven de tests
   groen. Voeg per case expliciete verwachte state, bronstatus en totale/per-bron telling toe en
   assert die aan de publieke UI-/contractgrens, inclusief de null-tellingen bij bronfouten.
+
+## Developer rerun
+
+- De reviewer-blokkade is opnieuw opgepakt: de Flutter-matrix krijgt expliciete verwachte state-,
+  status- en telwaarden per scenario, inclusief beide bronwaarden bij gedeeltelijke beschikbaarheid
+  en nullable tellingen bij bronfouten.
+- De assertions controleren nu ook de zichtbare totale-resultaattekst, lege/foutstatus en per-bron
+  status/telling. De foutmatrix verwacht expliciet `SOURCE_FAILURE`, totaal `0` en `null` voor beide
+  broncountvelden.
+- Gerichte tests: backend `Hkh189HistoricalSearchContractTest` 3 groen; Flutter hkh-189-contracttest
+  3 groen.
+- Volledig vangnet opnieuw uitgevoerd: backend Maven 359 tests groen; frontend analyze, 86 tests en
+  webbuild groen; frontend-admin analyze en 39 tests groen.
+- Zelfreview afgerond: geen conflictmarkers, geen nieuwe secrets of providerpayloads, fixtures blijven
+  lokaal/synthetisch en de wijzigingen zijn uncommitted gelaten voor de factory.
