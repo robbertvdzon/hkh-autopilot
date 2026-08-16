@@ -265,6 +265,23 @@ mvn -B --no-transfer-progress -f backend/pom.xml -Dtest=Hkh165HistoricalSearchSm
 cd frontend && flutter test test/hkh165_historical_search_smoke_contract_test.dart
 ```
 
+The broader public-flow status matrix is covered by
+`backend/src/test/kotlin/nl/vdzon/hkh/historicalsearch/Hkh189HistoricalSearchContractTest.kt`
+and `frontend/test/hkh189_historical_search_contract_test.dart`. It exercises valid and empty
+Open Archieven responses, partial source availability, timeout, HTTP 5xx, invalid JSON, missing
+or contradictory required fields, and missing rights/privacy metadata. Assertions cover the
+aggregate state, source status, total and per-source counts, provider-supplied identity and exact
+source URL, safe metadata redaction, and result-card visibility. The backend serves every provider
+response from a local `HttpServer`; the Flutter matrix uses synthetic route responses, so neither
+test contacts a real provider or persists provider content.
+
+Run the matrix directly with:
+
+```bash
+mvn -B --no-transfer-progress -f backend/pom.xml -Dtest=Hkh189HistoricalSearchContractTest test
+cd frontend && flutter test test/hkh189_historical_search_contract_test.dart
+```
+
 For each result, `metadataRights` and `objectMediaRights` are mapped independently from explicit
 provider rights fields. The public search adapters recognize only `ALLOWED` and `RESTRICTED`; blank,
 missing, unrecognized or contradictory values become `UNKNOWN`. The free-text `rights`/`license`

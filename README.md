@@ -163,4 +163,18 @@ Beide gebruiken uitsluitend synthetische fixtures en lokale mocks; gericht uitvo
 (cd frontend && flutter test test/hkh165_historical_search_smoke_contract_test.dart)
 ```
 
+De aanvullende statusmatrix voor de publieke Open Archieven-flow staat in
+`Hkh189HistoricalSearchContractTest` en
+[`frontend/test/hkh189_historical_search_contract_test.dart`](frontend/test/hkh189_historical_search_contract_test.dart).
+Deze matrix controleert geldige en lege responses, gedeeltelijke bronbeschikbaarheid, time-out,
+HTTP 5xx, ongeldige of structureel tegenstrijdige providerdata, ontbrekende rechten/privacy-
+metadata, veilige tellingen en kaartzichtbaarheid. De backend gebruikt een lokale HTTP-fixture en
+de Fluttertest gebruikt synthetische responses; er wordt geen echte externe bron aangesproken.
+Gericht uitvoeren kan met:
+
+```bash
+(cd backend && mvn -B --no-transfer-progress -Dtest=Hkh189HistoricalSearchContractTest test)
+(cd frontend && flutter test test/hkh189_historical_search_contract_test.dart)
+```
+
 Echte secrets, lokale overrides, buildoutput en IDE-bestanden worden niet gecommit.

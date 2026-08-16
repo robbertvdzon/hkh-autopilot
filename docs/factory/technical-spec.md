@@ -544,6 +544,17 @@ privacyclassificatie.
   componenten op. Zij controleert de geldige Heemskerk-mapping, nulresultaat, gedeeltelijke en
   volledige bronuitval, uitgeschakelde Europeana, veldgerichte foutdiagnose en één upstream-aanvraag
   voor identieke gelijktijdige zoekcontexten. De test draait automatisch onder Maven `verify`.
+- De uitgebreide publieke statusmatrix
+  `Hkh189HistoricalSearchContractTest` gebruikt eveneens uitsluitend een lokale `HttpServer`.
+  Zij controleert naast geldige en lege responses ook timeout, HTTP 5xx, ongeldig JSON, ontbrekende
+  of tegenstrijdige verplichte providerdata, gedeeltelijke bronbeschikbaarheid en ontbrekende
+  rechten-/privacymetadata. Per scenario worden de geaggregeerde state, bronstatus, totale en
+  nullable per-bron telling, kaartzichtbaarheid, door de bron geleverde identiteit en exacte URL
+  gecontroleerd; providerinhoud wordt uit de publieke respons geweerd. De Flutter-tegenhanger
+  `hkh189_historical_search_contract_test.dart` voert synthetische responses door de bestaande
+  `HistoricalSearchPage` en controleert dezelfde contractwaarden, veilige frontendmeldingen,
+  `Onbekend`-mapping en kaartzichtbaarheid. Beide tests draaien automatisch onder de bestaande
+  Maven-/Flutter-testcommando's.
 - De adapters vereisen een expliciete resultaatarray (`items` voor Europeana, `docs` voor Open
   Archieven). Voor Open Archieven zijn bovendien een object `response`, een niet-negatieve
   numerieke `number_found` en per document de verplichte velden `source_name`, veilige `uuid` en
