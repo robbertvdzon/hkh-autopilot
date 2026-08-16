@@ -7,6 +7,15 @@ ontdekintroductie, productvisieactie en servicekaart staan, wordt daaronder het 
 geladen en volgt daarna het homepage-ontdekblok (zie "Homepage-ontdekblok" hieronder). Routes,
 navigatie en zichtbare inhoudsvolgorde worden niet door statussemantiek gewijzigd.
 
+### Productvisie en terugnavigatie
+
+De bestaande actie `Lees onze productvisie` opent Productvisie als vervolgpageroute vanuit de
+bestaande homepage-route. De inhoud van Productvisie blijft ongewijzigd. De pagina toont een
+zichtbare en semantisch herkenbare knop `Terug naar startpagina` in de normale Tab-volgorde. De
+knop werkt met muis, Enter en spatie en keert via de bestaande navigatiestack terug naar de al
+geopende homepage. Er wordt geen tweede homepage, nieuwe deep-linkroute of nieuwe navigatiegeschiedenis
+gemaakt; ook directe opening via het bestaande navigatiepad blijft werken.
+
 De beleefde statusmeldingen zijn:
 
 - service: ‘De historische omgeving wordt voorbereid.’, ‘De HKH-service is niet bereikbaar.’ en

@@ -3,7 +3,9 @@
 Deze repository bevat de productgestuurde Historisch Heemskerk-app: een Kotlin/Spring-backend,
 een Flutter-gebruikersfrontend voor web en Android, een afzonderlijke Flutter-webbeheerfrontend en
 OpenShift/Kustomize-deploymentconfiguratie. De homepage van de gebruikersfrontend controleert eerst
-de backendservice en toont daarna het laatste nieuws.
+de backendservice en toont daarna het laatste nieuws, de productvisie-ingang en de historische
+zoekingang. Productvisie opent als vervolgpageroute en heeft een zichtbare terugactie naar de
+bestaande homepage.
 
 ## Eerst lezen
 

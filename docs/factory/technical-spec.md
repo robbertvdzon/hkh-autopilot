@@ -106,6 +106,21 @@ de enige "primaire ontdekactie" op de homepage; er is geen los, tweede toegankel
   `liveRegion`-telling die wijzigt per zoekactie/chipselectie, en een test die bevestigt dat alleen
   `LatestNewsItem`/`NewsEntity`/`AggregatedNewsEntity`-velden gebruikt worden.
 
+## Productvisie-route (gebruikersfrontend)
+
+`HomePage` in `frontend/lib/main.dart` opent `ProductVisionPage` via de bestaande
+`MaterialPageRoute` wanneer de gebruiker `Lees onze productvisie` activeert. De pagina in
+`frontend/lib/product_vision_page.dart` behoudt de bestaande Productvisie-inhoud en definieert in
+de `AppBar` een expliciete `Semantics`-knop met het label `Terug naar startpagina`. De knop is
+focusbaar en bereikbaar in de normale Tab-volgorde; de pointer- en toetsenbordacties voeren
+`Navigator.pop` uit. Daarmee blijft de bestaande route-stack intact en keert de gebruiker terug
+naar de al geopende homepage, zonder een nieuwe homepage of deep-linkroute.
+
+`frontend/test/widget_test.dart` gebruikt deterministische status- en nieuwsbronnen om de route
+vanaf de homepage te openen en controleert terugnavigatie via pointer, Enter en spatie, inclusief
+focusbereikbaarheid, knoprol, herkenbaar label en behoud van homepage-inhoud. De Productvisie-
+inhoud zelf wordt niet opnieuw gemodelleerd door deze flow.
+
 ## Backendmodule `linkdossier`
 
 De koppelingsdossiervalidatie zit in de zelfstandige Spring Modulith-module
