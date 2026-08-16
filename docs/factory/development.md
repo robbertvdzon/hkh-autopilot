@@ -161,6 +161,17 @@
 - `deploy/`: OpenShift-, Kustomize- en ArgoCD-manifests;
 - `.factory/verification.yaml`: machine-leesbaar, revisiongebonden verificatievangnet.
 
+De productie-overlay `deploy/overlays/openshift` en de acceptatie-overlay
+`deploy/overlays/acceptance` gebruiken dezelfde canonieke, niet-geheime ConfigMap
+`deploy/base/open-archieven-config.yaml`. Deze bevat endpoint `https://api.openarchieven.nl/1.1`,
+zoekpad `/records/search.json`, `name`, `eventplace`, `number_show`, `start`, de Heemskerk-
+`archive_code=hee`-mapping, timeout `10s`, cache `30s`, rate-limitinterval `251ms` en het budget
+`60` per rollende minuut met burst `10` en refill `1.0` per seconde. Overlay-specifieke afwijkingen
+zijn niet toegestaan; fixture- en mock-overschrijvingen zijn alleen lokaal of in tests toegestaan.
+De pariteit en syntactische geldigheid worden gecontroleerd door
+`Hkh195OpenArchievenConfigurationContractTest`, die de effectieve Kustomize-output van beide
+overlays tegen één contract vergelijkt.
+
 De gebruikersfrontend krijgt de backendbasis tijdens compilatie via
 `--dart-define=API_BASE_URL=https://...`; zonder define gebruikt hij `http://localhost:8080`.
 

@@ -24,6 +24,8 @@ spec:
                 name: hkh-runtime
             - configMapRef:
                 name: hkh-backend-config
+            - configMapRef:
+                name: hkh-open-archieven-config
           env:
             - name: JAVA_TOOL_OPTIONS
               value: -XX:MaxRAMPercentage=70.0

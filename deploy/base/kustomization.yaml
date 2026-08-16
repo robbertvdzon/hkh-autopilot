@@ -6,6 +6,7 @@ resources:
   - database-statefulset.yaml
   - backend-deployment.yaml
   - backend-config.yaml
+  - open-archieven-config.yaml
   - backend-service.yaml
   - backend-network-policy.yaml
   - frontend-deployment.yaml

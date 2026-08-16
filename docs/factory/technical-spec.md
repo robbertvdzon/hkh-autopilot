@@ -526,6 +526,14 @@ privacyclassificatie.
   waarde markeert alleen Europeana als `DISABLED`; Open Archieven blijft onafhankelijk beschikbaar.
   De providerbasis-URL's zijn overschrijfbaar via `HKH_HISTORICAL_EUROPEANA_BASE_URL` en
   `HKH_HISTORICAL_OPEN_ARCHIEVEN_BASE_URL`, zodat tests fixtures/mockservers kunnen gebruiken.
+- Voor productie en acceptatie is de Open Archieven-configuratie gecentraliseerd in de niet-geheime
+  ConfigMap `deploy/base/open-archieven-config.yaml`. De OpenShift-overlay en acceptatie-overlay
+  erven deze ConfigMap zonder lokale patch. Het canonieke contract bevat endpoint
+  `https://api.openarchieven.nl/1.1`, zoekpad `/records/search.json`, de providerparameter-namen
+  `name`, `eventplace`, `number_show`, `start` en `archive_code`, Heemskerk-code `hee`, timeout
+  `10s`, cacheduur `30s`, rate-limitinterval `251ms`, budget `60` per rollende minuut, burst `10`
+  en refill `1.0` per seconde. De backenddeployment importeert deze waarden via `envFrom`; lokale
+  fixture- en mock-overrides blijven uitsluitend voor lokaal/testgebruik toegestaan.
 - `OpenArchievenSearchAdapter` gebruikt bij een actieve aanvraag een proceslokaal per-IP-budget van
   maximaal 10 directe pogingen en 60 pogingen per rollende minuut. `HKH_HISTORICAL_TRUSTED_PROXY_ADDRESSES`
   configureert de directe proxy-peers waarvoor `X-Forwarded-For` als client-IP mag gelden; buiten die
@@ -555,6 +563,10 @@ privacyclassificatie.
   `HistoricalSearchPage` en controleert dezelfde contractwaarden, veilige frontendmeldingen,
   `Onbekend`-mapping en kaartzichtbaarheid. Beide tests draaien automatisch onder de bestaande
   Maven-/Flutter-testcommando's.
+- `Hkh195OpenArchievenConfigurationContractTest` rendert de effectieve OpenShift- en
+  acceptatie-overlays met Kustomize en vergelijkt de endpoint-, pad-, parameter- en
+  featureconfiguratie afzonderlijk met het canonieke contract. De test controleert ook dat de
+  ConfigMap geen secrets of zoekpayloads bevat en dat de providerbasis-URL syntactisch geldig is.
 - De adapters vereisen een expliciete resultaatarray (`items` voor Europeana, `docs` voor Open
   Archieven). Voor Open Archieven zijn bovendien een object `response`, een niet-negatieve
   numerieke `number_found` en per document de verplichte velden `source_name`, veilige `uuid` en

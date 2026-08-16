@@ -37,6 +37,17 @@ zoekgeschiedenis bewaard.
 De Europeana-wskey is uitsluitend server-side configuratie; zie
 [docs/factory/secrets-local.md](docs/factory/secrets-local.md) voor de configuratienamen.
 
+De productie- en acceptatieomgeving gebruiken dezelfde canonieke, niet-geheime Open Archieven-
+configuratie uit [`deploy/base/open-archieven-config.yaml`](deploy/base/open-archieven-config.yaml).
+De overlays [`deploy/overlays/openshift`](deploy/overlays/openshift) en
+[`deploy/overlays/acceptance`](deploy/overlays/acceptance) erven deze ConfigMap zonder eigen
+override. Het contract bevat endpoint `https://api.openarchieven.nl/1.1`, zoekpad
+`/records/search.json`, de parameters `name`, `eventplace`, `number_show`, `start` en
+`archive_code=hee` voor Heemskerk, plus timeout `10s`, cacheduur `30s`, minimaal `251ms` tussen
+aanvragen en het verzoekbudget van burst `10`/`60` per rollende minuut. Europeana blijft los daarvan
+uitgeschakeld wanneer alleen de server-side wskey ontbreekt. Fixture- en mock-URL's zijn uitsluitend
+voor lokaal gebruik en tests.
+
 Voor een Heemskerk-zoekopdracht bevraagt de Open Archieven-adapter de bron met afzonderlijke
 parameters `name=Heemskerk` en `archive_code=hee`. Een geldig Open Archieven-resultaat exposeert
 de door de bron geleverde `source_name`, `stable_identifier` in de vorm `hee:uuid` en
