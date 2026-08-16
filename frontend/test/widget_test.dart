@@ -54,7 +54,11 @@ class _NewsSource implements LatestNewsSource {
   @override
   Future<NewsSearchResult> loadLatestNews({String? q, String? entity}) async {
     if (error) throw StateError('offline');
-    return NewsSearchResult(items: items, total: items.length, entities: const []);
+    return NewsSearchResult(
+      items: items,
+      total: items.length,
+      entities: const [],
+    );
   }
 }
 
@@ -270,6 +274,97 @@ void main() {
     expect(find.text('Productprincipes'), findsOneWidget);
     expect(find.text('Verbonden'), findsOneWidget);
   });
+
+  testWidgets('returns to the homepage through the visible mouse action', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      HkhApp(
+        statusSource: _SuccessfulStatusSource(),
+        newsSource: _NewsSource([_news]),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Lees onze productvisie'));
+    await tester.pumpAndSettle();
+    expect(find.text('Productprincipes'), findsOneWidget);
+
+    await tester.tap(find.bySemanticsLabel('Terug naar startpagina'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Productprincipes'), findsNothing);
+    expect(
+      find.textContaining(
+        'Ontdek de geschiedenis van Heemskerk vanuit een vraag',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Lees onze productvisie'), findsOneWidget);
+  });
+
+  for (final keyCase in [
+    (name: 'Enter', key: LogicalKeyboardKey.enter),
+    (name: 'space', key: LogicalKeyboardKey.space),
+  ]) {
+    testWidgets(
+      'returns to the homepage from the focused back action with ${keyCase.name}',
+      (tester) async {
+        await tester.pumpWidget(
+          HkhApp(
+            statusSource: _SuccessfulStatusSource(),
+            newsSource: _NewsSource([_news]),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Lees onze productvisie'));
+        await tester.pumpAndSettle();
+        final backAction = find.bySemanticsLabel('Terug naar startpagina');
+        expect(backAction, findsOneWidget);
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        expect(_hasPrimaryFocusWithin(backAction), isTrue);
+
+        await tester.sendKeyEvent(keyCase.key);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Productprincipes'), findsNothing);
+        expect(find.text('Lees onze productvisie'), findsOneWidget);
+      },
+    );
+  }
+
+  testWidgets(
+    'back action has a named button semantic and remains tab reachable',
+    (tester) async {
+      await tester.pumpWidget(
+        HkhApp(
+          statusSource: _SuccessfulStatusSource(),
+          newsSource: _NewsSource(const []),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Lees onze productvisie'));
+      await tester.pumpAndSettle();
+
+      final backAction = find.bySemanticsLabel('Terug naar startpagina');
+      expect(backAction, findsOneWidget);
+      final semantics = tester.getSemantics(backAction);
+      expect(semantics.label, 'Terug naar startpagina');
+      expect(semantics.flagsCollection.isButton, isTrue);
+      expect(
+        semantics.getSemanticsData().hasAction(SemanticsAction.tap),
+        isTrue,
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      expect(_hasPrimaryFocusWithin(backAction), isTrue);
+    },
+  );
 }
 
 List<SemanticsNode> _allSemanticsNodes(WidgetTester tester) {

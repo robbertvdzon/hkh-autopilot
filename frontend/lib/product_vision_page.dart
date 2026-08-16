@@ -36,7 +36,19 @@ class ProductVisionPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Productvisie')),
+      appBar: AppBar(
+        title: const Text('Productvisie'),
+        leading: Semantics(
+          button: true,
+          focusable: true,
+          label: 'Terug naar startpagina',
+          onTap: () => Navigator.of(context).pop(),
+          child: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Center(

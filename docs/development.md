@@ -331,6 +331,13 @@ publication date, source) with a back action. It is the homepage's only primary 
 fully keyboard-operable, and exposes its result count through a `Semantics(liveRegion: true)` node
 that changes after every search or chip selection.
 
+The homepage's `Lees onze productvisie` action pushes `ProductVisionPage` as a normal follow-up
+route. That page keeps its existing content and exposes the visible AppBar action
+`Terug naar startpagina`. The action is a named, focusable button in the normal Tab order and
+uses the existing route stack (`Navigator.pop`), so pointer activation and Flutter's standard
+Enter/Space activation return to the already opened homepage without creating a second homepage,
+deep-link route or replacing browser history.
+
 After the service check, the homepage also offers the separate `Historisch zoeken` entry. It opens
 `HistoricalSearchPage` with fields for free text, place, person, event, from/to year and an optional
 Europeana/Open Archieven source. The page maps the API aggregate state to distinct results, empty,

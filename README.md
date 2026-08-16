@@ -8,7 +8,7 @@ uiteen gaan lopen. Product Factory en Software Factory ontwikkelen deze variant 
 
 - `backend` — Kotlin, Spring Boot en Spring Modulith;
 - `frontend` — Flutter-gebruikersapp voor web en Android; de homepage controleert de backend en
-  toont daarna het laatste nieuws en de ingang `Historisch zoeken`;
+  toont daarna het laatste nieuws, de ingang naar Productvisie en de ingang `Historisch zoeken`;
 - `frontend-admin` — afzonderlijke Flutter-webapp voor beheerders;
 - `deploy` — OpenShift/Kustomize/ArgoCD-configuratie;
 - `.factory` — revisiongebonden verificatie voor Software Factory.

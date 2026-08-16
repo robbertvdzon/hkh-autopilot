@@ -10,6 +10,12 @@ list (title, summary, entity badges, source line) or, for zero results, a non-em
 with suggestion chips; each result opens a detail view (full text, publication date, source) with
 a back action.
 
+The `Lees onze productvisie` action opens `ProductVisionPage` with the existing
+`MaterialPageRoute`. ProductVisionPage keeps its content and provides the visible, semantic button
+`Terug naar startpagina` in the AppBar. It is reachable in the normal Tab order and works with a
+pointer, Enter or Space by popping the existing route back to the already opened homepage; no new
+homepage or deep-link route is introduced.
+
 The homepage also provides the separate `Historisch zoeken` entry next to the latest-news flow. The
 `HistoricalSearchPage` searches public Europeana and Open Archieven records through
 `GET /api/historical-search` with optional free text, place, person, event, year range and source
