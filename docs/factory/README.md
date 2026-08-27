@@ -13,6 +13,7 @@ de backendservice en toont daarna het laatste nieuws.
 - `functional-spec.md`: gebruikersflows en toegankelijkheidsgedrag.
 - `deployment.md`: productie- en previewdeployment.
 - `secrets-local.md`: namen en herkomst van lokale configuratie, nooit echte waarden.
+- `agent-runtime.md`: vaste aansluiting voor asynchrone AI-opdrachten, tenantgrenzen en herstel.
 - `agents/<rol>.md`: aanvullende instructies voor de actieve factory-rol.
 
 Architectuurdetails buiten de factory-flow staan in `docs/architecture/`; de reguliere lokale

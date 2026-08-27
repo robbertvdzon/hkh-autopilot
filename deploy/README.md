@@ -21,11 +21,12 @@ Platte clustersecrets komen nooit in Git:
 
 ```bash
 cp deploy/secrets-cluster.env.example deploy/secrets-cluster.env
-# vul de lokale, gitignored file in
+# neem de eigen Runtime-consumentcredential veilig over en vul overige lokale waarden in
+./deploy/configure-agent-runtime-secrets.sh
 ./deploy/seal-secrets.sh
 ```
 
-Het script schrijft alleen de versleutelde `deploy/base/sealed-secret-runtime.yaml`. Het gebruikt
+Het sealscript schrijft de versleutelde productie- en acceptatiemanifests. Het gebruikt
 het publieke certificaat uit de sibling-repository `robberts-infrastructure`, of haalt het
 certificaat van de huidige cluster als die repository niet beschikbaar is.
 

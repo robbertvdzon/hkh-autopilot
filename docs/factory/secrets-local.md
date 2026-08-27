@@ -19,6 +19,16 @@ overschrijven waarden uit het bestand; `HKH_SECRETS_FILE` kan naar een andere lo
 - `HKH_EXTERNAL_VERIFICATION_ARCHIVES_BASE_URL`: optionele basis-URI voor archieven.nl, standaard
   het publieke opendata-endpoint; uitsluitend bedoeld om lokaal of in tests tegen een
   fixture-/mock-endpoint te draaien.
+- `HKH_AGENT_RUNTIME_URL`: basis-URL van de gedeelde Agent Runtime;
+- `HKH_AGENT_RUNTIME_TOKEN`: eigen, minimaal bevoegde HKH Autopilot-consumentcredential;
+- `HKH_AGENT_RUNTIME_PROJECT_PREFIX`: exact `HKH_AUTOPILOT`;
+- `HKH_AGENT_RUNTIME_PROVIDER`, `HKH_AGENT_RUNTIME_MODEL` en
+  `HKH_AGENT_RUNTIME_EXECUTION_TIMEOUT_SECONDS`: begrensde uitvoeringskeuze voor duurzame AI-jobs.
+
+Voer `deploy/configure-agent-runtime-secrets.sh` uit om deze waarden vanuit de lokale siblingcheckout
+van Agent Runtime veilig in de genegeerde lokale en deploymentbronbestanden te zetten. Het script
+toont geen credentialwaarden en forceert mode `0600`. Het volledige contract staat in
+[`agent-runtime.md`](agent-runtime.md).
 
 De gebruikersfrontend gebruikt geen secret voor zijn backendadres. Geef een openbaar adres tijdens
 build/run door met `--dart-define=API_BASE_URL=https://...`; standaard is

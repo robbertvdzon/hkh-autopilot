@@ -11,6 +11,12 @@ De backendservicecontrole combineert `GET /actuator/health` en `GET /api/version
 binnen tien seconden met een geldige 200-respons slagen. Nieuws komt van `GET /api/news` en heeft
 dezelfde clienttimeout. `API_BASE_URL` is een compile-time Dart-define.
 
+Langlopende AI-opdrachten gaan asynchroon via de gedeelde Agent Runtime en nooit via een directe
+modelaanroep in de requestthread. HKH Autopilot gebruikt een eigen `APPLICATION_WORK`-tenant,
+projectprefix `HKH_AUTOPILOT` en een eigen bearercredential zonder repository-, worker- of
+beheerrechten. Het normatieve aansluit- en herstelcontract staat in
+[`agent-runtime.md`](agent-runtime.md).
+
 ## Backendmodule `linkdossier`
 
 De koppelingsdossiervalidatie zit in de zelfstandige Spring Modulith-module

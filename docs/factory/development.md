@@ -7,6 +7,10 @@
 - voor lokaal backendgebruik: Docker met Compose en een `secrets.env` op basis van
   `secrets.env.example`.
 
+Wanneer een feature Agent Runtime gebruikt, voer na het maken van `secrets.env` eenmaal
+`./deploy/configure-agent-runtime-secrets.sh` uit. De vaste API-flow en testgrenzen staan in
+[`agent-runtime.md`](agent-runtime.md); vraag de Stakeholder nooit om een bestaand Factory-token.
+
 ## Repositorystructuur
 
 - `backend/`: Kotlin, Spring Boot, Spring Modulith, Maven en backendtests; features zijn modules

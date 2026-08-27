@@ -24,6 +24,7 @@ frontend-admin/build/
 secrets.env
 properties.env
 deploy/secrets-cluster.env
+deploy/secrets-acceptance.env
 *.local.properties
 
 # Logs en tijdelijke bestanden
