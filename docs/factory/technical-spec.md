@@ -80,15 +80,58 @@ andere modules, ook niet op `auth` — opgenomen in de moduleset van `ModulithAr
   levensduur. Dit is een nieuw, minimaal sessieconcept los van het bestaande admin/Google-
   authenticatiemechanisme, uitsluitend gebruikt om jobs en idempotentiesleutels aan een bezoeker te
   binden.
+- `PersonSearchStatus` is een worker-onafhankelijk statuscontract — `QUEUED, RUNNING, READY,
+  NO_EVIDENCE, PARTIAL, FAILED, CANCELLED, EXPIRED` — uitvoerbaar door de gewone gedeelde executor,
+  zonder afhankelijkheid van Agent Runtime (`PersonSearchOutcome.toStatus()`:
+  `SupportedAnswer → READY`, `NoResults → NO_EVIDENCE`, `SourceOutage → FAILED`, `Partial`
+  ongewijzigd). `PersonSearchSourceConsultationStatus`
+  (`NOT_STARTED/IN_PROGRESS/SUCCEEDED/FAILED`) volgt per bron (Open Archieven, Wikidata) op elke
+  `PersonSearchJob`. `PERSON_SEARCH_TERMINAL_STATUSES` bevat alle statussen behalve `QUEUED`/
+  `RUNNING`; `PersonSearchJob.isTerminal` leest daaruit af.
 - `PersonSearchService.submit` maakt per idempotentiesleutel (sessie-id + genormaliseerde vraag +
   gekozen Heemskerk-betekenis) atomair precies één `PersonSearchJob` aan (`createIfAbsent`, dus geen
   race condition bij een dubbele gelijktijdige indiening) met een cryptografisch random,
-  niet-raadbare job-id. Jobs leven in-memory (`PersonSearchJobStore`) zonder persistente,
-  versleutelde opslag of TTL — bewust buiten scope van deze story, volgt in de vervolgstory. De
-  synchrone uitvoering start de Records/Search-/Records/Show-aanroepen en de Wikidata-
-  contextaanroep direct na jobcreatie en wacht binnen hetzelfde HTTP-request maximaal 2000ms op een
-  terminale, gevalideerde uitkomst (`RUNNING` als status wanneer de deadline verstrijkt, zonder de
-  achtergrondtaak te annuleren).
+  niet-raadbare job-id, status `QUEUED` totdat de achtergrondtaak daadwerkelijk op de executor
+  start (dan `RUNNING`). De synchrone uitvoering start de Records/Search-/Records/Show-aanroepen en
+  de Wikidata-contextaanroep direct na jobcreatie en wacht binnen hetzelfde HTTP-request maximaal
+  2000ms op een terminale, gevalideerde uitkomst, zonder de achtergrondtaak te annuleren. Vóór elke
+  uitgaande Open Archieven-/Wikidata-aanroep (ook halverwege de Show-lus, via een non-lokale
+  `return` in de inline `map`-lambda) controleert `submit` `jobStore.isCancelled(jobId)`. Een
+  uitkomst wordt zowel in `whenComplete` als — als vangnet wanneer die dependent stage nog niet is
+  afgerond zodra `future.get()` al terugkomt — direct na een succesvolle synchrone afronding
+  gepersisteerd (`persistOutcome`, idempotent op een reeds terminale job).
+- `PersonSearchJobStore` (in-memory, geen aparte databasetabel) bewaart de oorspronkelijke vraag en
+  de antwoordpayload uitsluitend versleuteld (`encryptedOriginalQuery`/`encryptedOutcome`, via
+  `PersonSearchPayloadCipher`) en houdt per job `updatedAt`, per-bron consultatiestatus en
+  `openedAt` bij. `findByIdForSession` is de sessiegebonden, fail-closed lookup die de controller
+  altijd gebruikt (andere sessie ⇒ `null`, alsof de job niet bestaat); `findById` is een tweede,
+  sessie-ongebonden lookup uitsluitend voor de achtergrondtaak zelf. `touchSessionActivity`
+  ververst het laatste sessie-activiteitsmoment (los van de 24u-cookie-`maxAge`) bij elke
+  indiening, statusaanvraag of stopactie. `cancel` zet de job op `CANCELLED` en wist direct de
+  payload (idempotent op een reeds terminale job); `isCancelled` wordt vóór elke uitgaande
+  bronaanroep gecontroleerd. `markOpened` markeert een `READY`-job als geopend. `sessionIndicator`
+  levert aantal + job-ids van lopende en gereedstaande-niet-geopende jobs van precies één sessie op
+  (job-ids nodig om na herlading te weten welke statuscontrole te hervatten; geen zichtbare
+  bronlinks/analyticswaarden). `purgeExpired()` wist de payload en zet de status op `EXPIRED` zodra
+  `PERSON_SEARCH_SESSION_INACTIVITY_LIMIT` (60 min) of `PERSON_SEARCH_MAX_AGE` (24 uur) verstrijkt,
+  wat eerder komt.
+- `PersonSearchPayloadCipher` versleutelt/ontsleutelt de oorspronkelijke vraag en de opgeslagen
+  antwoordpayload (`PersonSearchStoredPayload`: refinementMessage/answer/context) met AES-256-GCM,
+  naar het patroon van `ExternalVerificationTokenCipher`, maar als eigen `@Component` binnen de
+  `personsearch`-module (die `allowedDependencies = {}` heeft). Sleutel uit
+  `hkh.personsearch.payload-key`/`HKH_PERSON_SEARCH_PAYLOAD_KEY`; zonder geconfigureerde sleutel
+  faalt versleuteling fail-closed. Gebruikt een eigen `JsonMapper`
+  (`tools.jackson.databind.json.JsonMapper` + `kotlinModule()`) zodat er geen Spring
+  `ObjectMapper`-bean-afhankelijkheid nodig is.
+- `PersonSearchRetentionCleanupTask` (`@Scheduled(fixedDelay = 60_000)`, draait op de gewone Spring-
+  taakscheduler) roept periodiek `jobStore.purgeExpired()` aan. `@EnableScheduling` staat op
+  `HkhApplication` (nieuw in deze repo — geen bestaand `@Scheduled`-patroon om te volgen).
+- `PersonSearchController` biedt naast `POST /api/person-search` ook `GET /{jobId}/status`
+  (status, `createdAt`, `updatedAt`, per-bron consultatiestatus; de volledige uitkomst alleen bij
+  een terminale status), `POST /{jobId}/cancel` (stopactie), `POST /{jobId}/open` (markeert een
+  `READY`-job als geopend, voor de sessie-indicator) en `GET /session` (sessie-indicator: aantal +
+  job-ids). Alle vier zijn sessiegebonden fail-closed via `findByIdForSession` (HTTP 404 bij
+  onbekende job of een andere sessie); geen van de responses bevat een sessie-id.
 - `ArchivesOpenSearchClient`/`RestClientArchivesOpenSearchClient` roept Open Archieven Records/Search
   (`GET /records/search.json` met `archive_code=nha`, `eventplace=Heemskerk`, `lang=nl`,
   `number_show=100`, URL-gecodeerde `name`, `start` voor paginering) en Records/Show
@@ -124,13 +167,35 @@ andere modules, ook niet op `auth` — opgenomen in de moduleset van `ModulithAr
   `https://www.wikidata.org`); een mislukte contextaanroep blokkeert nooit de archiefuitkomst en
   levert alleen een ontbrekende `context` op. Contextinhoud draagt nooit zelfstandig een geboorte-,
   huwelijks-, overlijdens-, doop- of bevolkingsregistratiebewering.
-- Frontend: vier nieuwe Flutter-schermen onder `frontend/lib/personsearch/` — `live_search_screen.dart`
+- Frontend: zes Flutter-schermen onder `frontend/lib/personsearch/` — `live_search_screen.dart`
   (`live-search`), `supported_answer_screen.dart` (`supported-answer`, incl. bronmarkeringen, Context-
-  sectie en vervolgsporen), `followed_connection_screen.dart` (`followed-connection`) en
-  `source_outage_screen.dart` (`source-outage`) — elk met exact één desktop- en één mobile-uitwerking.
-  `person_search_client.dart`/`person_search_models.dart` ontsluiten `POST /api/person-search` en
-  modelleren de respons; `person_query_page.dart` dient de vraag in en schakelt op basis van de
-  respons door naar het passende scherm.
+  sectie en vervolgsporen), `followed_connection_screen.dart` (`followed-connection`),
+  `source_outage_screen.dart` (`source-outage`), `background_search_screen.dart`
+  (`background-search`: oorspronkelijke vraag, starttijdstip, status, per-bronvoortgang,
+  "andere vraag stellen zonder de lopende job te onderbreken" en een stopactie) en
+  `search_ready_screen.dart` (`search-ready`: voltooiingstijdstip, daadwerkelijk geraadpleegde
+  bronnen, precies één actie die het antwoord opent) — elk met exact één desktop- en één
+  mobile-uitwerking op hetzelfde breakpoint als `personquery` (geen aparte desktop-/mobile-
+  widgetklassen, enkel de containerbreedte verschilt). `session_indicator_badge.dart` bevat
+  `SessionIndicatorBadge`, een zelfverversend widget (eigen `Timer.periodic`, standaard elke 5s) dat
+  `GET /api/person-search/session` bevraagt en in de `AppBar` van `PersonQueryPage` staat, dus op
+  alle schermen van de route zichtbaar is.
+  `person_search_client.dart`/`person_search_models.dart` ontsluiten naast `POST /api/person-search`
+  ook `pollStatus`/`cancel`/`open`/`sessionIndicator`; `PersonSearchStatusException`/
+  `PersonSearchJobUnavailableException` (laatste specifiek voor een 404) laten de UI een tijdelijke
+  netwerkfout onderscheiden van een niet meer beschikbare job. `person_query_page.dart` dient de
+  vraag in en schakelt op basis van de respons door naar het passende scherm; bij `QUEUED`/`RUNNING`
+  wordt eerst één keer de volledige status opgehaald (voor starttijd/per-bron-status) voordat naar
+  `background-search` geschakeld wordt, waarna een eigen `Timer` (3s, geen acceptatiecriterium op
+  het exacte interval) de volgende statuscontrole plant zolang de job niet terminaal is. "Stel
+  intussen een andere vraag" stopt alleen de voorgrondpolling van dat scherm (via een
+  generation-teller) en navigeert naar `start`; de achtergrondtaak blijft server-side doorlopen.
+  `initState` roept `sessionIndicator()` aan om na herlading de eerste lopende of
+  gereedstaande-niet-geopende job van de sessie in de voorgrond te hervatten (bij meerdere
+  gelijktijdige jobs alleen de eerste; de sessie-indicator toont wel het juiste totaal). Na een
+  verwijderde/verlopen job (404 op de statusaanvraag) toont `_JobUnavailableScreen` een duidelijke
+  niet-meer-beschikbaar-melding met een aanbod om de vraag opnieuw in te dienen, in plaats van een
+  oud antwoord als actuele uitkomst.
 
 ## Backendmodule `linkdossier`
 

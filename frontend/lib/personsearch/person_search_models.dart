@@ -1,26 +1,62 @@
-/// Uitkomststatus van een persoonszoekjob, naar het backendcontract van
-/// `POST /api/person-search`.
+/// Worker-onafhankelijk statuscontract van een persoonszoekjob (zie
+/// `PersonSearchStatus` in de backend `personsearch`-module).
 enum PersonSearchStatus {
+  queued,
   running,
-  supportedAnswer,
-  noResults,
+  ready,
+  noEvidence,
   partial,
-  sourceOutage;
+  failed,
+  cancelled,
+  expired;
+
+  /// `true` voor elke status waarin de job niet meer verder kan veranderen.
+  bool get isTerminal =>
+      this != PersonSearchStatus.queued && this != PersonSearchStatus.running;
 
   static PersonSearchStatus fromApiValue(String value) {
     switch (value) {
+      case 'QUEUED':
+        return PersonSearchStatus.queued;
       case 'RUNNING':
         return PersonSearchStatus.running;
-      case 'SUPPORTED_ANSWER':
-        return PersonSearchStatus.supportedAnswer;
-      case 'NO_RESULTS':
-        return PersonSearchStatus.noResults;
+      case 'READY':
+        return PersonSearchStatus.ready;
+      case 'NO_EVIDENCE':
+        return PersonSearchStatus.noEvidence;
       case 'PARTIAL':
         return PersonSearchStatus.partial;
-      case 'SOURCE_OUTAGE':
-        return PersonSearchStatus.sourceOutage;
+      case 'FAILED':
+        return PersonSearchStatus.failed;
+      case 'CANCELLED':
+        return PersonSearchStatus.cancelled;
+      case 'EXPIRED':
+        return PersonSearchStatus.expired;
       default:
         throw ArgumentError('Onbekende persoonszoekstatus: $value');
+    }
+  }
+}
+
+/// Consultatiestatus van één externe bron (Open Archieven of Wikidata) voor een job.
+enum PersonSearchSourceConsultationStatus {
+  notStarted,
+  inProgress,
+  succeeded,
+  failed;
+
+  static PersonSearchSourceConsultationStatus fromApiValue(String value) {
+    switch (value) {
+      case 'NOT_STARTED':
+        return PersonSearchSourceConsultationStatus.notStarted;
+      case 'IN_PROGRESS':
+        return PersonSearchSourceConsultationStatus.inProgress;
+      case 'SUCCEEDED':
+        return PersonSearchSourceConsultationStatus.succeeded;
+      case 'FAILED':
+        return PersonSearchSourceConsultationStatus.failed;
+      default:
+        throw ArgumentError('Onbekende consultatiestatus: $value');
     }
   }
 }
@@ -132,8 +168,9 @@ class PersonSearchAnswer {
     return PersonSearchAnswer(
       sentences: (json['sentences'] as List<dynamic>)
           .map(
-            (item) =>
-                PersonSearchAnswerSentence.fromJson(item as Map<String, dynamic>),
+            (item) => PersonSearchAnswerSentence.fromJson(
+              item as Map<String, dynamic>,
+            ),
           )
           .toList(growable: false),
       sources: (json['sources'] as List<dynamic>)
@@ -203,6 +240,93 @@ class PersonSearchResult {
           : PersonSearchWikidataContext.fromJson(
               json['context'] as Map<String, dynamic>,
             ),
+    );
+  }
+}
+
+/// Uitkomst van een statusaanvraag/stopactie/openactie
+/// (`GET|POST /api/person-search/{jobId}/...`). Bevat nooit een sessie-id.
+class PersonSearchStatusResult {
+  const PersonSearchStatusResult({
+    required this.jobId,
+    required this.status,
+    required this.originalQuery,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.openArchievenStatus,
+    required this.wikidataStatus,
+    this.openedAt,
+    this.refinementMessage,
+    this.answer,
+    this.context,
+  });
+
+  final String jobId;
+  final PersonSearchStatus status;
+  final String originalQuery;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final PersonSearchSourceConsultationStatus openArchievenStatus;
+  final PersonSearchSourceConsultationStatus wikidataStatus;
+  final DateTime? openedAt;
+  final String? refinementMessage;
+  final PersonSearchAnswer? answer;
+  final PersonSearchWikidataContext? context;
+
+  factory PersonSearchStatusResult.fromJson(Map<String, dynamic> json) {
+    return PersonSearchStatusResult(
+      jobId: json['jobId'] as String,
+      status: PersonSearchStatus.fromApiValue(json['status'] as String),
+      originalQuery: json['originalQuery'] as String,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      openArchievenStatus: PersonSearchSourceConsultationStatus.fromApiValue(
+        json['openArchievenStatus'] as String,
+      ),
+      wikidataStatus: PersonSearchSourceConsultationStatus.fromApiValue(
+        json['wikidataStatus'] as String,
+      ),
+      openedAt: json['openedAt'] == null
+          ? null
+          : DateTime.parse(json['openedAt'] as String),
+      refinementMessage: json['refinementMessage'] as String?,
+      answer: json['answer'] == null
+          ? null
+          : PersonSearchAnswer.fromJson(json['answer'] as Map<String, dynamic>),
+      context: json['context'] == null
+          ? null
+          : PersonSearchWikidataContext.fromJson(
+              json['context'] as Map<String, dynamic>,
+            ),
+    );
+  }
+}
+
+/// Aantal en job-ids van lopende en gereedstaande-niet-geopende jobs van
+/// uitsluitend de huidige sessie (`GET /api/person-search/session`).
+class PersonSearchSessionIndicator {
+  const PersonSearchSessionIndicator({
+    required this.runningCount,
+    required this.readyUnopenedCount,
+    required this.runningJobIds,
+    required this.readyUnopenedJobIds,
+  });
+
+  final int runningCount;
+  final int readyUnopenedCount;
+  final List<String> runningJobIds;
+  final List<String> readyUnopenedJobIds;
+
+  factory PersonSearchSessionIndicator.fromJson(Map<String, dynamic> json) {
+    return PersonSearchSessionIndicator(
+      runningCount: json['runningCount'] as int,
+      readyUnopenedCount: json['readyUnopenedCount'] as int,
+      runningJobIds: (json['runningJobIds'] as List<dynamic>)
+          .cast<String>()
+          .toList(growable: false),
+      readyUnopenedJobIds: (json['readyUnopenedJobIds'] as List<dynamic>)
+          .cast<String>()
+          .toList(growable: false),
     );
   }
 }
