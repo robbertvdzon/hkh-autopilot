@@ -102,3 +102,67 @@ Fix:
   resultaten hebben hetzelfde job-id).
 - Volledig vangnet (`backend mvn verify`, `frontend`/`frontend-admin` analyze/test/build)
   opnieuw groen gedraaid na de fix.
+
+## Testronde SF-2320 (2026-08-28) — REJECTED
+
+Uitgevoerd:
+- Backend `mvn -B --no-transfer-progress clean verify`: BUILD SUCCESS, 237 tests, 0 failures/errors.
+- Frontend `flutter analyze`: geen issues.
+- Frontend `flutter test`: 56/56 groen (default concurrency toonde
+  `test/personsearch/person_search_client_test.dart` niet in de live-output — bekend
+  `frontend-flutter-test-concurrency-artifact`; bevestigd als artefact via geïsoleerde
+  run van dat bestand (5/5 groen) én een volledige `flutter test -j 1` run
+  (alle bestanden, incl. `backend_client_test.dart` en
+  `personsearch/person_search_client_test.dart`, zichtbaar en 56/56 groen). Geen echte
+  failure.
+- Frontend `flutter build web`: succesvol.
+
+Bevinding (blokkerend, terug naar developer):
+- `ArchivesOpenSearchModels.kt` / `RestClientArchivesOpenSearchClient.kt` gaan uit van
+  een plat JSON-schema voor Open Archieven Records/Search
+  (`number_found`/`results` top-level) en Records/Show (`person`/`event`/`relationEP`/
+  `source`, lowercase, plat). De **echte publieke** `api.openarchieven.nl/1.1`
+  retourneert een ander schema:
+  - Search: top-level keys zijn `query` en `response`; `number_found` en `docs`
+    (niet `results`) zitten genest onder `response`. Geverifieerd live met
+    `curl "https://api.openarchieven.nl/1.1/records/search.json?name=Nicolaas%20Jacobus%20Sinnige%201878&archive_code=nha&eventplace=Heemskerk&lang=nl&number_show=100&start=0"`
+    → `{"query": {...}, "response": {"number_found": 1, "docs": [{"identifier": "002ED0F3-F08C-4223-A5EA-BA385D04336E", "archive_code": "nha", ...}]}}`.
+    Exact het record uit het gecontroleerde voorbeeld, dus de zoekopdracht zelf klopt —
+    alleen het antwoordschema niet.
+  - Show: top-level keys zijn hoofdlettergevoelig en anders genest: `Person` (array
+    van personen, niet één plat object), `Event` (met geneste `EventDate`-structuur),
+    `RelationEP` (met `PersonKeyRef`/`RelationType`, geen directe naam/rol-paren) en
+    `Source` (diep genest, o.a. `SourceReference.InstitutionName`,
+    `SourceReference.DocumentNumber`, `SourceDigitalOriginal`). Geverifieerd live met
+    `curl "https://api.openarchieven.nl/1.1/records/show.json?archive=nha&identifier=002ED0F3-F08C-4223-A5EA-BA385D04336E&lang=nl"`.
+- Gevolg: `RestClientArchivesOpenSearchClient.search()` retourneert tegen de echte API
+  altijd `ArchivesSearchOutcome.Failure` (regels 49-50: `body.numberFound`/`body.results`
+  zijn `null`, want die velden bestaan niet top-level), en `show()` faalt eveneens altijd
+  (regel 80 e.v.: `body.person`/`body.event`/... zijn `null`). Met de standaard
+  productie-basis-URL (`https://api.openarchieven.nl/1.1`, ongewijzigd in
+  `application.properties`/`PersonSearchClientConfiguration.kt`) resulteert **elke**
+  vraag altijd in `source-outage`, nooit in `supported-answer` — ook niet het letterlijk
+  voorgeschreven Nicolaas Jacobus Sinnige-voorbeeld, terwijl de bijbehorende zoekopdracht
+  bij de echte bron wél precies één match met het verwachte `identifier` oplevert.
+- Alle backend-tests slagen alleen omdat de test-fixtures (JDK `HttpServer` in
+  `PersonSearchNicolaasSinnigeExampleTest`, `RestClientArchivesOpenSearchClientTest`,
+  `PersonSearchServiceTest`) zelf het (onjuiste) platte schema simuleren in plaats van
+  het echte Open Archieven-schema; ze bevestigen dus alleen interne consistentie, niet
+  correctheid tegen de echte bron.
+- Impact: schendt de kern-AC's "Records/Search v1.1 wordt aangeroepen ... resultaten
+  worden gededupliceerd" en met name het letterlijke, verplicht te implementeren
+  Nicolaas-voorbeeld (AC "Voor de vraag 'Wie was Nicolaas Jacobus Sinnige...' levert
+  Search ... en toont Show ..."), en maakt `supported-answer`/`followed-connection` in
+  productie onbereikbaar.
+- Reproductie: start de backend met de standaard `hkh.personsearch.archives-base-url`
+  (geen override) en dien de vraag "Wie was Nicolaas Jacobus Sinnige, geboren in
+  Heemskerk in 1878?" in via `POST /api/personsearch` (of het frontend-startscherm).
+  Verwacht: `SUPPORTED_ANSWER` met geboortezin, Vader/Moeder-bronnen. Werkelijk (te
+  verwachten op basis van de code-analyse hierboven): `SOURCE_OUTAGE`, want zowel
+  `search()` als `show()` retourneren `Failure` tegen het echte, live API-schema.
+- Advies aan developer: DTO's aanpassen aan het echte schema (`response.number_found`,
+  `response.docs[].identifier`/`archive_code` voor Search; `Person[]`/`Event`/
+  `RelationEP[]`/`Source` met de geneste structuur voor Show, inclusief mapping van
+  `RelationType`/`PersonKeyRef` naar de rol+naam die de story vereist), en de bestaande
+  fixture-tests bijwerken zodat ze het echte schema simuleren in plaats van het huidige
+  aangenomen platte schema.
