@@ -101,6 +101,12 @@ expose one polite Flutter web status node per active flow. The two retry actions
 focus order, show a three-pixel focus border and support Enter and Space without moving focus
 programmatically.
 
+The "Stel je vraag over Heemskerk" action on the homepage opens `lib/personquery/`, a fully
+client-side start/meaning-selection/no-reliable-source flow that deterministically interprets a
+question and disambiguates the word "Heemskerk" via `PersonQueryInterpreter`, calling Wikidata
+directly (with a static fallback on failure) through `WikidataMeaningClient`; it never calls Open
+Archieven Records/Search/Show.
+
 Run the frontend checks with:
 
 ```bash
