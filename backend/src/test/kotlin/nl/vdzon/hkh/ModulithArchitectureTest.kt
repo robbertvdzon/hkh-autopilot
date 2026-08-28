@@ -14,6 +14,7 @@ class ModulithArchitectureTest {
         "externalverification",
         "linkdossier",
         "news",
+        "personsearch",
         "previewdata",
         "privacyclassification",
         "recordintake",

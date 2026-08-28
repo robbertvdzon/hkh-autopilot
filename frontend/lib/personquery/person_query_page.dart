@@ -1,5 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../config/app_config.dart';
+import '../personsearch/followed_connection_screen.dart';
+import '../personsearch/live_search_screen.dart';
+import '../personsearch/person_search_client.dart';
+import '../personsearch/person_search_models.dart';
+import '../personsearch/source_outage_screen.dart';
+import '../personsearch/supported_answer_screen.dart';
 import 'meaning_selection_screen.dart';
 import 'no_reliable_source_screen.dart';
 import 'person_query_interpreter.dart';
@@ -10,23 +17,32 @@ enum _PersonQueryScreen {
   start,
   meaningSelection,
   noReliableSource,
-  confirmation,
+  liveSearch,
+  supportedAnswer,
+  followedConnection,
+  sourceOutage,
 }
 
 /// Nieuw, losstaand instappunt (screenKey `start`) voor de sessiezoek-route.
 /// Voert deterministische vraaginterpretatie en Heemskerk-disambiguatie
-/// volledig client-side uit, zonder enige aanroep naar Open Archieven
-/// Records/Search/Show. Ontsloten via een nieuwe actie op de bestaande
-/// homepage; de homepage zelf blijft ongewijzigd.
+/// volledig client-side uit, en dient bij een geldige interpretatie de live
+/// persoonszoekjob in bij de backend (`POST /api/person-search`), waarna op
+/// basis van het resultaattype naar het passende scherm wordt geschakeld.
+/// Ontsloten via een nieuwe actie op de bestaande homepage; de homepage zelf
+/// blijft ongewijzigd.
 class PersonQueryPage extends StatefulWidget {
   const PersonQueryPage({
     this.interpreter = const PersonQueryInterpreter(),
     WikidataMeaningSource? meaningSource,
+    PersonSearchSource? personSearchSource,
     super.key,
-  }) : meaningSource = meaningSource ?? const _LazyWikidataMeaningClient();
+  }) : meaningSource = meaningSource ?? const _LazyWikidataMeaningClient(),
+       personSearchSource =
+           personSearchSource ?? const _LazyPersonSearchClient();
 
   final PersonQueryInterpreter interpreter;
   final WikidataMeaningSource meaningSource;
+  final PersonSearchSource personSearchSource;
 
   @override
   State<PersonQueryPage> createState() => _PersonQueryPageState();
@@ -44,6 +60,29 @@ class _LazyWikidataMeaningClient implements WikidataMeaningSource {
   }
 }
 
+class _LazyPersonSearchClient implements PersonSearchSource {
+  const _LazyPersonSearchClient();
+
+  @override
+  Future<PersonSearchResult> submit({
+    required String recognizedName,
+    String? secondName,
+    String? eventType,
+    String? yearOrPeriod,
+    String? heemskerkMeaningQid,
+    required String originalQuery,
+  }) {
+    return PersonSearchClient(AppConfig.apiBaseUrl).submit(
+      recognizedName: recognizedName,
+      secondName: secondName,
+      eventType: eventType,
+      yearOrPeriod: yearOrPeriod,
+      heemskerkMeaningQid: heemskerkMeaningQid,
+      originalQuery: originalQuery,
+    );
+  }
+}
+
 class _PersonQueryPageState extends State<PersonQueryPage> {
   final _controller = TextEditingController();
   final _fieldFocusNode = FocusNode(debugLabel: 'person-query-field');
@@ -51,7 +90,10 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
   _PersonQueryScreen _screen = _PersonQueryScreen.start;
   String _submittedQuery = '';
   PersonQueryInterpretation? _interpretation;
-  String? _chosenMeaningQid;
+  PersonSearchResult? _lastResult;
+  bool _stillRunning = false;
+  PersonSearchConnectionOption? _followedConnection;
+  int _searchGeneration = 0;
 
   @override
   void dispose() {
@@ -67,13 +109,12 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
     setState(() {
       _submittedQuery = text;
       _interpretation = interpretation;
-      _chosenMeaningQid = null;
       if (!interpretation.hasRecognizedName) {
         _screen = _PersonQueryScreen.noReliableSource;
       } else if (interpretation.heemskerkAmbiguous) {
         _screen = _PersonQueryScreen.meaningSelection;
       } else {
-        _screen = _PersonQueryScreen.confirmation;
+        _startLiveSearch(interpretation, null);
       }
     });
   }
@@ -95,10 +136,74 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
   }
 
   void _confirmMeaning(String qid) {
+    final interpretation = _interpretation!;
     setState(() {
-      _chosenMeaningQid = qid;
-      _screen = _PersonQueryScreen.confirmation;
+      _startLiveSearch(interpretation, qid);
     });
+  }
+
+  void _startLiveSearch(
+    PersonQueryInterpretation interpretation,
+    String? meaningQid,
+  ) {
+    _screen = _PersonQueryScreen.liveSearch;
+    _stillRunning = false;
+    _lastResult = null;
+    final generation = ++_searchGeneration;
+    final recognizedName = [
+      interpretation.firstName,
+      interpretation.lastName,
+    ].whereType<String>().join(' ');
+
+    widget.personSearchSource
+        .submit(
+          recognizedName: recognizedName,
+          yearOrPeriod: interpretation.yearConstraint,
+          eventType: interpretation.eventTypeConstraint,
+          heemskerkMeaningQid: meaningQid,
+          originalQuery: _submittedQuery,
+        )
+        .then((result) => _onSearchResult(generation, result))
+        .catchError((_) => _onSearchFailure(generation));
+  }
+
+  void _onSearchResult(int generation, PersonSearchResult result) {
+    if (!mounted || generation != _searchGeneration) return;
+    setState(() {
+      _lastResult = result;
+      switch (result.status) {
+        case PersonSearchStatus.running:
+          _stillRunning = true;
+          _screen = _PersonQueryScreen.liveSearch;
+        case PersonSearchStatus.supportedAnswer:
+          _screen = _PersonQueryScreen.supportedAnswer;
+        case PersonSearchStatus.noResults:
+          _screen = _PersonQueryScreen.noReliableSource;
+        case PersonSearchStatus.partial:
+          _screen = _PersonQueryScreen.noReliableSource;
+        case PersonSearchStatus.sourceOutage:
+          _screen = _PersonQueryScreen.sourceOutage;
+      }
+    });
+  }
+
+  void _onSearchFailure(int generation) {
+    if (!mounted || generation != _searchGeneration) return;
+    setState(() {
+      _lastResult = null;
+      _screen = _PersonQueryScreen.sourceOutage;
+    });
+  }
+
+  void _followConnection(PersonSearchConnectionOption connection) {
+    setState(() {
+      _followedConnection = connection;
+      _screen = _PersonQueryScreen.followedConnection;
+    });
+  }
+
+  void _backToAnswer() {
+    setState(() => _screen = _PersonQueryScreen.supportedAnswer);
   }
 
   @override
@@ -118,11 +223,7 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
           onSubmit: _submit,
         );
       case _PersonQueryScreen.noReliableSource:
-        return NoReliableSourceScreen(
-          originalQuery: _submittedQuery,
-          onPickSuggestion: _pickSuggestion,
-          onBackToStart: _backToStart,
-        );
+        return _buildNoReliableSourceVariant();
       case _PersonQueryScreen.meaningSelection:
         return MeaningSelectionScreen(
           originalQuery: _submittedQuery,
@@ -130,13 +231,67 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
           onConfirm: _confirmMeaning,
           onEditQuery: _backToStart,
         );
-      case _PersonQueryScreen.confirmation:
-        return _ConfirmationScreen(
-          interpretation: _interpretation!,
-          chosenMeaningQid: _chosenMeaningQid,
+      case _PersonQueryScreen.liveSearch:
+        return LiveSearchScreen(
+          originalQuery: _submittedQuery,
+          stillRunning: _stillRunning,
+          onBackToStart: _backToStart,
+        );
+      case _PersonQueryScreen.supportedAnswer:
+        return SupportedAnswerScreen(
+          originalQuery: _submittedQuery,
+          answer: _lastResult!.answer!,
+          wikidataContext: _lastResult!.context,
+          onFollowConnection: _followConnection,
+          onBackToStart: _backToStart,
+        );
+      case _PersonQueryScreen.followedConnection:
+        return FollowedConnectionScreen(
+          originalQuery: _submittedQuery,
+          connection: _followedConnection!,
+          onBackToAnswer: _backToAnswer,
+          onBackToStart: _backToStart,
+        );
+      case _PersonQueryScreen.sourceOutage:
+        return SourceOutageScreen(
+          originalQuery: _submittedQuery,
+          wikidataContext: _lastResult?.context,
           onBackToStart: _backToStart,
         );
     }
+  }
+
+  Widget _buildNoReliableSourceVariant() {
+    final result = _lastResult;
+    if (result == null) {
+      return NoReliableSourceScreen(
+        originalQuery: _submittedQuery,
+        onPickSuggestion: _pickSuggestion,
+        onBackToStart: _backToStart,
+      );
+    }
+    if (result.status == PersonSearchStatus.partial) {
+      return NoReliableSourceScreen(
+        originalQuery: _submittedQuery,
+        onPickSuggestion: _pickSuggestion,
+        onBackToStart: _backToStart,
+        statusLabel: 'Te veel mogelijke resultaten',
+        explanation:
+            result.refinementMessage ??
+            'Er zijn meer dan honderd mogelijke resultaten. Verfijn je vraag.',
+        openArchivenSubtitle: 'Meer dan 100 mogelijke resultaten · verfijning nodig',
+      );
+    }
+    return NoReliableSourceScreen(
+      originalQuery: _submittedQuery,
+      onPickSuggestion: _pickSuggestion,
+      onBackToStart: _backToStart,
+      statusLabel: 'Geen resultaten gevonden in Open Archieven',
+      explanation:
+          'Open Archieven bevat voor deze vraag geen enkel resultaat binnen '
+          'Heemskerk.',
+      openArchivenSubtitle: 'Live geraadpleegd · nul resultaten',
+    );
   }
 }
 
@@ -288,72 +443,6 @@ class _StartScreen extends StatelessWidget {
             'doorlopen; je hoeft niet te wachten voordat je verdergaat.',
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ConfirmationScreen extends StatelessWidget {
-  const _ConfirmationScreen({
-    required this.interpretation,
-    required this.chosenMeaningQid,
-    required this.onBackToStart,
-  });
-
-  final PersonQueryInterpretation interpretation;
-  final String? chosenMeaningQid;
-  final VoidCallback onBackToStart;
-
-  @override
-  Widget build(BuildContext context) {
-    final buffer = StringBuffer(
-      'Geïnterpreteerd: ${interpretation.firstName} ${interpretation.lastName}.',
-    );
-    if (interpretation.yearConstraint != null) {
-      buffer.write(' Jaartal: ${interpretation.yearConstraint}.');
-    }
-    if (interpretation.eventTypeConstraint != null) {
-      buffer.write(' Gebeurtenis: ${interpretation.eventTypeConstraint}.');
-    }
-    if (chosenMeaningQid != null) {
-      buffer.write(' Gekozen betekenis voor Heemskerk: $chosenMeaningQid.');
-    }
-    final summary = buffer.toString();
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 680),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              PersonQueryStatusMessage(
-                label: summary,
-                child: Text(
-                  summary,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'De volgende stap (zoeken in Open Archieven) hoort bij een '
-                'latere story en wordt hier nog niet uitgevoerd.',
-              ),
-              const SizedBox(height: 20),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: OutlinedButton(
-                  onPressed: onBackToStart,
-                  style: personQueryFocusedButtonStyle(
-                    Theme.of(context).colorScheme.primary,
-                  ),
-                  child: const Text('Nieuwe vraag stellen'),
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

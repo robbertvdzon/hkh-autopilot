@@ -1,39 +1,23 @@
 import 'package:flutter/material.dart';
 
-import 'person_query_widgets.dart';
+import '../personquery/person_query_widgets.dart';
+import 'person_search_models.dart';
 
-/// Scherm `no-reliable-source`: getoond wanneer geen persoonsnaam herkend is.
-/// Er wordt geen enkele Wikidata- of Open Archieven-aanroep gedaan. Volgt
-/// qua structuur `hkh-sessiezoek-v19-08-geen-betrouwbare-bron-*`.
-class NoReliableSourceScreen extends StatelessWidget {
-  const NoReliableSourceScreen({
+/// Scherm `source-outage`: getoond wanneer de vereiste Records/Search- of
+/// Records/Show-aanroep faalde. Open Archieven wordt exact aangeduid als
+/// 'tijdelijk niet geraadpleegd'; er verschijnt geen enkele archiefbewering,
+/// ook niet wanneer Wikidata wel bereikbaar was (uitsluitend onder 'Context').
+class SourceOutageScreen extends StatelessWidget {
+  const SourceOutageScreen({
     required this.originalQuery,
-    required this.onPickSuggestion,
+    required this.wikidataContext,
     required this.onBackToStart,
-    this.statusLabel = 'Hiervoor vinden we geen betrouwbare bron',
-    this.explanation =
-        'Deze vraag noemt geen herkenbare persoonsnaam. Daarom voeren we de '
-            'persoonszoekroute niet uit.',
-    this.openArchivenSubtitle = 'Niet uitgevoerd · persoonsnaam ontbreekt',
     super.key,
   });
 
-  static const suggestions = [
-    'Wie was Nicolaas Jacobus Sinnige, geboren in 1878?',
-    'Wie waren de ouders van Nicolaas Jacobus Sinnige?',
-  ];
-
   final String originalQuery;
-  final ValueChanged<String> onPickSuggestion;
+  final PersonSearchWikidataContext? wikidataContext;
   final VoidCallback onBackToStart;
-
-  /// Aangepaste statuskopie voor hergebruik van dit scherm bij een verwant
-  /// resultaat (bijvoorbeeld nul Open Archieven-resultaten of een
-  /// verfijningsverzoek bij meer dan honderd treffers), zonder dat daarvoor
-  /// een apart artifact/scherm nodig is.
-  final String statusLabel;
-  final String explanation;
-  final String openArchivenSubtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +67,7 @@ class NoReliableSourceScreen extends StatelessWidget {
         style: personQueryFocusedButtonStyle(
           Theme.of(context).colorScheme.primary,
         ),
-        child: const Text('Terug naar het startscherm'),
+        child: const Text('Nieuwe vraag stellen'),
       ),
     );
   }
@@ -93,13 +77,8 @@ class NoReliableSourceScreen extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('GEEN GEDRAGEN UITKOMST', style: textTheme.labelLarge),
+        Text('BRONUITVAL', style: textTheme.labelLarge),
         const SizedBox(height: 8),
-        PersonQueryStatusMessage(
-          label: statusLabel,
-          child: Text(statusLabel, style: textTheme.headlineSmall),
-        ),
-        const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -120,45 +99,48 @@ class NoReliableSourceScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        Text(explanation),
+        PersonQueryStatusMessage(
+          label: 'Open Archieven is tijdelijk niet geraadpleegd',
+          child: Text(
+            'Open Archieven is tijdelijk niet geraadpleegd',
+            style: textTheme.headlineSmall,
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'Er verschijnt hierdoor geen enkele archiefbewering. Probeer het '
+          'straks opnieuw.',
+        ),
         const SizedBox(height: 16),
         Card(
           child: ListTile(
-            leading: const Icon(Icons.close),
+            leading: const Icon(Icons.cloud_off),
             title: const Text('Open Archieven'),
-            subtitle: Text(openArchivenSubtitle),
+            subtitle: const Text('Tijdelijk niet geraadpleegd'),
           ),
         ),
-        const SizedBox(height: 24),
-        Card(
-          child: Padding(
+        if (wikidataContext != null) ...[
+          const SizedBox(height: 20),
+          Container(
             padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(12),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Probeer een vraag binnen de dekking',
-                  style: textTheme.titleMedium,
-                ),
-                const SizedBox(height: 12),
-                for (final suggestion in suggestions)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        onPressed: () => onPickSuggestion(suggestion),
-                        style: personQueryFocusedButtonStyle(
-                          Theme.of(context).colorScheme.primary,
-                        ),
-                        child: Text(suggestion, textAlign: TextAlign.left),
-                      ),
-                    ),
-                  ),
+                Text('Context', style: textTheme.titleMedium),
+                const SizedBox(height: 8),
+                Text(wikidataContext!.label),
+                if (wikidataContext!.description != null) ...[
+                  const SizedBox(height: 4),
+                  Text(wikidataContext!.description!),
+                ],
               ],
             ),
           ),
-        ),
+        ],
       ],
     );
   }
