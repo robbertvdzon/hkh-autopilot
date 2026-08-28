@@ -17,6 +17,49 @@ projectprefix `HKH_AUTOPILOT` en een eigen bearercredential zonder repository-, 
 beheerrechten. Het normatieve aansluit- en herstelcontract staat in
 [`agent-runtime.md`](agent-runtime.md).
 
+## Frontendmodule `personquery`
+
+De persoonsvraag-interpretatie en Heemskerk-disambiguatie zitten volledig client-side in
+`frontend/lib/personquery/`, ontsloten via een nieuwe actie "Stel je vraag over Heemskerk" op de
+bestaande homepage (`main.dart`, naar het patroon van de bestaande "Lees onze productvisie"-knop).
+
+- `person_query_interpreter.dart` bevat de pure, side-effect-vrije `PersonQueryInterpreter.interpret`:
+  past achtereenvolgens de vraagwoorden-, functiewoorden/lidwoorden- en vaste plaats-/
+  maandnamenlijst-verwijderregel toe (drie losse `Set<String>`, hoofdletterongevoelig op
+  woordgrenzen via `RegExp`), herkent daarna een naam via `_findRecognizedName` (een lopende reeks
+  Unicode-bewuste hoofdletterwoorden van minstens lengte twee) en bepaalt de
+  Heemskerk-disambiguatie op de ORIGINELE, niet-genormaliseerde tekst (`_heemskerkUnambiguousPattern`
+  matcht `in/te/uit/van` direct vóór "Heemskerk"). "Heemskerk" zit bewust niet onvoorwaardelijk in de
+  vaste verwijderlijst: het woord wordt alleen verwijderd wanneer de disambiguatie het al
+  ondubbelzinnig als plaats classificeert, zodat het in het ambigue geval als achternaam-kandidaat
+  kan meetellen in de naamherkenning (nodig om bijvoorbeeld "Cornelis Heemskerk" als ambigu te
+  herkennen). Resultaat is het immutable `PersonQueryInterpretation`-record met naam-, jaar- en
+  gebeurtenistype-kandidaten en de drie Heemskerk-vlaggen (`heemskerkMentioned`,
+  `heemskerkUnambiguousPlace`, `heemskerkAmbiguous`).
+- `wikidata_meaning_client.dart` bevat de vaste QID's (`WikidataMeaningIds.place` = `Q9926`,
+  `WikidataMeaningIds.surname` = `Q91564725`), de injecteerbare `WikidataMeaningSource`-interface
+  (zodat widgettests nooit een echte Wikidata-aanroep doen) en `WikidataMeaningClient`, die eerst
+  `GET /w/api.php?action=wbsearchentities&search=Heemskerk&language=nl&type=item&format=json` en
+  vervolgens `GET /wiki/Special:EntityData/<qid>.json` voor beide QID's aanroept (standaard
+  `https://www.wikidata.org`, injecteerbare `http.Client`/`baseUri`, timeout 10s). Elke fout
+  (netwerkfout, timeout, non-200, ontbrekend/onverwacht JSON-veld) wordt omgezet naar een
+  gecontroleerde `WikidataMeaningException`; de aanroeper valt dan terug op vaste labels
+  ("Q9926 · Heemskerk (plaats)" / "Q91564725 · Heemskerk (achternaam)") met een zichtbare
+  storingsmelding. Resultaten van beide betekenissen worden nooit samengevoegd.
+- `person_query_page.dart` bevat het instappunt `PersonQueryPage` (screenKey `start`) met interne
+  state-machine tussen start-, meaning-selection- en no-reliable-source-weergave, elk met exact één
+  desktop- en één mobile-uitwerking op een breakpoint van 700 logische pixels (geen horizontale
+  scroll bij 320px). `meaning_selection_screen.dart` en `no_reliable_source_screen.dart` bevatten de
+  bijbehorende schermwidgets; `person_query_widgets.dart` bevat gedeelde bouwstenen, waaronder
+  `personQueryFocusedButtonStyle` naar het patroon van de bestaande gedeelde `ButtonStyle`-conventie
+  (3px-focusrand) uit de "Flutter-webstatussemantiek"-sectie. Toetsenbordnavigatie
+  (Tab/Shift+Tab/Enter, pijltjestoetsen op de radiogroep) gebruikt de standaard Flutter-widgetvolgorde
+  en -activering, zonder aangepaste sort keys.
+- Er is bewust geen backend-, database- of infrastructuurwijziging: de module is volledig
+  zelfstandig binnen `frontend/lib`, roept nooit Open Archieven Records/Search/Show aan, en de
+  Wikidata-aanroep gebeurt rechtstreeks vanuit de browser (CORS via `origin=*`), analoog aan de
+  bestaande directe `GET /api/news`-/`GET /actuator/health`-aanroepen.
+
 ## Backendmodule `linkdossier`
 
 De koppelingsdossiervalidatie zit in de zelfstandige Spring Modulith-module

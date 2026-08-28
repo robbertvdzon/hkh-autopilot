@@ -21,6 +21,62 @@ De actie ‘Opnieuw proberen’ volgt de bijbehorende foutmelding in lees- en fo
 bereikbaar, toont bij focus een contrasterende rand van drie pixels en werkt met Enter en spatie.
 Een retry toont eerst opnieuw de passende laadstatus en daarna één uitkomst.
 
+## Persoonsvraag over Heemskerk (gebruikersfrontend)
+
+Vanaf de homepage opent een nieuwe actie "Stel je vraag over Heemskerk" een losstaand, volledig
+client-side instappunt (screenKey `start`) met exact één tekstinvoerveld met programmatisch label
+"Stel je vraag over Heemskerk", minstens één voorbeeldvraag met een volledige persoonsnaam, een
+dekkingsbeschrijving ("Open Archieven-genealogie voor Heemskerk, met Wikidata als aanvullende
+context") en een mededeling dat een langer lopende zoekopdracht binnen de sessie kan doorlopen. De
+bestaande homepage, servicecontrole en nieuwssectie blijven ongewijzigd.
+
+Bij het indienen van de vraag interpreteert het systeem de tekst volledig deterministisch en
+client-side, vóór enige externe aanroep: eerst worden achtereenvolgens vraagwoorden
+(`wie, wat, waar, wanneer, welke, hoe`), functiewoorden/lidwoorden (`was, is, geboren, getrouwd,
+overleden, gedoopt, de, het, een, van, in, op, te, uit`) en een vaste lijst plaats-/maandnamen
+(`Heemskerk, Noord-Holland, Nederland` en de maandnamen) verwijderd. Blijven daarna minstens twee
+opeenvolgende hoofdletterwoorden over (Unicode-bewust, dekt Nederlandse diakrieten), dan is een
+persoonsnaam herkend (eerste woord voornaam-kandidaat, rest achternaam-kandidaat); blijft precies
+één los hoofdletterwoord over, dan is geen naam herkend. Een resterend jaartal en een resterend
+gebeurtenistype-woord (`geboorte, huwelijk, overlijden, doop`) worden als losse, optionele
+zoekbeperkingen bewaard; deze story toont er nog geen vervolgscherm voor.
+
+Zonder herkende naam verschijnt scherm `no-reliable-source` met letterlijk "Hiervoor vinden we geen
+betrouwbare bron", Open Archieven vermeld als "Niet uitgevoerd · persoonsnaam ontbreekt", en
+uitsluitend verfijningsvoorstellen die zelf een herkenbare persoonsnaam bevatten. Er wordt in dat
+geval geen enkele Wikidata- of Open Archieven-aanroep gedaan.
+
+Het letterlijke woord "Heemskerk" in de oorspronkelijke (niet-genormaliseerde) vraagtekst wordt
+voorzetsel-gebaseerd gedisambigueerd: direct voorafgegaan door `in`, `te`, `uit` of `van` is de
+betekenis ondubbelzinnig plaats (Wikidata Q9926) en verschijnt geen keuzescherm. Komt "Heemskerk"
+voor als los hoofdletterwoord náást een herkende persoonsnaam zonder zo'n direct voorafgaand
+voorzetsel, dan is de betekenis ambigu en verschijnt vóór enige zoekopdracht scherm
+`meaning-selection`: een radiogroep met Q9926 (plaats) en Q91564725 (achternaam) en de
+oorspronkelijke vraag zichtbaar. De labels en beschrijvingen worden live opgehaald bij Wikidata
+(`wbsearchentities` gevolgd door `Special:EntityData` voor beide QID's); bij een mislukte live
+oproep (netwerkfout, time-out, ongeldige respons) toont het scherm de vaste fallback-labels
+"Q9926 · Heemskerk (plaats)" en "Q91564725 · Heemskerk (achternaam)" met een zichtbare
+storingsmelding, en blijft de keuze bruikbaar. Resultaten van de twee betekenissen worden nooit
+samengevoegd. De knop "Zoek met deze betekenis" bevestigt de keuze; "Vraag aanpassen" brengt de
+gebruiker terug naar het startscherm met de oorspronkelijke vraag nog ingevuld, zonder de
+interpretatie opnieuw automatisch uit te voeren.
+
+Alle drie schermen (start, meaning-selection, no-reliable-source) zijn volledig bedienbaar met
+Tab/Shift+Tab (logische volgorde), Enter (indienen/bevestigen) en, op meaning-selection,
+pijltjestoetsen tussen de radio-opties; focus is altijd zichtbaar gemarkeerd via de bestaande
+gedeelde `ButtonStyle`-conventie met een 3px-focusrand, en status/instructies zijn als leesbare
+tekst gecommuniceerd, niet uitsluitend via kleur. Elk scherm heeft exact één desktop- en één
+mobile-uitwerking; bij 320 CSS-pixels breedte blijft `document.scrollWidth == document.clientWidth`
+zonder horizontaal scrollen.
+
+Buiten scope van deze eerste drie schermen: elke aanroep naar Open Archieven Records/Search/Show,
+de job-/sessie-infrastructuur (QUEUED/RUNNING/READY/…, achtergrondworker, bewaartermijnen) en de
+sessie-indicator met live aantallen, en elk scherm ná meaning-selection/no-reliable-source
+(bijvoorbeeld background-search, search-ready, antwoordweergave met bronmarkeringen) — deze volgen
+in latere stories. Een succesvolle indiening (herkende naam, en bij ambiguïteit een bevestigde
+keuze) resulteert vooralsnog in een minimale, niet-navigerende bevestigingstekst binnen dezelfde
+pagina in plaats van een daadwerkelijke zoekroute.
+
 ## Koppelingsdossier (backend)
 
 Een koppelingsdossier legt vast dat één HKH-record bij één extern record hoort. Het bestaat uit exact
@@ -201,6 +257,15 @@ voor een endpoint dat vandaag geen autorisatie vereist (alleen het invoerveld en
 opslag ervoor zijn voorbereid), en wijzigingen aan de bestaande naam-/datumverificatielogica.
 
 ## Verificatie
+
+De persoonsvraag-interpretatie is gedekt met Dart unit-tests op `PersonQueryInterpreter`
+(startscherm-voorbeeldvraag, de epicvraag "Wie was Nicolaas Jacobus Sinnige, geboren in Heemskerk
+in 1878?", "Cornelis Heemskerk" als ambigu voorbeeld, een vraag zonder herkenbare naam en een vraag
+met precies één overblijvend hoofdletterwoord) en met Flutter-widgettests voor de drie schermen
+(labels/teksten, radiogroep-gedrag inclusief de Wikidata-fallback bij een mislukte live oproep,
+toetsenbordnavigatie met Tab/Shift+Tab/Enter/pijltjestoetsen en kleuronafhankelijke
+statusweergave). Geen enkele test of implementatiecode roept een echte Open Archieven- of
+Wikidata-endpoint, of Open Archieven Records/Search/Show, aan.
 
 Widgettests dekken alle statusvarianten, aantallen en labels van statusnodes, afwezigheid van
 focusacties, lees- en Tab-volgorde, focusweergave en activatie met beide toetsen. Een tester voert de

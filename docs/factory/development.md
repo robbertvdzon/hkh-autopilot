@@ -31,7 +31,10 @@ Wanneer een feature Agent Runtime gebruikt, voer na het maken van `secrets.env` 
   archieftoegangstoken via `ExternalVerificationTokenCipher`, Flyway-migraties
   `V5__external_verification.sql` en `V6__external_verification_license.sql`);
 - `frontend/`: Flutter-gebruikersapp; homepage en statusflows staan in `lib/main.dart`,
-  broninterfaces onder `lib/backend/` en `lib/news/`, widgettests onder `test/`;
+  broninterfaces onder `lib/backend/` en `lib/news/`, widgettests onder `test/`; de volledig
+  client-side persoonsvraag-/Heemskerk-disambiguatiemodule (start-, meaning-selection- en
+  no-reliable-source-scherm, `PersonQueryInterpreter`, `WikidataMeaningClient`) staat onder
+  `lib/personquery/`, widget- en unittests onder `test/personquery/`;
 - `frontend-admin/`: afzonderlijke Flutter-webbeheerapp en widgettests;
 - `deploy/`: OpenShift-, Kustomize- en ArgoCD-manifests;
 - `.factory/verification.yaml`: machine-leesbaar, revisiongebonden verificatievangnet.
