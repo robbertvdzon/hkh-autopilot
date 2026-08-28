@@ -4,6 +4,7 @@ import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.concurrent.CountDownLatch
+import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -182,6 +183,31 @@ class PersonSearchServiceTest {
         val second = personSearchService.submit("session-1", request)
 
         assertEquals(first.jobId, second.jobId)
+        assertEquals(1, client.searchCalls)
+    }
+
+    @Test
+    fun `concurrent submissions with the same idempotency key trigger only one source consultation`() {
+        val client = FakeArchivesOpenSearchClient(
+            searchResult = ArchivesSearchOutcome.Success(1, listOf(ArchivesSearchResultItem("nha", "X"))),
+            showResults = mapOf("X" to ArchivesShowOutcome.Success(nicolaasRecord)),
+        )
+        val jobStore = PersonSearchJobStore()
+        val personSearchService = service(client, jobStore = jobStore)
+        val request = PersonSearchRequest(recognizedName = "Nicolaas Jacobus Sinnige", yearOrPeriod = "1878")
+        val threadCount = 16
+        val startBarrier = CyclicBarrier(threadCount)
+        val submitterPool = Executors.newFixedThreadPool(threadCount).also { executors += it }
+
+        val futures = (0 until threadCount).map {
+            submitterPool.submit<PersonSearchSubmitResult> {
+                startBarrier.await(5, TimeUnit.SECONDS)
+                personSearchService.submit("session-1", request)
+            }
+        }
+        val results = futures.map { it.get(5, TimeUnit.SECONDS) }
+
+        assertEquals(1, results.map { it.jobId }.toSet().size)
         assertEquals(1, client.searchCalls)
     }
 

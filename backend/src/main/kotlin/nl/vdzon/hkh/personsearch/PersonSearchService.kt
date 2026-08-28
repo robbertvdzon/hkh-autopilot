@@ -46,32 +46,31 @@ class PersonSearchService(
 
     fun submit(sessionId: String, request: PersonSearchRequest): PersonSearchSubmitResult {
         val idempotencyKey = personSearchIdempotencyKey(sessionId, request)
-        jobStore.findByIdempotencyKey(idempotencyKey)?.let { existing ->
-            return PersonSearchSubmitResult(existing.id, existing.status, existing.outcome)
+        val (job, created) = jobStore.createIfAbsent(idempotencyKey) {
+            PersonSearchJob(
+                id = newPersonSearchJobId(),
+                sessionId = sessionId,
+                idempotencyKey = idempotencyKey,
+                status = PersonSearchStatus.RUNNING,
+                outcome = null,
+                createdAt = Instant.now(clock),
+            )
         }
-
-        val jobId = newPersonSearchJobId()
-        val runningJob = PersonSearchJob(
-            id = jobId,
-            sessionId = sessionId,
-            idempotencyKey = idempotencyKey,
-            status = PersonSearchStatus.RUNNING,
-            outcome = null,
-            createdAt = Instant.now(clock),
-        )
-        jobStore.save(runningJob)
+        if (!created) {
+            return PersonSearchSubmitResult(job.id, job.status, job.outcome)
+        }
 
         val future = CompletableFuture.supplyAsync({ runSearch(request) }, executor)
         future.whenComplete { outcome, throwable ->
             if (throwable != null) return@whenComplete
-            jobStore.save(runningJob.copy(status = outcome.toStatus(), outcome = outcome))
+            jobStore.save(job.copy(status = outcome.toStatus(), outcome = outcome))
         }
 
         return try {
             val outcome = future.get(deadlineMillis, TimeUnit.MILLISECONDS)
-            PersonSearchSubmitResult(jobId, outcome.toStatus(), outcome)
+            PersonSearchSubmitResult(job.id, outcome.toStatus(), outcome)
         } catch (_: TimeoutException) {
-            PersonSearchSubmitResult(jobId, PersonSearchStatus.RUNNING, null)
+            PersonSearchSubmitResult(job.id, PersonSearchStatus.RUNNING, null)
         }
     }
 

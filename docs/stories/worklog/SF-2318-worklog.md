@@ -76,3 +76,29 @@ story-tekst zelf): statuspolling-API, hervatten na navigatie/reload,
 sessie-indicator met live aantallen, versleutelde opslag met retentie/opschoning
 (60 min/24 uur), CANCELLED/EXPIRED-afhandeling, Agent Runtime als
 uitvoeringsadapter.
+
+## Reviewronde 2026-08-28: race-condition fix idempotentiecontrole
+
+Bevinding (reviewer, issue comment 3786): `PersonSearchService.submit()` deed
+`jobStore.findByIdempotencyKey(...)` en `jobStore.save(...)` als twee losse stappen;
+gelijktijdige indieningen met dezelfde idempotentiesleutel (dubbelklik, retry) konden
+beide de check "geen bestaande job" passeren vóórdat een van beide had opgeslagen, en
+zo elk hun eigen job + bronraadpleging starten. Dit schond de AC dat een herhaalde
+indiening met dezelfde sleutel terwijl de job nog loopt geen tweede bronraadpleging
+start.
+
+Fix:
+- `PersonSearchJobStore` kreeg een nieuwe, atomaire `createIfAbsent(idempotencyKey) { factory }`
+  op basis van `ConcurrentHashMap.computeIfAbsent`, die per sleutel gegarandeerd maar
+  één winnende aanroep van `factory` toelaat (retourneert `PersonSearchJobCreation(job, created)`).
+- `PersonSearchService.submit()` gebruikt nu deze atomaire operatie in plaats van de
+  losse check-en-save; alleen de aanroep die de job daadwerkelijk aanmaakt (`created == true`)
+  start `runSearch`, alle andere gelijktijdige aanroepen met dezelfde sleutel krijgen
+  direct de (mogelijk nog lopende) bestaande job terug.
+- Nieuwe tests: `PersonSearchJobStoreTest` (16 threads race op dezelfde sleutel via
+  `createIfAbsent`, `factory` wordt exact één keer aangeroepen) en
+  `PersonSearchServiceTest` (16 gelijktijdige `submit()`-aanroepen met dezelfde
+  idempotentiesleutel via een `CyclicBarrier`, `client.searchCalls == 1` en alle
+  resultaten hebben hetzelfde job-id).
+- Volledig vangnet (`backend mvn verify`, `frontend`/`frontend-admin` analyze/test/build)
+  opnieuw groen gedraaid na de fix.

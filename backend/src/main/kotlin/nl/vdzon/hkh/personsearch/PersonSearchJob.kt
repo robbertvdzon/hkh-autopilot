@@ -24,6 +24,9 @@ data class PersonSearchJob(
     val createdAt: Instant,
 )
 
+/** Uitkomst van [PersonSearchJobStore.createIfAbsent]: de job, en of hij zojuist is aangemaakt. */
+data class PersonSearchJobCreation(val job: PersonSearchJob, val created: Boolean)
+
 /**
  * In-memory jobopslag (proceslevensduur, geen TTL/opschoning — expliciet buiten scope van deze
  * story, zie worklog). Ontdubbelt op idempotentiesleutel en bewaakt sessie-eigenaarschap: een
@@ -39,6 +42,25 @@ class PersonSearchJobStore {
     fun save(job: PersonSearchJob) {
         byIdempotencyKey[job.idempotencyKey] = job
         byId[job.id] = job
+    }
+
+    /**
+     * Atomisch equivalent van "findByIdempotencyKey, en zo niet gevonden aanmaken en opslaan".
+     * Gebruikt [ConcurrentHashMap.computeIfAbsent], dat per sleutel maar één winnende aanroep
+     * van [factory] toelaat: gelijktijdige indieningen met dezelfde idempotentiesleutel kunnen
+     * dus nooit allebei een nieuwe job (en dus een tweede bronraadpleging) starten.
+     */
+    fun createIfAbsent(
+        idempotencyKey: String,
+        factory: () -> PersonSearchJob,
+    ): PersonSearchJobCreation {
+        var created = false
+        val job = byIdempotencyKey.computeIfAbsent(idempotencyKey) {
+            created = true
+            factory()
+        }
+        if (created) byId[job.id] = job
+        return PersonSearchJobCreation(job, created)
     }
 
     /** Retourneert de job alleen wanneer [sessionId] de eigenaar is; anders `null` (fail-closed). */
