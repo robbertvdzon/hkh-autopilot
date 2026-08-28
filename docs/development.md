@@ -92,9 +92,22 @@ fail-closed validation on HTTP status/JSON/required fields/`error_code`) plus an
 context call within a hard 2000ms deadline. `number_found > 100` ends the job as `PARTIAL` with a
 refinement request and skips Records/Show; a failed required call ends it as `FAILED` with Open
 Archieven reported as unavailable. Answer sentences are built only from validated Show fields
-(`Person`/`Event`/`RelationEP`/`Source`) with numbered source citations. Jobs are in-memory only, with
-no persistence or TTL yet — that is planned for a follow-up story. Configuration and behavior are
-documented in [factory/technical-spec.md](factory/technical-spec.md) and
+(`Person`/`Event`/`RelationEP`/`Source`) with numbered source citations.
+
+The job status contract is worker-independent — `QUEUED, RUNNING, READY, NO_EVIDENCE, PARTIAL,
+FAILED, CANCELLED, EXPIRED` — and runs on the ordinary shared executor, no Agent Runtime involved.
+`GET /{jobId}/status` returns status, `createdAt`, `updatedAt` and per-source consultation status
+(Open Archieven, Wikidata), with the full outcome only once the job is terminal; a status request
+for another session's job behaves as if it doesn't exist (404). `POST /{jobId}/cancel` sets
+`CANCELLED`, blocks further outgoing source calls for that job and deletes the temporary payload
+immediately; `POST /{jobId}/open` marks a `READY` job as opened; `GET /session` returns the running
+and ready-unopened job counts/ids for the current session only. The original query and the answer
+payload are kept in-memory but encrypted at rest (`PersonSearchPayloadCipher`, AES-256-GCM,
+`HKH_PERSON_SEARCH_PAYLOAD_KEY`, fails closed without a configured key); a scheduled cleanup task
+(`PersonSearchRetentionCleanupTask`, `@EnableScheduling`) purges the payload and marks the job
+`EXPIRED` after 60 minutes of session inactivity or 24 hours since submission, whichever comes
+first. Configuration and behavior are documented in
+[factory/technical-spec.md](factory/technical-spec.md) and
 [factory/secrets-local.md](factory/secrets-local.md).
 
 ## User frontend
@@ -122,7 +135,16 @@ directly (with a static fallback on failure) through `WikidataMeaningClient`; it
 Archieven Records/Search/Show itself. On a supported submission it hands off to `lib/personsearch/`,
 which posts to `POST /api/person-search` (`PersonSearchClient`) and switches between the
 `live-search`, `supported-answer`, `followed-connection` and `source-outage` screens based on the
-job outcome, each with a desktop and mobile layout.
+job outcome, each with a desktop and mobile layout. When the job is not terminal within the 2s
+synchronous budget, it switches to `background-search` (original query, start time, per-source
+progress, an action to ask another question without interrupting the running job, and a stop
+action) and, once the job reaches `READY`, to `search-ready` (completion time, consulted sources,
+and exactly one action that opens the answer). A `SessionIndicatorBadge` in the app bar shows the
+running and ready-unopened job counts for the current session on every screen of the route, and
+`PersonQueryPage` automatically resumes status polling for non-terminal or not-yet-opened `READY`
+jobs after in-app navigation, reload or return within the same session; an expired or deleted job
+shows a clear "no longer available" screen offering to resubmit the question instead of a stale
+answer.
 
 Run the frontend checks with:
 

@@ -83,14 +83,15 @@ job-id. De idempotentiesleutel is sessie-id + genormaliseerde vraagtekst + gekoz
 Heemskerk-betekenis: een herhaalde indiening met dezelfde sleutel terwijl de job nog niet terminaal
 is, levert dezelfde job-id op zonder nieuwe bronraadpleging.
 
-Direct na jobcreatie start de live Records/Search-aanroep (en de eventueel benodigde Wikidata-
-contextaanroep) en wacht het webrequest binnen hetzelfde verzoek maximaal 2000 ms op een terminale,
-volledig gevalideerde uitkomst. Is de uitkomst binnen dat budget terminaal, dan toont de gebruiker
-direct het passende scherm (`supported-answer`, de no-reliable-source-variant bij nul resultaten, of
-`source-outage`), zonder een verplichte tussenstap. Is de job na 2 seconden niet terminaal, dan
-retourneert het webrequest met een status die aangeeft dat de opdracht nog loopt; de job zelf blijft
-onafhankelijk van dit request doorlopen. Statuspolling, hervatten na navigatie/reload en een
-sessie-indicator met aantallen zijn buiten scope van deze route en volgen in de vervolgstory.
+Direct na jobcreatie (status `QUEUED`, tot de achtergrondtaak daadwerkelijk op de gedeelde executor
+start) start de live Records/Search-aanroep (en de eventueel benodigde Wikidata-contextaanroep) en
+wacht het webrequest binnen hetzelfde verzoek maximaal 2000 ms op een terminale, volledig
+gevalideerde uitkomst. Is de uitkomst binnen dat budget terminaal, dan toont de gebruiker direct het
+passende scherm (`supported-answer`, de no-reliable-source-variant bij nul resultaten, of
+`source-outage`), zonder een verplichte tussenstap. Is de job na 2 seconden niet terminaal (`QUEUED`
+of `RUNNING`), dan schakelt de gebruikersfrontend naar `background-search` (zie hieronder); de job
+zelf blijft onafhankelijk van het oorspronkelijke webrequest doorlopen op de gewone achtergrondworker
+(geen Agent Runtime nodig).
 
 Open Archieven Records/Search (`GET https://api.openarchieven.nl/1.1/records/search.json`,
 `archive_code=nha`, `eventplace=Heemskerk`, `lang=nl`, `number_show=100`, URL-gecodeerde `name`,
@@ -142,11 +143,59 @@ begrijpelijk. Voor elk van deze vier schermen bestaat exact één desktop- en é
 bij 320 CSS-pixels blijft `document.scrollWidth == document.clientWidth` zonder horizontaal
 scrollen.
 
-Buiten scope van deze route: statuspolling-API, hervatten na navigatie/reload/terugkeer, een
-sessie-indicator met live aantallen, versleutelde opslag met retentie/opschoning (60 min
-inactiviteit/24 uur hard), CANCELLED/EXPIRED-afhandeling en Agent Runtime als uitvoeringsadapter.
-Dit volgt in de vervolgstory 'Achtergrondopdracht laten doorlopen, sessiestatus tonen, hervatten en
-na afloop opschonen'.
+Buiten scope van deze route blijft Agent Runtime als uitvoeringsadapter: de achtergrondtaak draait
+uitsluitend op de gewone, gedeelde executor.
+
+## Achtergrondopdracht, sessiestatus, hervatten en opschoning (gebruikersfrontend + backend)
+
+Het interne statusmodel is een worker-onafhankelijk contract: `QUEUED, RUNNING, READY, NO_EVIDENCE,
+PARTIAL, FAILED, CANCELLED, EXPIRED` (mapping vanaf de vorige namen: `SUPPORTED_ANSWER → READY`,
+`NO_RESULTS → NO_EVIDENCE`, `SOURCE_OUTAGE → FAILED`, `PARTIAL` ongewijzigd, plus nieuw `QUEUED`,
+`CANCELLED` en `EXPIRED`). `GET /api/person-search/{jobId}/status` retourneert status, `createdAt`,
+`updatedAt` en per-bron consultatiestatus voor Open Archieven en Wikidata
+(`NOT_STARTED/IN_PROGRESS/SUCCEEDED/FAILED`); de volledige uitkomst (antwoord, records) wordt pas
+meegegeven zodra de status terminaal is (`READY, NO_EVIDENCE, PARTIAL, FAILED, CANCELLED, EXPIRED`).
+Een statusaanvraag voor een job-id vanuit een andere sessie levert niets op — geen vraag, status,
+bronrecord of antwoord — en gedraagt zich alsof de job niet bestaat (HTTP 404); sessie-id en job-id
+komen nooit voor in zichtbare bronlinks of analyticswaarden.
+
+Scherm `background-search` toont zodra een job na het synchrone budget van 2 seconden niet terminaal
+is: de oorspronkelijke vraag, het starttijdstip en aparte voortgang per bron (Open Archieven,
+Wikidata). Vanaf dit scherm kan de bezoeker een andere vraag stellen zonder de lopende job te
+onderbreken (de achtergrondtaak blijft server-side doorlopen), of de job expliciet stoppen. Een
+expliciete stopactie (`POST /api/person-search/{jobId}/cancel`) zet de job op `CANCELLED`, blokkeert
+nieuwe uitgaande Open Archieven-/Wikidata-aanroepen voor die job en verwijdert direct de tijdelijke
+payload; na stoppen is uitsluitend de eindstatus nog opvraagbaar.
+
+Bereikt een job `READY`, dan verschijnt scherm `search-ready` met het voltooiingstijdstip, de
+daadwerkelijk geraadpleegde bronnen en precies één actie die het bijbehorende antwoord opent
+(`POST /api/person-search/{jobId}/open` markeert de job als geopend). Een vast, op alle schermen van
+de route zichtbaar element (`SessionIndicatorBadge`, gevoed door `GET /api/person-search/session`)
+toont het aantal lopende (niet-terminale) en het aantal gereedstaande, nog niet geopende jobs van
+uitsluitend de huidige sessie — nooit jobs van een andere sessie.
+
+Na in-app-navigatie, herlading of terugkeer binnen dezelfde geldige sessie hervat de client
+automatisch statuscontrole voor alle niet-terminale of nog niet geopende `READY`-jobs van de sessie
+(bij meerdere gelijktijdige jobs wordt de eerste in de voorgrond hervat; de sessie-indicator toont
+wel het juiste totaal). `READY-, NO_EVIDENCE-, PARTIAL-, FAILED-` en `CANCELLED`-payloads worden
+uiterlijk verwijderd na 60 minuten sessie-inactiviteit of 24 uur na indienen, wat eerder komt
+(elke indiening, statusaanvraag of stopactie ververst het sessie-activiteitsmoment, los van de
+bestaande 24u-cookie-`maxAge`); een geplande opschoningstaak zet de job dan op `EXPIRED`. Na
+verwijdering/verlopen toont de UI nooit een oud antwoord als actuele uitkomst: scherm
+`_JobUnavailableScreen` meldt duidelijk dat het niet meer beschikbaar is en biedt aan de vraag
+opnieuw in te dienen.
+
+Tijdelijke jobstatus, de oorspronkelijke vraag, gevalideerde bronrecords en antwoordbeweringen
+worden serverside versleuteld bewaard (AES-256-GCM, naar het patroon van de bestaande
+`ExternalVerificationTokenCipher`); zonder geconfigureerde sleutel (`HKH_PERSON_SEARCH_PAYLOAD_KEY`)
+faalt versleuteling fail-closed. Elk tijdelijk bewaard extern resultaat bevat provider, externe
+identifier (archive_code + identifier, of Wikidata-QID), directe bron-URI en `checkedAt`.
+
+`background-search` en `search-ready` zijn bedienbaar met Tab/Shift+Tab/Enter, met zichtbare focus
+en kleuronafhankelijke statusweergave (zowel icoon als tekst per bronstatus); elk met exact één
+desktop- en één mobile-uitwerking, bruikbaar zonder horizontaal scrollen bij 320 CSS-pixels.
+
+Buiten scope van deze route: Agent Runtime als uitvoeringsadapter.
 
 ## Koppelingsdossier (backend)
 
@@ -341,16 +390,27 @@ Archieven- of Wikidata-endpoint, of Open Archieven Records/Search/Show, aan.
 De live persoonszoekopdracht (`personsearch`) is gedekt met backend unit-, service- en
 controllertests (`PersonSearchAnswerBuilderTest`, `PersonSearchJobStoreTest`,
 `PersonSearchServiceTest`, `PersonSearchSessionResolverTest`, `PersonSearchRateLimiterTest`,
-`RestClientArchivesOpenSearchClientTest`, `PersonSearchControllerTest`), waaronder het verplichte
-Nicolaas Jacobus Sinnige-voorbeeld end-to-end (`PersonSearchNicolaasSinnigeExampleTest`) tegen een
-fixture die het échte, geneste Open Archieven-schema simuleert (`response.number_found`/
-`response.docs` voor Search; hoofdlettergevoelige, geneste `Person`/`Event`/`RelationEP`/`Source`
-voor Show) — dit schema is live met `curl` tegen de publieke API geverifieerd, nadat een eerdere
-testronde faalde op een zelfbedacht plat schema (zie het SF-2318-worklog). Flutter-widgettests
-(`test/personsearch/`) dekken de vier schermen (`live-search`, `supported-answer`,
-`followed-connection`, `source-outage`), inclusief bronmarkeringen, Context-sectie, vervolgsporen,
-toetsenbordnavigatie en kleuronafhankelijke statusweergave, en `person_query_page_test.dart` dekt de
-doorschakeling vanaf een succesvolle indiening.
+`RestClientArchivesOpenSearchClientTest`, `PersonSearchControllerTest`,
+`PersonSearchPayloadCipherTest`), waaronder het verplichte Nicolaas Jacobus Sinnige-voorbeeld
+end-to-end (`PersonSearchNicolaasSinnigeExampleTest`) tegen een fixture die het échte, geneste Open
+Archieven-schema simuleert (`response.number_found`/`response.docs` voor Search;
+hoofdlettergevoelige, geneste `Person`/`Event`/`RelationEP`/`Source` voor Show) — dit schema is live
+met `curl` tegen de publieke API geverifieerd, nadat een eerdere testronde faalde op een zelfbedacht
+plat schema (zie het SF-2318-worklog). `PersonSearchJobStoreTest`/`PersonSearchServiceTest`/
+`PersonSearchControllerTest` dekken daarnaast het nieuwe statuscontract op de gewone
+achtergrondworker zonder Agent Runtime, het statusendpoint met per-bron consultatiestatus, de
+stopactie (vóór en tijdens uitvoering), sessie-isolatie (fail-closed 404 vanuit een andere sessie,
+geen sessie-/job-id in de respons), retentie/opschoning (60 min inactiviteit en 24 uur, wat eerder
+komt) en de sessie-indicator/openactie; `PersonSearchPayloadCipherTest` dekt versleuteling/
+ontsleuteling en het fail-closed gedrag zonder geconfigureerde sleutel. Flutter-widgettests
+(`test/personsearch/`) dekken de zes schermen (`live-search`, `supported-answer`,
+`followed-connection`, `source-outage`, `background-search`, `search-ready`), inclusief
+bronmarkeringen, Context-sectie, vervolgsporen, per-bronvoortgang, de sessie-indicator,
+toetsenbordnavigatie en kleuronafhankelijke statusweergave; `person_search_client_test.dart` dekt
+de status-poll-, stop- en openmethodes; `person_query_page_test.dart` dekt de doorschakeling vanaf
+een succesvolle indiening, de overgang naar `background-search`/`search-ready`, het hervatten van
+niet-terminale of nog niet geopende `READY`-jobs na (gesimuleerde) navigatie/herlading, en de
+niet-meer-beschikbaar-melding met opnieuw-indienen-aanbod.
 
 Widgettests dekken alle statusvarianten, aantallen en labels van statusnodes, afwezigheid van
 focusacties, lees- en Tab-volgorde, focusweergave en activatie met beide toetsen. Een tester voert de

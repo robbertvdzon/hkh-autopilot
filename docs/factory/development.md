@@ -34,15 +34,23 @@ Wanneer een feature Agent Runtime gebruikt, voer na het maken van `secrets.env` 
   `hkh_person_search_session`, atomaire idempotente jobcreatie, synchrone uitvoering met een harde
   2000ms-deadline, live Open Archieven Records/Search-/Records/Show-aanroepen via
   `ArchivesOpenSearchClient` met `PersonSearchRateLimiter` (4 req/s) en fail-closed validatie, en een
-  optionele Wikidata-contextaanroep via `PersonSearchWikidataContextClient`; jobs leven in-memory
-  zonder persistente opslag/TTL — dat volgt in de vervolgstory);
+  optionele Wikidata-contextaanroep via `PersonSearchWikidataContextClient`). Het jobstatuscontract
+  (`QUEUED, RUNNING, READY, NO_EVIDENCE, PARTIAL, FAILED, CANCELLED, EXPIRED`) is
+  worker-onafhankelijk (gewone gedeelde executor, geen Agent Runtime); `GET /{jobId}/status`,
+  `POST /{jobId}/cancel`, `POST /{jobId}/open` en `GET /session` zijn sessiegebonden fail-closed
+  endpoints. Jobs leven in-memory zonder aparte databasetabel; oorspronkelijke vraag en
+  antwoordpayload worden versleuteld bewaard (`PersonSearchPayloadCipher`, AES-256-GCM,
+  `HKH_PERSON_SEARCH_PAYLOAD_KEY`, fail-closed zonder sleutel) en door
+  `PersonSearchRetentionCleanupTask` (`@Scheduled`) verwijderd na 60 min sessie-inactiviteit of 24
+  uur, wat eerder komt;
 - `frontend/`: Flutter-gebruikersapp; homepage en statusflows staan in `lib/main.dart`,
   broninterfaces onder `lib/backend/` en `lib/news/`, widgettests onder `test/`; de volledig
   client-side persoonsvraag-/Heemskerk-disambiguatiemodule (start-, meaning-selection- en
   no-reliable-source-scherm, `PersonQueryInterpreter`, `WikidataMeaningClient`) staat onder
-  `lib/personquery/`, widget- en unittests onder `test/personquery/`; de vier schermen voor de live
-  zoek-/antwoordroute (`live-search`, `supported-answer`, `followed-connection`, `source-outage`) en
-  de bijbehorende client (`PersonSearchClient`) staan onder `lib/personsearch/`, widget- en
+  `lib/personquery/`, widget- en unittests onder `test/personquery/`; de zes schermen voor de live
+  zoek-/antwoordroute (`live-search`, `supported-answer`, `followed-connection`, `source-outage`,
+  `background-search`, `search-ready`), de sessie-indicator (`SessionIndicatorBadge`) en de
+  bijbehorende client (`PersonSearchClient`) staan onder `lib/personsearch/`, widget- en
   unittests onder `test/personsearch/`;
 - `frontend-admin/`: afzonderlijke Flutter-webbeheerapp en widgettests;
 - `deploy/`: OpenShift-, Kustomize- en ArgoCD-manifests;
