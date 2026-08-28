@@ -97,7 +97,7 @@ class PersonSearchNicolaasSinnigeExampleTest {
                 archivesClient = archivesClient,
                 contextSource = PersonSearchContextSource { null },
                 answerBuilder = PersonSearchAnswerBuilder(),
-                jobStore = PersonSearchJobStore(),
+                jobStore = testJobStore(),
                 executor = executor,
                 clock = Clock.fixed(Instant.parse("2026-08-28T10:00:00Z"), ZoneOffset.UTC),
             )
@@ -114,7 +114,7 @@ class PersonSearchNicolaasSinnigeExampleTest {
             )
 
             val body = response.body as PersonSearchApiResponse
-            assertEquals("SUPPORTED_ANSWER", body.status)
+            assertEquals("READY", body.status)
             assertEquals(1, searchRequests)
             assertEquals(1, showRequests)
 

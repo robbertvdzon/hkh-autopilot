@@ -1,10 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../config/app_config.dart';
+import '../personsearch/background_search_screen.dart';
 import '../personsearch/followed_connection_screen.dart';
 import '../personsearch/live_search_screen.dart';
 import '../personsearch/person_search_client.dart';
 import '../personsearch/person_search_models.dart';
+import '../personsearch/search_ready_screen.dart';
+import '../personsearch/session_indicator_badge.dart';
 import '../personsearch/source_outage_screen.dart';
 import '../personsearch/supported_answer_screen.dart';
 import 'meaning_selection_screen.dart';
@@ -18,10 +23,18 @@ enum _PersonQueryScreen {
   meaningSelection,
   noReliableSource,
   liveSearch,
+  backgroundSearch,
+  searchReady,
+  unavailable,
   supportedAnswer,
   followedConnection,
   sourceOutage,
 }
+
+/// Hoe vaak de client tijdens `background-search` de status van een job
+/// opnieuw opvraagt. Niet gespecificeerd door de story; een vast, redelijk
+/// interval is een implementatiedetail zonder acceptatiecriterium.
+const _pollInterval = Duration(seconds: 3);
 
 /// Nieuw, losstaand instappunt (screenKey `start`) voor de sessiezoek-route.
 /// Voert deterministische vraaginterpretatie en Heemskerk-disambiguatie
@@ -81,6 +94,26 @@ class _LazyPersonSearchClient implements PersonSearchSource {
       originalQuery: originalQuery,
     );
   }
+
+  @override
+  Future<PersonSearchStatusResult> pollStatus(String jobId) {
+    return PersonSearchClient(AppConfig.apiBaseUrl).pollStatus(jobId);
+  }
+
+  @override
+  Future<PersonSearchStatusResult> cancel(String jobId) {
+    return PersonSearchClient(AppConfig.apiBaseUrl).cancel(jobId);
+  }
+
+  @override
+  Future<PersonSearchStatusResult> open(String jobId) {
+    return PersonSearchClient(AppConfig.apiBaseUrl).open(jobId);
+  }
+
+  @override
+  Future<PersonSearchSessionIndicator> sessionIndicator() {
+    return PersonSearchClient(AppConfig.apiBaseUrl).sessionIndicator();
+  }
 }
 
 class _PersonQueryPageState extends State<PersonQueryPage> {
@@ -95,11 +128,48 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
   PersonSearchConnectionOption? _followedConnection;
   int _searchGeneration = 0;
 
+  /// Laatst bekende voortgang van de job die op `background-search`/
+  /// `search-ready` wordt getoond; `null` buiten die twee schermen.
+  PersonSearchStatusResult? _statusResult;
+  Timer? _pollTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _resumeFromSession();
+  }
+
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _controller.dispose();
     _fieldFocusNode.dispose();
     super.dispose();
+  }
+
+  /// Hervat na in-app-navigatie, herlading of terugkeer binnen dezelfde
+  /// geldige sessie automatisch de statuscontrole voor de eerste
+  /// niet-terminale of nog-niet-geopende `READY`-job van deze sessie.
+  Future<void> _resumeFromSession() async {
+    try {
+      final indicator = await widget.personSearchSource.sessionIndicator();
+      if (!mounted || _screen != _PersonQueryScreen.start) return;
+      final resumableJobId = indicator.runningJobIds.isNotEmpty
+          ? indicator.runningJobIds.first
+          : (indicator.readyUnopenedJobIds.isNotEmpty
+                ? indicator.readyUnopenedJobIds.first
+                : null);
+      if (resumableJobId == null) return;
+      final generation = ++_searchGeneration;
+      final status = await widget.personSearchSource.pollStatus(resumableJobId);
+      if (!mounted || generation != _searchGeneration) return;
+      setState(() {
+        _submittedQuery = status.originalQuery;
+        _applyStatusResult(generation, status);
+      });
+    } catch (_) {
+      // Hervatten is een gemak; bij een fout blijft gewoon het startscherm staan.
+    }
   }
 
   void _submit() {
@@ -149,6 +219,8 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
     _screen = _PersonQueryScreen.liveSearch;
     _stillRunning = false;
     _lastResult = null;
+    _statusResult = null;
+    _stopPolling();
     final generation = ++_searchGeneration;
     final recognizedName = [
       interpretation.firstName,
@@ -172,17 +244,21 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
     setState(() {
       _lastResult = result;
       switch (result.status) {
+        case PersonSearchStatus.queued:
         case PersonSearchStatus.running:
           _stillRunning = true;
           _screen = _PersonQueryScreen.liveSearch;
-        case PersonSearchStatus.supportedAnswer:
+          _enterBackgroundSearch(generation, result.jobId);
+        case PersonSearchStatus.ready:
           _screen = _PersonQueryScreen.supportedAnswer;
-        case PersonSearchStatus.noResults:
-          _screen = _PersonQueryScreen.noReliableSource;
+        case PersonSearchStatus.noEvidence:
         case PersonSearchStatus.partial:
           _screen = _PersonQueryScreen.noReliableSource;
-        case PersonSearchStatus.sourceOutage:
+        case PersonSearchStatus.failed:
           _screen = _PersonQueryScreen.sourceOutage;
+        case PersonSearchStatus.cancelled:
+        case PersonSearchStatus.expired:
+          _screen = _PersonQueryScreen.unavailable;
       }
     });
   }
@@ -193,6 +269,154 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
       _lastResult = null;
       _screen = _PersonQueryScreen.sourceOutage;
     });
+  }
+
+  /// Haalt de eerste volledige statusweergave op (starttijd, per-bron
+  /// voortgang) voor een job die het synchrone budget overschreed, en
+  /// schakelt dan pas naar `background-search`.
+  Future<void> _enterBackgroundSearch(int generation, String jobId) async {
+    try {
+      final status = await widget.personSearchSource.pollStatus(jobId);
+      if (!mounted || generation != _searchGeneration) return;
+      setState(() => _applyStatusResult(generation, status));
+    } catch (_) {
+      if (!mounted || generation != _searchGeneration) return;
+      setState(() => _screen = _PersonQueryScreen.sourceOutage);
+    }
+  }
+
+  /// Verwerkt een statusaanvraag-resultaat: blijft op `background-search` en
+  /// plant de volgende statuscontrole zolang de job niet terminaal is, of
+  /// schakelt bij een terminale status naar het passende scherm.
+  void _applyStatusResult(int generation, PersonSearchStatusResult status) {
+    _statusResult = status;
+    if (!status.status.isTerminal) {
+      _screen = _PersonQueryScreen.backgroundSearch;
+      _schedulePoll(generation, status.jobId);
+      return;
+    }
+    _stopPolling();
+    switch (status.status) {
+      case PersonSearchStatus.ready:
+        _screen = _PersonQueryScreen.searchReady;
+      case PersonSearchStatus.noEvidence:
+      case PersonSearchStatus.partial:
+        _lastResult = PersonSearchResult(
+          jobId: status.jobId,
+          status: status.status,
+          originalQuery: status.originalQuery,
+          refinementMessage: status.refinementMessage,
+          answer: status.answer,
+          context: status.context,
+        );
+        _screen = _PersonQueryScreen.noReliableSource;
+      case PersonSearchStatus.failed:
+        _lastResult = PersonSearchResult(
+          jobId: status.jobId,
+          status: status.status,
+          originalQuery: status.originalQuery,
+          context: status.context,
+        );
+        _screen = _PersonQueryScreen.sourceOutage;
+      case PersonSearchStatus.cancelled:
+      case PersonSearchStatus.expired:
+        _screen = _PersonQueryScreen.unavailable;
+      case PersonSearchStatus.queued:
+      case PersonSearchStatus.running:
+        break; // onbereikbaar: al afgehandeld door de vroege return hierboven
+    }
+  }
+
+  void _schedulePoll(int generation, String jobId) {
+    _pollTimer?.cancel();
+    _pollTimer = Timer(_pollInterval, () => _pollOnce(generation, jobId));
+  }
+
+  Future<void> _pollOnce(int generation, String jobId) async {
+    if (!mounted || generation != _searchGeneration) return;
+    try {
+      final status = await widget.personSearchSource.pollStatus(jobId);
+      if (!mounted || generation != _searchGeneration) return;
+      setState(() => _applyStatusResult(generation, status));
+    } on PersonSearchJobUnavailableException {
+      if (!mounted || generation != _searchGeneration) return;
+      setState(() {
+        _statusResult = null;
+        _screen = _PersonQueryScreen.unavailable;
+      });
+    } catch (_) {
+      // Voorbijgaande netwerkfout: gewoon opnieuw proberen bij de volgende tik.
+      _schedulePoll(generation, jobId);
+    }
+  }
+
+  void _stopPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+  }
+
+  /// Vanuit `background-search`: navigeert naar `start` zonder de lopende
+  /// job te onderbreken. Alleen de voorgrondpolling van dit scherm stopt.
+  void _askAnotherQuestionFromBackground() {
+    _searchGeneration++;
+    _stopPolling();
+    setState(() => _screen = _PersonQueryScreen.start);
+    _fieldFocusNode.requestFocus();
+  }
+
+  Future<void> _stopBackgroundSearch() async {
+    final jobId = _statusResult?.jobId;
+    _searchGeneration++;
+    _stopPolling();
+    if (jobId != null) {
+      try {
+        await widget.personSearchSource.cancel(jobId);
+      } catch (_) {
+        // Best effort: retentie-opschoning ruimt de job anders vanzelf op.
+      }
+    }
+    if (!mounted) return;
+    setState(() => _screen = _PersonQueryScreen.start);
+    _fieldFocusNode.requestFocus();
+  }
+
+  /// Vanuit `search-ready`: precies één actie die het bijbehorende antwoord
+  /// opent.
+  Future<void> _viewReadyAnswer() async {
+    final status = _statusResult;
+    if (status == null) return;
+    final generation = _searchGeneration;
+    try {
+      await widget.personSearchSource.open(status.jobId);
+    } catch (_) {
+      // Best effort: het antwoord is al opgehaald en kan alsnog getoond worden.
+    }
+    if (!mounted || generation != _searchGeneration) return;
+    setState(() {
+      _lastResult = PersonSearchResult(
+        jobId: status.jobId,
+        status: status.status,
+        originalQuery: status.originalQuery,
+        answer: status.answer,
+        context: status.context,
+      );
+      _screen = _PersonQueryScreen.supportedAnswer;
+    });
+  }
+
+  /// Na verwijdering/verlopen: biedt aan de vraag opnieuw in te dienen in
+  /// plaats van een oud antwoord als actuele uitkomst te tonen.
+  void _retryFromUnavailable() {
+    _searchGeneration++;
+    _stopPolling();
+    setState(() {
+      _controller.text = _submittedQuery;
+      _controller.selection = TextSelection.collapsed(
+        offset: _submittedQuery.length,
+      );
+      _screen = _PersonQueryScreen.start;
+    });
+    _fieldFocusNode.requestFocus();
   }
 
   void _followConnection(PersonSearchConnectionOption connection) {
@@ -209,7 +433,10 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Historisch Heemskerk')),
+      appBar: AppBar(
+        title: const Text('Historisch Heemskerk'),
+        actions: [SessionIndicatorBadge(source: widget.personSearchSource)],
+      ),
       body: SafeArea(child: _buildScreen(context)),
     );
   }
@@ -237,6 +464,28 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
           stillRunning: _stillRunning,
           onBackToStart: _backToStart,
         );
+      case _PersonQueryScreen.backgroundSearch:
+        final status = _statusResult!;
+        return BackgroundSearchScreen(
+          originalQuery: _submittedQuery,
+          startedAt: status.createdAt,
+          status: status.status,
+          openArchievenStatus: status.openArchievenStatus,
+          wikidataStatus: status.wikidataStatus,
+          onAskAnotherQuestion: _askAnotherQuestionFromBackground,
+          onStop: _stopBackgroundSearch,
+        );
+      case _PersonQueryScreen.searchReady:
+        final status = _statusResult!;
+        return SearchReadyScreen(
+          originalQuery: _submittedQuery,
+          completedAt: status.updatedAt,
+          openArchievenStatus: status.openArchievenStatus,
+          wikidataStatus: status.wikidataStatus,
+          onViewAnswer: _viewReadyAnswer,
+        );
+      case _PersonQueryScreen.unavailable:
+        return _JobUnavailableScreen(onRetry: _retryFromUnavailable);
       case _PersonQueryScreen.supportedAnswer:
         return SupportedAnswerScreen(
           originalQuery: _submittedQuery,
@@ -279,7 +528,8 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
         explanation:
             result.refinementMessage ??
             'Er zijn meer dan honderd mogelijke resultaten. Verfijn je vraag.',
-        openArchivenSubtitle: 'Meer dan 100 mogelijke resultaten · verfijning nodig',
+        openArchivenSubtitle:
+            'Meer dan 100 mogelijke resultaten · verfijning nodig',
       );
     }
     return NoReliableSourceScreen(
@@ -291,6 +541,63 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
           'Open Archieven bevat voor deze vraag geen enkel resultaat binnen '
           'Heemskerk.',
       openArchivenSubtitle: 'Live geraadpleegd · nul resultaten',
+    );
+  }
+}
+
+/// Getoond wanneer een job door de bezoeker gestopt is of door
+/// retentie-opschoning verwijderd/verlopen is: toont nooit een oud antwoord
+/// als actuele uitkomst, maar meldt duidelijk dat het niet meer beschikbaar
+/// is en biedt aan de vraag opnieuw in te dienen.
+class _JobUnavailableScreen extends StatelessWidget {
+  const _JobUnavailableScreen({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 900),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('NIET MEER BESCHIKBAAR', style: textTheme.labelLarge),
+              const SizedBox(height: 8),
+              Text(
+                'Deze zoekopdracht is niet meer beschikbaar',
+                style: textTheme.headlineMedium,
+              ),
+              const SizedBox(height: 12),
+              PersonQueryStatusMessage(
+                label:
+                    'Deze zoekopdracht is gestopt of verlopen; het antwoord '
+                    'is niet meer beschikbaar in deze sessie.',
+                child: const Text(
+                  'Deze zoekopdracht is gestopt of verlopen; het antwoord is '
+                  'niet meer beschikbaar in deze sessie. Je kunt de vraag '
+                  'opnieuw indienen.',
+                ),
+              ),
+              const SizedBox(height: 20),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton(
+                  key: const Key('unavailable-retry'),
+                  onPressed: onRetry,
+                  style: personQueryFocusedButtonStyle(
+                    Theme.of(context).colorScheme.primary,
+                  ),
+                  child: const Text('Vraag opnieuw indienen'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

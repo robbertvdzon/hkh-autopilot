@@ -26,6 +26,11 @@ overschrijven waarden uit het bestand; `HKH_SECRETS_FILE` kan naar een andere lo
 - `HKH_PERSON_SEARCH_WIKIDATA_BASE_URL`: optionele basis-URI voor de Wikidata-contextaanroep vanuit
   de `personsearch`-backendmodule, standaard `https://www.wikidata.org`; uitsluitend bedoeld om
   lokaal of in tests tegen een fixture-/mock-endpoint te draaien. Geen API-key nodig.
+- `HKH_PERSON_SEARCH_PAYLOAD_KEY`: base64-gecodeerde AES-256-sleutel om de tijdelijk bewaarde
+  jobgegevens van `personsearch` (oorspronkelijke vraag, gevalideerde bronrecords,
+  antwoordbeweringen) versleuteld op te slaan tot aan retentie-opschoning (60 minuten
+  sessie-inactiviteit of 24 uur na indienen, of eerder bij een expliciete stopactie).
+  Versleuteling faalt fail-closed zolang deze leeg is: een indiening kan dan niet worden opgeslagen.
 - `HKH_AGENT_RUNTIME_URL`: basis-URL van de gedeelde Agent Runtime;
 - `HKH_AGENT_RUNTIME_TOKEN`: eigen, minimaal bevoegde HKH Autopilot-consumentcredential;
 - `HKH_AGENT_RUNTIME_PROJECT_PREFIX`: exact `HKH_AUTOPILOT`;

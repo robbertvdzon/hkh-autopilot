@@ -15,6 +15,27 @@ class PersonSearchSubmitException implements Exception {
   String toString() => 'PersonSearchSubmitException: $message';
 }
 
+/// Gecontroleerde fout bij een statusaanvraag/stopactie/openactie
+/// (netwerkfout, timeout of onverwachte respons, maar geen 404).
+class PersonSearchStatusException implements Exception {
+  const PersonSearchStatusException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => 'PersonSearchStatusException: $message';
+}
+
+/// De job bestaat niet (meer) binnen deze sessie: onbekend, van een andere
+/// sessie, of opgeschoond (gestopt/verlopen). De aanroeper toont dan dat het
+/// antwoord niet meer beschikbaar is, met een aanbod om opnieuw in te dienen.
+class PersonSearchJobUnavailableException implements Exception {
+  const PersonSearchJobUnavailableException();
+
+  @override
+  String toString() => 'PersonSearchJobUnavailableException';
+}
+
 /// Injecteerbare/mockbare bron voor een persoonszoekopdracht, zodat
 /// widgettests nooit een echte backend-aanroep hoeven te doen.
 abstract interface class PersonSearchSource {
@@ -26,6 +47,20 @@ abstract interface class PersonSearchSource {
     String? heemskerkMeaningQid,
     required String originalQuery,
   });
+
+  /// `GET /api/person-search/{jobId}/status`. Gooit
+  /// [PersonSearchJobUnavailableException] wanneer de job niet (meer)
+  /// bestaat binnen deze sessie.
+  Future<PersonSearchStatusResult> pollStatus(String jobId);
+
+  /// `POST /api/person-search/{jobId}/cancel`.
+  Future<PersonSearchStatusResult> cancel(String jobId);
+
+  /// `POST /api/person-search/{jobId}/open`.
+  Future<PersonSearchStatusResult> open(String jobId);
+
+  /// `GET /api/person-search/session`.
+  Future<PersonSearchSessionIndicator> sessionIndicator();
 }
 
 /// Dient een persoonszoekopdracht in bij `POST /api/person-search`. De
@@ -82,5 +117,85 @@ class PersonSearchClient implements PersonSearchSource {
     } catch (error) {
       throw PersonSearchSubmitException(error.toString());
     }
+  }
+
+  @override
+  Future<PersonSearchStatusResult> pollStatus(String jobId) async {
+    final response = await _getWithCredentials(
+      '/api/person-search/$jobId/status',
+    );
+    return PersonSearchStatusResult.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  @override
+  Future<PersonSearchStatusResult> cancel(String jobId) async {
+    final response = await _postWithCredentials(
+      '/api/person-search/$jobId/cancel',
+    );
+    return PersonSearchStatusResult.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  @override
+  Future<PersonSearchStatusResult> open(String jobId) async {
+    final response = await _postWithCredentials(
+      '/api/person-search/$jobId/open',
+    );
+    return PersonSearchStatusResult.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  @override
+  Future<PersonSearchSessionIndicator> sessionIndicator() async {
+    final response = await _getWithCredentials('/api/person-search/session');
+    return PersonSearchSessionIndicator.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<http.Response> _getWithCredentials(String path) async {
+    try {
+      final response = await _client
+          .get(Uri.parse('$apiBaseUrl$path'))
+          .timeout(timeout);
+      return _checkStatusResponse(response);
+    } on PersonSearchJobUnavailableException {
+      rethrow;
+    } on PersonSearchStatusException {
+      rethrow;
+    } catch (error) {
+      throw PersonSearchStatusException(error.toString());
+    }
+  }
+
+  Future<http.Response> _postWithCredentials(String path) async {
+    try {
+      final response = await _client
+          .post(Uri.parse('$apiBaseUrl$path'))
+          .timeout(timeout);
+      return _checkStatusResponse(response);
+    } on PersonSearchJobUnavailableException {
+      rethrow;
+    } on PersonSearchStatusException {
+      rethrow;
+    } catch (error) {
+      throw PersonSearchStatusException(error.toString());
+    }
+  }
+
+  http.Response _checkStatusResponse(http.Response response) {
+    if (response.statusCode == 404) {
+      throw const PersonSearchJobUnavailableException();
+    }
+    if (response.statusCode != 200) {
+      throw PersonSearchStatusException(
+        'Onverwachte respons (${response.statusCode}) bij de statusaanvraag.',
+      );
+    }
+    return response;
   }
 }

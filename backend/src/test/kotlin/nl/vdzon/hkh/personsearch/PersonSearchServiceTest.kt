@@ -74,19 +74,20 @@ class PersonSearchServiceTest {
         executors.forEach { it.shutdownNow() }
     }
 
-    private fun newExecutor(): ExecutorService = Executors.newFixedThreadPool(2).also { executors += it }
+    private fun newExecutor(threads: Int = 2): ExecutorService = Executors.newFixedThreadPool(threads).also { executors += it }
 
     private fun service(
         client: ArchivesOpenSearchClient,
         context: PersonSearchContextSource = FakeContextSource(),
         deadlineMillis: Long = PERSON_SEARCH_DEADLINE_MILLIS,
-        jobStore: PersonSearchJobStore = PersonSearchJobStore(),
+        jobStore: PersonSearchJobStore = testJobStore(fixedClock),
+        executor: ExecutorService = newExecutor(),
     ) = PersonSearchService(
         archivesClient = client,
         contextSource = context,
         answerBuilder = PersonSearchAnswerBuilder(),
         jobStore = jobStore,
-        executor = newExecutor(),
+        executor = executor,
         clock = fixedClock,
         deadlineMillis = deadlineMillis,
     )
@@ -106,19 +107,19 @@ class PersonSearchServiceTest {
             PersonSearchRequest(recognizedName = "Nicolaas Jacobus Sinnige", yearOrPeriod = "1878"),
         )
 
-        assertEquals(PersonSearchStatus.SUPPORTED_ANSWER, result.status)
-        val answer = (result.outcome as PersonSearchOutcome.SupportedAnswer).answer
+        assertEquals(PersonSearchStatus.READY, result.status)
+        val answer = result.payload!!.answer!!
         assertTrue(answer.disclaimer.contains("geen volledig levensverhaal"))
         assertEquals(2, answer.connections.size)
     }
 
     @Test
-    fun `zero search results yield no results without calling show`() {
+    fun `zero search results yield no evidence without calling show`() {
         val client = FakeArchivesOpenSearchClient(ArchivesSearchOutcome.Success(0, emptyList()))
 
         val result = service(client).submit("session-1", PersonSearchRequest(recognizedName = "Onbekende Persoon"))
 
-        assertEquals(PersonSearchStatus.NO_RESULTS, result.status)
+        assertEquals(PersonSearchStatus.NO_EVIDENCE, result.status)
         assertEquals(0, client.showCalls)
     }
 
@@ -129,21 +130,21 @@ class PersonSearchServiceTest {
         val result = service(client).submit("session-1", PersonSearchRequest(recognizedName = "Jansen"))
 
         assertEquals(PersonSearchStatus.PARTIAL, result.status)
-        assertTrue((result.outcome as PersonSearchOutcome.Partial).refinementMessage.isNotBlank())
+        assertTrue(result.payload!!.refinementMessage!!.isNotBlank())
         assertEquals(0, client.showCalls)
     }
 
     @Test
-    fun `a failed search yields source outage`() {
+    fun `a failed search yields failed`() {
         val client = FakeArchivesOpenSearchClient(ArchivesSearchOutcome.Failure)
 
         val result = service(client).submit("session-1", PersonSearchRequest(recognizedName = "Jansen"))
 
-        assertEquals(PersonSearchStatus.SOURCE_OUTAGE, result.status)
+        assertEquals(PersonSearchStatus.FAILED, result.status)
     }
 
     @Test
-    fun `a failed show for a required candidate yields source outage with no archive claims`() {
+    fun `a failed show for a required candidate yields failed with no archive claims`() {
         val client = FakeArchivesOpenSearchClient(
             searchResult = ArchivesSearchOutcome.Success(1, listOf(ArchivesSearchResultItem("nha", "X"))),
             showResults = mapOf("X" to ArchivesShowOutcome.Failure),
@@ -151,7 +152,7 @@ class PersonSearchServiceTest {
 
         val result = service(client).submit("session-1", PersonSearchRequest(recognizedName = "Jansen"))
 
-        assertEquals(PersonSearchStatus.SOURCE_OUTAGE, result.status)
+        assertEquals(PersonSearchStatus.FAILED, result.status)
     }
 
     @Test
@@ -175,7 +176,7 @@ class PersonSearchServiceTest {
             searchResult = ArchivesSearchOutcome.Success(1, listOf(ArchivesSearchResultItem("nha", "X"))),
             showResults = mapOf("X" to ArchivesShowOutcome.Success(nicolaasRecord)),
         )
-        val jobStore = PersonSearchJobStore()
+        val jobStore = testJobStore(fixedClock)
         val personSearchService = service(client, jobStore = jobStore)
         val request = PersonSearchRequest(recognizedName = "Nicolaas Jacobus Sinnige", yearOrPeriod = "1878")
 
@@ -192,7 +193,7 @@ class PersonSearchServiceTest {
             searchResult = ArchivesSearchOutcome.Success(1, listOf(ArchivesSearchResultItem("nha", "X"))),
             showResults = mapOf("X" to ArchivesShowOutcome.Success(nicolaasRecord)),
         )
-        val jobStore = PersonSearchJobStore()
+        val jobStore = testJobStore(fixedClock)
         val personSearchService = service(client, jobStore = jobStore)
         val request = PersonSearchRequest(recognizedName = "Nicolaas Jacobus Sinnige", yearOrPeriod = "1878")
         val threadCount = 16
@@ -214,7 +215,7 @@ class PersonSearchServiceTest {
     @Test
     fun `a different session gets a different job even for an identical question`() {
         val client = FakeArchivesOpenSearchClient(ArchivesSearchOutcome.Success(0, emptyList()))
-        val jobStore = PersonSearchJobStore()
+        val jobStore = testJobStore(fixedClock)
         val personSearchService = service(client, jobStore = jobStore)
         val request = PersonSearchRequest(recognizedName = "Jansen")
 
@@ -238,7 +239,7 @@ class PersonSearchServiceTest {
                 assertTrue(releaseLatch.await(5, TimeUnit.SECONDS))
             },
         )
-        val jobStore = PersonSearchJobStore()
+        val jobStore = testJobStore(fixedClock)
         val personSearchService = service(client, deadlineMillis = 50, jobStore = jobStore)
 
         val result = personSearchService.submit("session-1", PersonSearchRequest(recognizedName = "Jansen"))
@@ -247,11 +248,131 @@ class PersonSearchServiceTest {
         assertTrue(startedLatch.await(5, TimeUnit.SECONDS))
         releaseLatch.countDown()
 
-        await(5000) { jobStore.findByIdForSession(result.jobId, "session-1")?.status == PersonSearchStatus.SUPPORTED_ANSWER }
-        assertEquals(
-            PersonSearchStatus.SUPPORTED_ANSWER,
-            jobStore.findByIdForSession(result.jobId, "session-1")?.status,
+        await(5000) { jobStore.findByIdForSession(result.jobId, "session-1")?.status == PersonSearchStatus.READY }
+        assertEquals(PersonSearchStatus.READY, jobStore.findByIdForSession(result.jobId, "session-1")?.status)
+    }
+
+    @Test
+    fun `a job that has not yet reached the executor is QUEUED`() {
+        val startedLatch = CountDownLatch(1)
+        val releaseLatch = CountDownLatch(1)
+        val occupier = FakeArchivesOpenSearchClient(
+            searchResult = ArchivesSearchOutcome.Success(0, emptyList()),
+            onSearch = {
+                startedLatch.countDown()
+                assertTrue(releaseLatch.await(5, TimeUnit.SECONDS))
+            },
         )
+        val realClient = FakeArchivesOpenSearchClient(ArchivesSearchOutcome.Success(0, emptyList()))
+        val jobStore = testJobStore(fixedClock)
+        val singleThreadExecutor = newExecutor(threads = 1)
+        val occupierService = service(occupier, deadlineMillis = 20, jobStore = jobStore, executor = singleThreadExecutor)
+        val realService = service(realClient, deadlineMillis = 20, jobStore = jobStore, executor = singleThreadExecutor)
+
+        occupierService.submit("session-1", PersonSearchRequest(recognizedName = "Bezet"))
+        assertTrue(startedLatch.await(5, TimeUnit.SECONDS))
+
+        val queuedResult = realService.submit("session-1", PersonSearchRequest(recognizedName = "Wachtend"))
+        assertEquals(PersonSearchStatus.QUEUED, queuedResult.status)
+
+        releaseLatch.countDown()
+    }
+
+    @Test
+    fun `open archieven and wikidata consultation statuses succeed for a supported answer`() {
+        val client = FakeArchivesOpenSearchClient(
+            searchResult = ArchivesSearchOutcome.Success(1, listOf(ArchivesSearchResultItem("nha", "X"))),
+            showResults = mapOf("X" to ArchivesShowOutcome.Success(nicolaasRecord)),
+        )
+        val jobStore = testJobStore(fixedClock)
+        val personSearchService = service(
+            client,
+            context = FakeContextSource(PersonSearchWikidataContext("Heemskerk", null)),
+            jobStore = jobStore,
+        )
+
+        val result = personSearchService.submit("session-1", PersonSearchRequest(recognizedName = "Jansen"))
+
+        val job = jobStore.findByIdForSession(result.jobId, "session-1")!!
+        assertEquals(PersonSearchSourceConsultationStatus.SUCCEEDED, job.openArchievenStatus)
+        assertEquals(PersonSearchSourceConsultationStatus.SUCCEEDED, job.wikidataStatus)
+    }
+
+    @Test
+    fun `open archieven consultation status fails when the search fails`() {
+        val client = FakeArchivesOpenSearchClient(ArchivesSearchOutcome.Failure)
+        val jobStore = testJobStore(fixedClock)
+        val personSearchService = service(client, jobStore = jobStore)
+
+        val result = personSearchService.submit("session-1", PersonSearchRequest(recognizedName = "Jansen"))
+
+        val job = jobStore.findByIdForSession(result.jobId, "session-1")!!
+        assertEquals(PersonSearchSourceConsultationStatus.FAILED, job.openArchievenStatus)
+    }
+
+    @Test
+    fun `cancelling a queued job prevents the archive from ever being contacted`() {
+        val startedLatch = CountDownLatch(1)
+        val releaseLatch = CountDownLatch(1)
+        val occupier = FakeArchivesOpenSearchClient(
+            searchResult = ArchivesSearchOutcome.Success(0, emptyList()),
+            onSearch = {
+                startedLatch.countDown()
+                assertTrue(releaseLatch.await(5, TimeUnit.SECONDS))
+            },
+        )
+        val realClient = FakeArchivesOpenSearchClient(ArchivesSearchOutcome.Success(0, emptyList()))
+        val jobStore = testJobStore(fixedClock)
+        val singleThreadExecutor = newExecutor(threads = 1)
+        val occupierService = service(occupier, deadlineMillis = 20, jobStore = jobStore, executor = singleThreadExecutor)
+        val realService = service(realClient, deadlineMillis = 20, jobStore = jobStore, executor = singleThreadExecutor)
+
+        occupierService.submit("session-1", PersonSearchRequest(recognizedName = "Bezet"))
+        assertTrue(startedLatch.await(5, TimeUnit.SECONDS))
+        val queued = realService.submit("session-1", PersonSearchRequest(recognizedName = "Wachtend"))
+        assertEquals(PersonSearchStatus.QUEUED, queued.status)
+
+        val cancelled = realService.cancel(queued.jobId, "session-1")
+        assertEquals(PersonSearchStatus.CANCELLED, cancelled?.job?.status)
+
+        releaseLatch.countDown()
+        Thread.sleep(300)
+
+        assertEquals(0, realClient.searchCalls)
+        assertEquals(PersonSearchStatus.CANCELLED, jobStore.findByIdForSession(queued.jobId, "session-1")?.status)
+    }
+
+    @Test
+    fun `cancelling mid-execution stops the show calls that would otherwise follow`() {
+        val startedLatch = CountDownLatch(1)
+        val releaseLatch = CountDownLatch(1)
+        val jobStore = testJobStore(fixedClock)
+        val client = FakeArchivesOpenSearchClient(
+            searchResult = ArchivesSearchOutcome.Success(
+                2,
+                listOf(ArchivesSearchResultItem("nha", "X"), ArchivesSearchResultItem("nha", "Y")),
+            ),
+            showResults = mapOf(
+                "X" to ArchivesShowOutcome.Success(nicolaasRecord),
+                "Y" to ArchivesShowOutcome.Success(nicolaasRecord.copy(identifier = "Y")),
+            ),
+            onSearch = {
+                startedLatch.countDown()
+                assertTrue(releaseLatch.await(5, TimeUnit.SECONDS))
+            },
+        )
+        val personSearchService = service(client, deadlineMillis = 20, jobStore = jobStore)
+
+        val submitted = personSearchService.submit("session-1", PersonSearchRequest(recognizedName = "Jansen"))
+        assertTrue(startedLatch.await(5, TimeUnit.SECONDS))
+        personSearchService.cancel(submitted.jobId, "session-1")
+        releaseLatch.countDown()
+
+        await(2000) { jobStore.findByIdForSession(submitted.jobId, "session-1")?.status == PersonSearchStatus.CANCELLED }
+        Thread.sleep(200)
+
+        assertEquals(0, client.showCalls)
+        assertEquals(PersonSearchStatus.CANCELLED, jobStore.findByIdForSession(submitted.jobId, "session-1")?.status)
     }
 
     private fun await(timeoutMillis: Long, condition: () -> Boolean) {

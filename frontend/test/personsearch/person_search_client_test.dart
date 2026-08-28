@@ -14,7 +14,7 @@ void main() {
       return http.Response(
         jsonEncode({
           'jobId': 'job-1',
-          'status': 'NO_RESULTS',
+          'status': 'NO_EVIDENCE',
           'originalQuery': 'Wie was Jan Jansen?',
         }),
         200,
@@ -31,12 +31,15 @@ void main() {
       originalQuery: 'Wie was Jan Jansen?',
     );
 
-    expect(capturedRequest!.url.toString(), 'https://backend.example/api/person-search');
+    expect(
+      capturedRequest!.url.toString(),
+      'https://backend.example/api/person-search',
+    );
     final body = jsonDecode(capturedRequest!.body) as Map<String, dynamic>;
     expect(body['recognizedName'], 'Jan Jansen');
     expect(body['yearOrPeriod'], '1900');
     expect(body.containsKey('secondName'), isFalse);
-    expect(result.status, PersonSearchStatus.noResults);
+    expect(result.status, PersonSearchStatus.noEvidence);
     expect(result.jobId, 'job-1');
   });
 
@@ -45,7 +48,7 @@ void main() {
       return http.Response(
         jsonEncode({
           'jobId': 'job-2',
-          'status': 'SUPPORTED_ANSWER',
+          'status': 'READY',
           'originalQuery': 'Wie was Nicolaas Jacobus Sinnige?',
           'answer': {
             'sentences': [
@@ -79,21 +82,29 @@ void main() {
       );
     });
 
-    final client = PersonSearchClient('https://backend.example', client: mockClient);
+    final client = PersonSearchClient(
+      'https://backend.example',
+      client: mockClient,
+    );
     final result = await client.submit(
       recognizedName: 'Nicolaas Jacobus Sinnige',
       originalQuery: 'Wie was Nicolaas Jacobus Sinnige?',
     );
 
-    expect(result.status, PersonSearchStatus.supportedAnswer);
+    expect(result.status, PersonSearchStatus.ready);
     expect(result.answer!.sources.single.number, 1);
     expect(result.answer!.connections.single.personName, 'Pieter Sinnige');
     expect(result.context!.label, 'Heemskerk');
   });
 
   test('a non 200 response throws a submit exception', () async {
-    final mockClient = MockClient((request) async => http.Response('boom', 500));
-    final client = PersonSearchClient('https://backend.example', client: mockClient);
+    final mockClient = MockClient(
+      (request) async => http.Response('boom', 500),
+    );
+    final client = PersonSearchClient(
+      'https://backend.example',
+      client: mockClient,
+    );
 
     expect(
       () => client.submit(recognizedName: 'X', originalQuery: 'X'),
@@ -102,12 +113,157 @@ void main() {
   });
 
   test('a network error is wrapped as a submit exception', () async {
-    final mockClient = MockClient((request) async => throw Exception('offline'));
-    final client = PersonSearchClient('https://backend.example', client: mockClient);
+    final mockClient = MockClient(
+      (request) async => throw Exception('offline'),
+    );
+    final client = PersonSearchClient(
+      'https://backend.example',
+      client: mockClient,
+    );
 
     expect(
       () => client.submit(recognizedName: 'X', originalQuery: 'X'),
       throwsA(isA<PersonSearchSubmitException>()),
     );
   });
+
+  test('pollStatus parses a non-terminal status without an answer', () async {
+    final mockClient = MockClient((request) async {
+      expect(request.method, 'GET');
+      expect(request.url.path, '/api/person-search/job-1/status');
+      return http.Response(
+        jsonEncode({
+          'jobId': 'job-1',
+          'status': 'RUNNING',
+          'originalQuery': 'Wie was Jan Jansen?',
+          'createdAt': '2026-08-28T10:00:00Z',
+          'updatedAt': '2026-08-28T10:00:01Z',
+          'openArchievenStatus': 'IN_PROGRESS',
+          'wikidataStatus': 'NOT_STARTED',
+        }),
+        200,
+      );
+    });
+    final client = PersonSearchClient(
+      'https://backend.example',
+      client: mockClient,
+    );
+
+    final result = await client.pollStatus('job-1');
+
+    expect(result.status, PersonSearchStatus.running);
+    expect(
+      result.openArchievenStatus,
+      PersonSearchSourceConsultationStatus.inProgress,
+    );
+    expect(
+      result.wikidataStatus,
+      PersonSearchSourceConsultationStatus.notStarted,
+    );
+    expect(result.answer, isNull);
+  });
+
+  test(
+    'a status request for an unknown or foreign job throws PersonSearchJobUnavailableException',
+    () async {
+      final mockClient = MockClient((request) async => http.Response('', 404));
+      final client = PersonSearchClient(
+        'https://backend.example',
+        client: mockClient,
+      );
+
+      expect(
+        () => client.pollStatus('unknown-job'),
+        throwsA(isA<PersonSearchJobUnavailableException>()),
+      );
+    },
+  );
+
+  test('cancel posts to the cancel endpoint and parses CANCELLED', () async {
+    final mockClient = MockClient((request) async {
+      expect(request.method, 'POST');
+      expect(request.url.path, '/api/person-search/job-1/cancel');
+      return http.Response(
+        jsonEncode({
+          'jobId': 'job-1',
+          'status': 'CANCELLED',
+          'originalQuery': 'Wie was Jan Jansen?',
+          'createdAt': '2026-08-28T10:00:00Z',
+          'updatedAt': '2026-08-28T10:00:02Z',
+          'openArchievenStatus': 'FAILED',
+          'wikidataStatus': 'NOT_STARTED',
+        }),
+        200,
+      );
+    });
+    final client = PersonSearchClient(
+      'https://backend.example',
+      client: mockClient,
+    );
+
+    final result = await client.cancel('job-1');
+
+    expect(result.status, PersonSearchStatus.cancelled);
+  });
+
+  test(
+    'open posts to the open endpoint and parses the openedAt timestamp',
+    () async {
+      final mockClient = MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/api/person-search/job-1/open');
+        return http.Response(
+          jsonEncode({
+            'jobId': 'job-1',
+            'status': 'READY',
+            'originalQuery': 'Wie was Jan Jansen?',
+            'createdAt': '2026-08-28T10:00:00Z',
+            'updatedAt': '2026-08-28T10:00:02Z',
+            'openArchievenStatus': 'SUCCEEDED',
+            'wikidataStatus': 'SUCCEEDED',
+            'openedAt': '2026-08-28T10:00:03Z',
+          }),
+          200,
+        );
+      });
+      final client = PersonSearchClient(
+        'https://backend.example',
+        client: mockClient,
+      );
+
+      final result = await client.open('job-1');
+
+      expect(result.openedAt, DateTime.parse('2026-08-28T10:00:03Z'));
+    },
+  );
+
+  test(
+    'sessionIndicator parses the running and ready-unopened counts and job ids',
+    () async {
+      final mockClient = MockClient((request) async {
+        expect(request.method, 'GET');
+        expect(request.url.path, '/api/person-search/session');
+        return http.Response(
+          jsonEncode({
+            'runningCount': 1,
+            'readyUnopenedCount': 2,
+            'runningJobIds': ['job-1'],
+            'readyUnopenedJobIds': ['job-2', 'job-3'],
+          }),
+          200,
+        );
+      });
+      final client = PersonSearchClient(
+        'https://backend.example',
+        client: mockClient,
+      );
+
+      final indicator = await client.sessionIndicator();
+
+      expect(indicator.runningCount, 1);
+      expect(indicator.readyUnopenedCount, 2);
+      expect(indicator.runningJobIds, ['job-1']);
+      expect(indicator.readyUnopenedJobIds, ['job-2', 'job-3']);
+    },
+  );
 }

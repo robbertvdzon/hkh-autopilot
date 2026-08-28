@@ -35,12 +35,29 @@ data class PersonSearchAnswer(
     val disclaimer: String,
 )
 
+/**
+ * Worker-onafhankelijk statuscontract: uitvoerbaar door een gewone achtergrondworker (de gedeelde
+ * executor), zonder afhankelijkheid van Agent Runtime. `QUEUED` geldt vanaf het indienen tot de
+ * achtergrondtaak daadwerkelijk start; `CANCELLED` volgt op een expliciete stopactie; `EXPIRED`
+ * volgt op retentie-opschoning (zie [PersonSearchJobStore]).
+ */
 enum class PersonSearchStatus {
+    QUEUED,
     RUNNING,
-    SUPPORTED_ANSWER,
-    NO_RESULTS,
+    READY,
+    NO_EVIDENCE,
     PARTIAL,
-    SOURCE_OUTAGE,
+    FAILED,
+    CANCELLED,
+    EXPIRED,
+}
+
+/** Consultatiestatus van één externe bron (Open Archieven of Wikidata) voor een job. */
+enum class PersonSearchSourceConsultationStatus {
+    NOT_STARTED,
+    IN_PROGRESS,
+    SUCCEEDED,
+    FAILED,
 }
 
 /** Terminale of niet-terminale uitkomst van een persoonszoekjob. */
@@ -59,8 +76,8 @@ sealed interface PersonSearchOutcome {
 }
 
 fun PersonSearchOutcome.toStatus(): PersonSearchStatus = when (this) {
-    is PersonSearchOutcome.SupportedAnswer -> PersonSearchStatus.SUPPORTED_ANSWER
-    is PersonSearchOutcome.NoResults -> PersonSearchStatus.NO_RESULTS
+    is PersonSearchOutcome.SupportedAnswer -> PersonSearchStatus.READY
+    is PersonSearchOutcome.NoResults -> PersonSearchStatus.NO_EVIDENCE
     is PersonSearchOutcome.Partial -> PersonSearchStatus.PARTIAL
-    is PersonSearchOutcome.SourceOutage -> PersonSearchStatus.SOURCE_OUTAGE
+    is PersonSearchOutcome.SourceOutage -> PersonSearchStatus.FAILED
 }
