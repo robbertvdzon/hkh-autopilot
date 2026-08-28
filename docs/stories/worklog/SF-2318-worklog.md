@@ -229,3 +229,42 @@ Bevinding (blokkerend, terug naar developer):
   Flutter-schermen) zijn in deze ronde ongewijzigd.
 
 {"phase":"reviewed"}
+
+## Testronde SF-2320 (2026-08-28, tweede poging) — TESTED
+
+Uitgevoerd:
+- Diff sinds de eerdere rejectie beperkt tot `ArchivesOpenSearchModels.kt`,
+  `ArchivesOpenSearchClient.kt`, de twee bijbehorende testbestanden en de worklog
+  (bevestigd via `git diff --stat 806405a..HEAD`).
+- Backend `mvn -B --no-transfer-progress clean verify`: BUILD SUCCESS, 237 tests,
+  0 failures/errors.
+- Frontend `flutter analyze`: geen issues. `flutter test`: 56/56 groen (opnieuw het
+  bekende `frontend-flutter-test-concurrency-artifact` — `person_search_client_test.dart`
+  ontbrak in de live default-run; bevestigd als artefact via volledige `flutter test -j 1`
+  run, alle bestanden zichtbaar, 56/56 groen). `flutter build web`: succesvol.
+- Frontend-admin `flutter analyze`: geen issues. `flutter test`: 22/22 groen.
+- **Onafhankelijke herverificatie van de eerder gevonden schema-mismatch tegen de
+  echte publieke API** (niet enkel de developer-bewering vertrouwd):
+  - `curl` naar `records/search.json` voor de Nicolaas-vraag levert precies
+    `response.number_found=1` / `response.docs[0].identifier=002ED0F3-F08C-4223-A5EA-BA385D04336E`
+    op — exact wat `ArchivesSearchResponseDto` nu leest.
+  - `curl` naar `records/show.json` voor dat record levert `Person[]` (met
+    `@pid`/`PersonName.PersonNameFirstName/LastName`), `Event` (`EventDate.Year/Month/Day`
+    = 1878/07/25), `RelationEP[]` (volgorde: Kind=Nicolaas, Vader=Pieter Sinnige,
+    Moeder=Anna Geertruida Eenhuis, elk met `PersonKeyRef`/`RelationType`) en `Source`
+    (`SourceReference.InstitutionName`="Noord-Hollands Archief", `SourceType`="BS Geboorte",
+    `RecordIdentifier`, `SourceDigitalOriginal`) — exact wat `ArchivesShowResponseDto` en de
+    mapping in `RestClientArchivesOpenSearchClient.show()` nu verwachten en correct verwerken
+    (hoofdpersoon = eerste `RelationEP`-ingang, overige twee worden `relations` in de juiste
+    volgorde, datum wordt `1878-07-25`).
+  - Code-review van de mapping bevestigt dat dit consistent overeenkomt met de vereiste
+    AC-uitkomst (geboortezin 25 juli 1878, Vader/Moeder-bronnen, geen gefabriceerde velden).
+- De eerder blokkerende bevinding (schema-mismatch, altijd `SOURCE_OUTAGE` tegen de echte
+  API) is dus daadwerkelijk en aantoonbaar opgelost, niet alleen in fixtures.
+- Geen nieuwe bevindingen; geen tijdelijke testdata aangemaakt (geen lokale
+  backend/database opgestart — Docker CLI ontbreekt in deze sandbox, zie bekende tip
+  `environment/docker-cli-missing-but-socket-present`; verificatie is daarom gedaan via
+  live-curl tegen de externe API plus code-inspectie van de mapping, in lijn met de
+  eerdere testronde).
+
+{"phase":"tested"}
