@@ -83,6 +83,20 @@ the existing verification/privacy badges. Configuration and behavior are documen
 [factory/technical-spec.md](factory/technical-spec.md) and
 [factory/secrets-local.md](factory/secrets-local.md).
 
+`nl.vdzon.hkh.personsearch` exposes `POST /api/person-search`, the live search-and-answer route for
+a recognized person question. It issues a route-scoped, anonymous session cookie
+(`hkh_person_search_session`, no login), creates exactly one idempotent, in-memory job per
+session-id + normalized query + chosen Heemskerk meaning, and synchronously runs the Open Archieven
+Records/Search and Records/Show calls (`ArchivesOpenSearchClient`, rate-limited to 4 requests/second,
+fail-closed validation on HTTP status/JSON/required fields/`error_code`) plus an optional Wikidata
+context call within a hard 2000ms deadline. `number_found > 100` ends the job as `PARTIAL` with a
+refinement request and skips Records/Show; a failed required call ends it as `FAILED` with Open
+Archieven reported as unavailable. Answer sentences are built only from validated Show fields
+(`Person`/`Event`/`RelationEP`/`Source`) with numbered source citations. Jobs are in-memory only, with
+no persistence or TTL yet — that is planned for a follow-up story. Configuration and behavior are
+documented in [factory/technical-spec.md](factory/technical-spec.md) and
+[factory/secrets-local.md](factory/secrets-local.md).
+
 ## User frontend
 
 The user application supports Flutter web and Android. It uses `http://localhost:8080` as its
@@ -105,7 +119,10 @@ The "Stel je vraag over Heemskerk" action on the homepage opens `lib/personquery
 client-side start/meaning-selection/no-reliable-source flow that deterministically interprets a
 question and disambiguates the word "Heemskerk" via `PersonQueryInterpreter`, calling Wikidata
 directly (with a static fallback on failure) through `WikidataMeaningClient`; it never calls Open
-Archieven Records/Search/Show.
+Archieven Records/Search/Show itself. On a supported submission it hands off to `lib/personsearch/`,
+which posts to `POST /api/person-search` (`PersonSearchClient`) and switches between the
+`live-search`, `supported-answer`, `followed-connection` and `source-outage` screens based on the
+job outcome, each with a desktop and mobile layout.
 
 Run the frontend checks with:
 

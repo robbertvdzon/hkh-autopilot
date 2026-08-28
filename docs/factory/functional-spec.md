@@ -69,13 +69,84 @@ tekst gecommuniceerd, niet uitsluitend via kleur. Elk scherm heeft exact één d
 mobile-uitwerking; bij 320 CSS-pixels breedte blijft `document.scrollWidth == document.clientWidth`
 zonder horizontaal scrollen.
 
-Buiten scope van deze eerste drie schermen: elke aanroep naar Open Archieven Records/Search/Show,
-de job-/sessie-infrastructuur (QUEUED/RUNNING/READY/…, achtergrondworker, bewaartermijnen) en de
-sessie-indicator met live aantallen, en elk scherm ná meaning-selection/no-reliable-source
-(bijvoorbeeld background-search, search-ready, antwoordweergave met bronmarkeringen) — deze volgen
-in latere stories. Een succesvolle indiening (herkende naam, en bij ambiguïteit een bevestigde
-keuze) resulteert vooralsnog in een minimale, niet-navigerende bevestigingstekst binnen dezelfde
-pagina in plaats van een daadwerkelijke zoekroute.
+Buiten scope van deze eerste drie schermen: de sessie-indicator met live aantallen en het hervatten
+van een job na navigatie/reload. Een succesvolle indiening (herkende naam, en bij ambiguïteit een
+bevestigde keuze) leidt naar de live zoek- en antwoordroute hieronder.
+
+## Live persoonszoekopdracht en antwoord (gebruikersfrontend + backend)
+
+Een succesvolle indiening op `start`/`meaning-selection` dient de vraag in bij
+`POST /api/person-search`. De backend geeft eenmalig een route-gebonden, niet-raadbare
+sessiecookie uit (`hkh_person_search_session`, geen login, los van het bestaande admin/Google-
+authenticatiemechanisme) en maakt daarmee precies één job aan met een cryptografisch random
+job-id. De idempotentiesleutel is sessie-id + genormaliseerde vraagtekst + gekozen
+Heemskerk-betekenis: een herhaalde indiening met dezelfde sleutel terwijl de job nog niet terminaal
+is, levert dezelfde job-id op zonder nieuwe bronraadpleging.
+
+Direct na jobcreatie start de live Records/Search-aanroep (en de eventueel benodigde Wikidata-
+contextaanroep) en wacht het webrequest binnen hetzelfde verzoek maximaal 2000 ms op een terminale,
+volledig gevalideerde uitkomst. Is de uitkomst binnen dat budget terminaal, dan toont de gebruiker
+direct het passende scherm (`supported-answer`, de no-reliable-source-variant bij nul resultaten, of
+`source-outage`), zonder een verplichte tussenstap. Is de job na 2 seconden niet terminaal, dan
+retourneert het webrequest met een status die aangeeft dat de opdracht nog loopt; de job zelf blijft
+onafhankelijk van dit request doorlopen. Statuspolling, hervatten na navigatie/reload en een
+sessie-indicator met aantallen zijn buiten scope van deze route en volgen in de vervolgstory.
+
+Open Archieven Records/Search (`GET https://api.openarchieven.nl/1.1/records/search.json`,
+`archive_code=nha`, `eventplace=Heemskerk`, `lang=nl`, `number_show=100`, URL-gecodeerde `name`,
+`start` voor paginering) wordt bevraagd met een beschrijvende User-Agent, gzip, maximaal 4
+requests/seconde, korte timeouts en een begrensde eindige back-off. Een respons telt alleen als
+geslaagd bij HTTP 2xx, geldige JSON, aanwezige verplichte velden (`number_found`, `results`) en een
+leeg `error_code`; elke afwijking (ook een gevuld `error_code` bij HTTP 200) is een mislukte
+bronraadpleging. Resultaten worden gededupliceerd op `archive_code` + `identifier`. Levert
+Records/Search `number_found > 100` op, dan claimt geen enkele route een volledige uitkomst: de job
+eindigt met status `PARTIAL`, de gebruiker krijgt een verfijningsverzoek (naam aanvullen, periode of
+gebeurtenistype opgeven) en er volgt geen Records/Show-aanroep.
+
+Voor ieder daadwerkelijk getoond kandidaatrecord (na deduplicatie, binnen `number_show=100`) wordt
+Open Archieven Records/Show (`GET .../records/show.json`, `archive=nha`, `identifier=<id>`,
+`lang=nl`) live bevraagd, met dezelfde validatieregels als Search. Alleen `Person`-, `Event`-,
+`RelationEP`- en `Source`-gegevens uit een gevalideerd Show-record mogen een feitelijke
+antwoordzin dragen; zonder geldig, live opgehaald Show-record verschijnt geen archiefbewering voor
+dat record. Iedere feitelijke zin krijgt direct erachter een genummerde bronmarkering met
+beherende instelling, brontype, archief-, register-, akte-/documentnummer en recordnummer/
+identifier, plus links naar Open Archieven (`https://www.openarchieven.nl/{archive_code}:
+{identifier}`) en, indien aanwezig, `SourceDigitalOriginal`; elk record toont `checkedAt`.
+
+Gecontroleerd voorbeeld: voor 'Wie was Nicolaas Jacobus Sinnige, geboren in Heemskerk in 1878?'
+(geen meaning-selection, want het voorzetsel 'in' staat direct vóór 'Heemskerk') levert
+Records/Search exact één match op (`archive_code=nha`,
+`identifier=002ED0F3-F08C-4223-A5EA-BA385D04336E`); Records/Show toont een geboorte op 25 juli 1878
+in Heemskerk met Pieter Sinnige als Vader en Anna Geertruida Eenhuis als Moeder. Het antwoord
+vermeldt expliciet en zichtbaar dat deze ene geboorteakte geen volledig levensverhaal is en geen
+overzicht van alle gebeurtenissen in Heemskerk in 1878.
+
+Vanuit `supported-answer` kan de bezoeker een rol/persoon uit hetzelfde gevalideerde Show-record
+volgen (`followed-connection`, bijvoorbeeld 'Vader' Pieter Sinnige): dit opent een detailweergave die
+de oorspronkelijke vraag en het gekozen vervolgspoor zichtbaar houdt en expliciet vermeldt dat een
+bronrol geen volledig levensverhaal van die persoon is. Er zijn maximaal twee vervolgsporen per
+antwoord — de rollen met een gekoppelde persoonsnaam in `RelationEP` van hetzelfde Show-record, in
+recordvolgorde — zonder extra externe aanroep.
+
+Op `supported-answer` en `source-outage` verschijnt optionele Wikidata-informatie uitsluitend onder
+een sectie die letterlijk 'Context' heet; deze sectie draagt nooit zelfstandig een geboorte-,
+huwelijks-, overlijdens-, doop- of bevolkingsregistratiebewering. Faalt de voor een antwoord
+vereiste Records/Search- of Records/Show-aanroep volgens de validatieregels, dan verschijnt
+`source-outage`: Open Archieven wordt exact aangeduid als 'tijdelijk niet geraadpleegd', er
+verschijnt geen enkele archiefbewering, ook niet wanneer Wikidata wel bereikbaar was (dan uitsluitend
+onder 'Context').
+
+`live-search`, `supported-answer`, `followed-connection` en `source-outage` zijn bedienbaar met
+Tab/Shift+Tab/Enter, met zichtbare focus; live-/gereed-/Context-/uitvalstatus is zonder kleur
+begrijpelijk. Voor elk van deze vier schermen bestaat exact één desktop- en één mobile-uitwerking;
+bij 320 CSS-pixels blijft `document.scrollWidth == document.clientWidth` zonder horizontaal
+scrollen.
+
+Buiten scope van deze route: statuspolling-API, hervatten na navigatie/reload/terugkeer, een
+sessie-indicator met live aantallen, versleutelde opslag met retentie/opschoning (60 min
+inactiviteit/24 uur hard), CANCELLED/EXPIRED-afhandeling en Agent Runtime als uitvoeringsadapter.
+Dit volgt in de vervolgstory 'Achtergrondopdracht laten doorlopen, sessiestatus tonen, hervatten en
+na afloop opschonen'.
 
 ## Koppelingsdossier (backend)
 
@@ -264,8 +335,22 @@ in 1878?", "Cornelis Heemskerk" als ambigu voorbeeld, een vraag zonder herkenbar
 met precies één overblijvend hoofdletterwoord) en met Flutter-widgettests voor de drie schermen
 (labels/teksten, radiogroep-gedrag inclusief de Wikidata-fallback bij een mislukte live oproep,
 toetsenbordnavigatie met Tab/Shift+Tab/Enter/pijltjestoetsen en kleuronafhankelijke
-statusweergave). Geen enkele test of implementatiecode roept een echte Open Archieven- of
-Wikidata-endpoint, of Open Archieven Records/Search/Show, aan.
+statusweergave). Geen enkele test of implementatiecode in `personquery` roept een echte Open
+Archieven- of Wikidata-endpoint, of Open Archieven Records/Search/Show, aan.
+
+De live persoonszoekopdracht (`personsearch`) is gedekt met backend unit-, service- en
+controllertests (`PersonSearchAnswerBuilderTest`, `PersonSearchJobStoreTest`,
+`PersonSearchServiceTest`, `PersonSearchSessionResolverTest`, `PersonSearchRateLimiterTest`,
+`RestClientArchivesOpenSearchClientTest`, `PersonSearchControllerTest`), waaronder het verplichte
+Nicolaas Jacobus Sinnige-voorbeeld end-to-end (`PersonSearchNicolaasSinnigeExampleTest`) tegen een
+fixture die het échte, geneste Open Archieven-schema simuleert (`response.number_found`/
+`response.docs` voor Search; hoofdlettergevoelige, geneste `Person`/`Event`/`RelationEP`/`Source`
+voor Show) — dit schema is live met `curl` tegen de publieke API geverifieerd, nadat een eerdere
+testronde faalde op een zelfbedacht plat schema (zie het SF-2318-worklog). Flutter-widgettests
+(`test/personsearch/`) dekken de vier schermen (`live-search`, `supported-answer`,
+`followed-connection`, `source-outage`), inclusief bronmarkeringen, Context-sectie, vervolgsporen,
+toetsenbordnavigatie en kleuronafhankelijke statusweergave, en `person_query_page_test.dart` dekt de
+doorschakeling vanaf een succesvolle indiening.
 
 Widgettests dekken alle statusvarianten, aantallen en labels van statusnodes, afwezigheid van
 focusacties, lees- en Tab-volgorde, focusweergave en activatie met beide toetsen. Een tester voert de
