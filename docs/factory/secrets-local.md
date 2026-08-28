@@ -19,6 +19,13 @@ overschrijven waarden uit het bestand; `HKH_SECRETS_FILE` kan naar een andere lo
 - `HKH_EXTERNAL_VERIFICATION_ARCHIVES_BASE_URL`: optionele basis-URI voor archieven.nl, standaard
   het publieke opendata-endpoint; uitsluitend bedoeld om lokaal of in tests tegen een
   fixture-/mock-endpoint te draaien.
+- `HKH_PERSON_SEARCH_ARCHIVES_BASE_URL`: optionele basis-URI voor Open Archieven Records/Search en
+  Records/Show, standaard het publieke `https://api.openarchieven.nl/1.1`-endpoint; uitsluitend
+  bedoeld om lokaal of in tests tegen een fixture-/mock-endpoint te draaien. Geen API-key nodig: dit
+  is een publiek, no-auth endpoint.
+- `HKH_PERSON_SEARCH_WIKIDATA_BASE_URL`: optionele basis-URI voor de Wikidata-contextaanroep vanuit
+  de `personsearch`-backendmodule, standaard `https://www.wikidata.org`; uitsluitend bedoeld om
+  lokaal of in tests tegen een fixture-/mock-endpoint te draaien. Geen API-key nodig.
 - `HKH_AGENT_RUNTIME_URL`: basis-URL van de gedeelde Agent Runtime;
 - `HKH_AGENT_RUNTIME_TOKEN`: eigen, minimaal bevoegde HKH Autopilot-consumentcredential;
 - `HKH_AGENT_RUNTIME_PROJECT_PREFIX`: exact `HKH_AUTOPILOT`;

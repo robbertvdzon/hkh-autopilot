@@ -5,6 +5,75 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hkh_app/personquery/no_reliable_source_screen.dart';
 import 'package:hkh_app/personquery/person_query_page.dart';
 import 'package:hkh_app/personquery/wikidata_meaning_client.dart';
+import 'package:hkh_app/personsearch/person_search_client.dart';
+import 'package:hkh_app/personsearch/person_search_models.dart';
+
+/// Deterministische fake voor `PersonSearchSource`, zodat widgettests nooit
+/// een echte backend-aanroep doen. Legt de meegegeven `heemskerkMeaningQid`
+/// vast zodat tests kunnen aantonen dat de gekozen betekenis daadwerkelijk
+/// wordt doorgegeven.
+class _FakePersonSearchSource implements PersonSearchSource {
+  _FakePersonSearchSource.result(this._result) : _error = null;
+  _FakePersonSearchSource.failure() : _result = null, _error = 'offline';
+
+  final PersonSearchResult? _result;
+  final String? _error;
+  String? lastHeemskerkMeaningQid;
+  int calls = 0;
+
+  @override
+  Future<PersonSearchResult> submit({
+    required String recognizedName,
+    String? secondName,
+    String? eventType,
+    String? yearOrPeriod,
+    String? heemskerkMeaningQid,
+    required String originalQuery,
+  }) async {
+    calls++;
+    lastHeemskerkMeaningQid = heemskerkMeaningQid;
+    if (_error != null) {
+      throw PersonSearchSubmitException(_error);
+    }
+    return _result!;
+  }
+}
+
+PersonSearchResult _supportedAnswerResult({String originalQuery = ''}) {
+  return PersonSearchResult(
+    jobId: 'job-1',
+    status: PersonSearchStatus.supportedAnswer,
+    originalQuery: originalQuery,
+    answer: PersonSearchAnswer(
+      sentences: const [
+        PersonSearchAnswerSentence(
+          text: 'Nicolaas Jacobus Sinnige is geboren op 25 juli 1878 in Heemskerk.',
+          sourceNumbers: [1],
+        ),
+      ],
+      sources: [
+        PersonSearchSourceCitation(
+          number: 1,
+          institution: 'Noord-Hollands Archief',
+          sourceType: 'Geboorteakte',
+          archiveCode: 'nha',
+          identifier: '002ED0F3-F08C-4223-A5EA-BA385D04336E',
+          recordNumber: '789',
+          openArchivesLink:
+              'https://www.openarchieven.nl/nha:002ED0F3-F08C-4223-A5EA-BA385D04336E',
+          checkedAt: DateTime.utc(2026, 8, 28, 10),
+        ),
+      ],
+      connections: const [
+        PersonSearchConnectionOption(role: 'Vader', personName: 'Pieter Sinnige'),
+      ],
+      disclaimer:
+          'Deze ene geboorteakte is geen volledig levensverhaal van Nicolaas '
+          'Jacobus Sinnige en geen overzicht van alle gebeurtenissen in '
+          'Heemskerk in 1878.',
+    ),
+  );
+}
 
 class _FakeMeaningSource implements WikidataMeaningSource {
   _FakeMeaningSource.success()
@@ -118,12 +187,23 @@ void main() {
   );
 
   testWidgets(
-    'een naam zonder ambigue Heemskerk-vermelding gaat direct door zonder keuzescherm',
+    'een naam zonder ambigue Heemskerk-vermelding gaat direct door zonder keuzescherm en dient de job in',
     (tester) async {
       await useGenerousViewport(tester);
       final meaningSource = _FakeMeaningSource.success();
+      final searchSource = _FakePersonSearchSource.result(
+        _supportedAnswerResult(
+          originalQuery:
+              'Wie was Nicolaas Jacobus Sinnige, geboren in Heemskerk in 1878?',
+        ),
+      );
       await tester.pumpWidget(
-        MaterialApp(home: PersonQueryPage(meaningSource: meaningSource)),
+        MaterialApp(
+          home: PersonQueryPage(
+            meaningSource: meaningSource,
+            personSearchSource: searchSource,
+          ),
+        ),
       );
       await tester.pumpAndSettle();
 
@@ -132,15 +212,18 @@ void main() {
         'Wie was Nicolaas Jacobus Sinnige, geboren in Heemskerk in 1878?',
       );
 
-      expect(
-        find.textContaining('Geïnterpreteerd: Nicolaas Jacobus Sinnige'),
-        findsOneWidget,
-      );
-      expect(find.textContaining('Jaartal: 1878'), findsOneWidget);
       expect(meaningSource.calls, 0);
       expect(
         find.text('Heemskerk kan hier twee dingen betekenen'),
         findsNothing,
+      );
+      expect(searchSource.calls, 1);
+      expect(searchSource.lastHeemskerkMeaningQid, isNull);
+      expect(
+        find.textContaining(
+          'Nicolaas Jacobus Sinnige is geboren op 25 juli 1878 in Heemskerk',
+        ),
+        findsOneWidget,
       );
     },
   );
@@ -174,12 +257,20 @@ void main() {
   );
 
   testWidgets(
-    'bevestigen op meaning-selection toont de gekozen betekenis, nooit samengevoegd',
+    'bevestigen op meaning-selection dient de job in met de gekozen betekenis, nooit samengevoegd',
     (tester) async {
       await useGenerousViewport(tester);
       final meaningSource = _FakeMeaningSource.success();
+      final searchSource = _FakePersonSearchSource.result(
+        _supportedAnswerResult(originalQuery: 'Cornelis Heemskerk'),
+      );
       await tester.pumpWidget(
-        MaterialApp(home: PersonQueryPage(meaningSource: meaningSource)),
+        MaterialApp(
+          home: PersonQueryPage(
+            meaningSource: meaningSource,
+            personSearchSource: searchSource,
+          ),
+        ),
       );
       await tester.pumpAndSettle();
 
@@ -195,8 +286,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      expect(searchSource.calls, 1);
+      expect(searchSource.lastHeemskerkMeaningQid, WikidataMeaningIds.surname);
       expect(
-        find.textContaining('Gekozen betekenis voor Heemskerk: Q91564725'),
+        find.textContaining(
+          'Nicolaas Jacobus Sinnige is geboren op 25 juli 1878 in Heemskerk',
+        ),
         findsOneWidget,
       );
     },
@@ -248,8 +343,16 @@ void main() {
     (tester) async {
       await useGenerousViewport(tester);
       final meaningSource = _FakeMeaningSource.failure();
+      final searchSource = _FakePersonSearchSource.result(
+        _supportedAnswerResult(originalQuery: 'Cornelis Heemskerk'),
+      );
       await tester.pumpWidget(
-        MaterialApp(home: PersonQueryPage(meaningSource: meaningSource)),
+        MaterialApp(
+          home: PersonQueryPage(
+            meaningSource: meaningSource,
+            personSearchSource: searchSource,
+          ),
+        ),
       );
       await tester.pumpAndSettle();
 
@@ -267,10 +370,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(
-        find.textContaining('Gekozen betekenis voor Heemskerk'),
-        findsOneWidget,
-      );
+      expect(searchSource.calls, 1);
+      expect(searchSource.lastHeemskerkMeaningQid, WikidataMeaningIds.place);
     },
   );
 
@@ -308,7 +409,14 @@ void main() {
     tester,
   ) async {
     await useGenerousViewport(tester);
-    await tester.pumpWidget(const MaterialApp(home: PersonQueryPage()));
+    final searchSource = _FakePersonSearchSource.result(
+      _supportedAnswerResult(
+        originalQuery: 'Wie was Nicolaas Jacobus Sinnige, geboren in 1878?',
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(home: PersonQueryPage(personSearchSource: searchSource)),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.byType(TextField));
@@ -320,7 +428,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.textContaining('Geïnterpreteerd: Nicolaas Jacobus Sinnige'),
+      find.textContaining(
+        'Nicolaas Jacobus Sinnige is geboren op 25 juli 1878 in Heemskerk',
+      ),
       findsOneWidget,
     );
   });
@@ -381,6 +491,111 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(
         find.text('Heemskerk kan hier twee dingen betekenen'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'een mislukte indiening toont het source-outage-scherm',
+    (tester) async {
+      await useGenerousViewport(tester);
+      final searchSource = _FakePersonSearchSource.failure();
+      await tester.pumpWidget(
+        MaterialApp(home: PersonQueryPage(personSearchSource: searchSource)),
+      );
+      await tester.pumpAndSettle();
+
+      await _submit(tester, 'Wie was Nicolaas Jacobus Sinnige, geboren in 1878?');
+
+      expect(
+        find.text('Open Archieven is tijdelijk niet geraadpleegd'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'nul Open Archieven-resultaten hergebruiken het no-reliable-source-scherm met aangepaste tekst',
+    (tester) async {
+      await useGenerousViewport(tester);
+      final searchSource = _FakePersonSearchSource.result(
+        const PersonSearchResult(
+          jobId: 'job-3',
+          status: PersonSearchStatus.noResults,
+          originalQuery: 'Wie was Nicolaas Jacobus Sinnige, geboren in 1878?',
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(home: PersonQueryPage(personSearchSource: searchSource)),
+      );
+      await tester.pumpAndSettle();
+
+      await _submit(tester, 'Wie was Nicolaas Jacobus Sinnige, geboren in 1878?');
+
+      expect(
+        find.text('Geen resultaten gevonden in Open Archieven'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'meer dan honderd resultaten hergebruiken het no-reliable-source-scherm met het verfijningsverzoek',
+    (tester) async {
+      await useGenerousViewport(tester);
+      final searchSource = _FakePersonSearchSource.result(
+        const PersonSearchResult(
+          jobId: 'job-4',
+          status: PersonSearchStatus.partial,
+          originalQuery: 'Jansen',
+          refinementMessage: 'Vul de naam aan of geef een periode op.',
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(home: PersonQueryPage(personSearchSource: searchSource)),
+      );
+      await tester.pumpAndSettle();
+
+      await _submit(tester, 'Wie was Jan Jansen, geboren in 1878?');
+
+      expect(find.text('Te veel mogelijke resultaten'), findsOneWidget);
+      expect(
+        find.text('Vul de naam aan of geef een periode op.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'vanuit een onderbouwd antwoord kan een vervolgspoor gevolgd worden en weer terug',
+    (tester) async {
+      await useGenerousViewport(tester);
+      final searchSource = _FakePersonSearchSource.result(
+        _supportedAnswerResult(
+          originalQuery: 'Wie was Nicolaas Jacobus Sinnige, geboren in 1878?',
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(home: PersonQueryPage(personSearchSource: searchSource)),
+      );
+      await tester.pumpAndSettle();
+
+      await _submit(tester, 'Wie was Nicolaas Jacobus Sinnige, geboren in 1878?');
+      await tester.tap(find.text('Volg vader: Pieter Sinnige'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Vader: Pieter Sinnige'), findsOneWidget);
+      expect(
+        find.textContaining('is geen volledig levensverhaal van Pieter Sinnige'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Terug naar het antwoord'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('Nicolaas Jacobus Sinnige is geboren op 25 juli 1878'),
         findsOneWidget,
       );
     },

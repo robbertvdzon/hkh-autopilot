@@ -29,12 +29,21 @@ Wanneer een feature Agent Runtime gebruikt, voer na het maken van `secrets.env` 
   `LICENSE_KNOWN`/`LICENSE_UNKNOWN` (`ExternalVerificationLicenseEvaluator`), `ExternalVerificationPublishGuard`
   (weigert publicatie bij `Unverified` én bij `LICENSE_UNKNOWN`), versleutelde opslag van een optioneel
   archieftoegangstoken via `ExternalVerificationTokenCipher`, Flyway-migraties
-  `V5__external_verification.sql` en `V6__external_verification_license.sql`);
+  `V5__external_verification.sql` en `V6__external_verification_license.sql`) en de module
+  `personsearch` met het `POST /api/person-search`-endpoint (route-gebonden anonieme sessiecookie
+  `hkh_person_search_session`, atomaire idempotente jobcreatie, synchrone uitvoering met een harde
+  2000ms-deadline, live Open Archieven Records/Search-/Records/Show-aanroepen via
+  `ArchivesOpenSearchClient` met `PersonSearchRateLimiter` (4 req/s) en fail-closed validatie, en een
+  optionele Wikidata-contextaanroep via `PersonSearchWikidataContextClient`; jobs leven in-memory
+  zonder persistente opslag/TTL — dat volgt in de vervolgstory);
 - `frontend/`: Flutter-gebruikersapp; homepage en statusflows staan in `lib/main.dart`,
   broninterfaces onder `lib/backend/` en `lib/news/`, widgettests onder `test/`; de volledig
   client-side persoonsvraag-/Heemskerk-disambiguatiemodule (start-, meaning-selection- en
   no-reliable-source-scherm, `PersonQueryInterpreter`, `WikidataMeaningClient`) staat onder
-  `lib/personquery/`, widget- en unittests onder `test/personquery/`;
+  `lib/personquery/`, widget- en unittests onder `test/personquery/`; de vier schermen voor de live
+  zoek-/antwoordroute (`live-search`, `supported-answer`, `followed-connection`, `source-outage`) en
+  de bijbehorende client (`PersonSearchClient`) staan onder `lib/personsearch/`, widget- en
+  unittests onder `test/personsearch/`;
 - `frontend-admin/`: afzonderlijke Flutter-webbeheerapp en widgettests;
 - `deploy/`: OpenShift-, Kustomize- en ArgoCD-manifests;
 - `.factory/verification.yaml`: machine-leesbaar, revisiongebonden verificatievangnet.

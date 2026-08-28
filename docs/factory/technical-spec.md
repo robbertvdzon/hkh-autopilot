@@ -55,10 +55,82 @@ bestaande homepage (`main.dart`, naar het patroon van de bestaande "Lees onze pr
   (3px-focusrand) uit de "Flutter-webstatussemantiek"-sectie. Toetsenbordnavigatie
   (Tab/Shift+Tab/Enter, pijltjestoetsen op de radiogroep) gebruikt de standaard Flutter-widgetvolgorde
   en -activering, zonder aangepaste sort keys.
-- Er is bewust geen backend-, database- of infrastructuurwijziging: de module is volledig
-  zelfstandig binnen `frontend/lib`, roept nooit Open Archieven Records/Search/Show aan, en de
-  Wikidata-aanroep gebeurt rechtstreeks vanuit de browser (CORS via `origin=*`), analoog aan de
-  bestaande directe `GET /api/news`-/`GET /actuator/health`-aanroepen.
+- De module zelf blijft zonder backend-, database- of infrastructuurwijziging: ze roept nooit Open
+  Archieven Records/Search/Show aan, en de Wikidata-aanroep voor de meaning-selection gebeurt
+  rechtstreeks vanuit de browser (CORS via `origin=*`), analoog aan de bestaande directe
+  `GET /api/news`-/`GET /actuator/health`-aanroepen. Een succesvolle indiening (herkende naam, en bij
+  ambiguïteit een bevestigde keuze) geeft de vraag door aan de backendmodule `personsearch`
+  hieronder, die de daadwerkelijke live zoekroute uitvoert.
+
+## Backendmodule `personsearch`
+
+De live persoonszoekopdracht en synchrone antwoordroute zitten in de zelfstandige Spring Modulith-
+module `nl.vdzon.hkh.personsearch` (inclusief de subpackage `personsearch.api`), met
+`package-info.java` en `@ApplicationModule(allowedDependencies = {})` — geen afhankelijkheid op
+andere modules, ook niet op `auth` — opgenomen in de moduleset van `ModulithArchitectureTest`.
+
+- `POST /api/person-search` (`PersonSearchController`) neemt per verzoek precies één ondersteunde
+  vraag in (herkende naam, optionele tweede naam, gebeurtenistype, jaar/periode en gekozen
+  Heemskerk-betekenis). De respons bevat `jobId`, `status`, de oorspronkelijke vraag en, afhankelijk
+  van de uitkomst, `refinementMessage`, `answer` (zinnen met bronverwijzingen, bronnen, vervolgsporen
+  en disclaimer) en/of `context` (Wikidata-label/-beschrijving).
+- `PersonSearchSessionResolver` (`PersonSearchSession.kt`) geeft een route-gebonden,
+  server-uitgegeven sessiecookie uit voor anonieme bezoekers: `hkh_person_search_session`, 32
+  cryptografisch random bytes (`SecureRandom`, URL-safe base64), `HttpOnly`, `SameSite=Lax`, 24 uur
+  levensduur. Dit is een nieuw, minimaal sessieconcept los van het bestaande admin/Google-
+  authenticatiemechanisme, uitsluitend gebruikt om jobs en idempotentiesleutels aan een bezoeker te
+  binden.
+- `PersonSearchService.submit` maakt per idempotentiesleutel (sessie-id + genormaliseerde vraag +
+  gekozen Heemskerk-betekenis) atomair precies één `PersonSearchJob` aan (`createIfAbsent`, dus geen
+  race condition bij een dubbele gelijktijdige indiening) met een cryptografisch random,
+  niet-raadbare job-id. Jobs leven in-memory (`PersonSearchJobStore`) zonder persistente,
+  versleutelde opslag of TTL — bewust buiten scope van deze story, volgt in de vervolgstory. De
+  synchrone uitvoering start de Records/Search-/Records/Show-aanroepen en de Wikidata-
+  contextaanroep direct na jobcreatie en wacht binnen hetzelfde HTTP-request maximaal 2000ms op een
+  terminale, gevalideerde uitkomst (`RUNNING` als status wanneer de deadline verstrijkt, zonder de
+  achtergrondtaak te annuleren).
+- `ArchivesOpenSearchClient`/`RestClientArchivesOpenSearchClient` roept Open Archieven Records/Search
+  (`GET /records/search.json` met `archive_code=nha`, `eventplace=Heemskerk`, `lang=nl`,
+  `number_show=100`, URL-gecodeerde `name`, `start` voor paginering) en Records/Show
+  (`GET /records/show.json` met `archive=nha`, `identifier=<id>`, `lang=nl`) aan. De basis-URI is
+  overschrijfbaar via `hkh.personsearch.archives-base-url` (env
+  `HKH_PERSON_SEARCH_ARCHIVES_BASE_URL`, standaard `https://api.openarchieven.nl/1.1`), uitsluitend
+  zodat tests tegen een lokale fixture kunnen draaien. Elk verzoek gebruikt een beschrijvende
+  User-Agent, vraagt gzip aan (`GzipRequestInterceptor`) en loopt via `PersonSearchRateLimiter`
+  (maximaal 4 requests/seconde, procesbreed) met korte timeouts (connect 800ms/read 1200ms) en een
+  begrensde, eindige back-off bij transiënte fouten. Validatie is altijd fail-closed: alleen HTTP
+  2xx, geldige JSON, aanwezige verplichte velden (`number_found`/`docs` resp. de Show-velden) en een
+  leeg `error_code` gelden als geslaagde bronraadpleging; elke afwijking (inclusief een gevuld
+  `error_code` bij HTTP 200) is een mislukte bronraadpleging. `ArchivesOpenSearchModels.kt` modelleert
+  de échte, geneste API-respons (Search: `response.number_found`/`response.docs`; Show:
+  hoofdlettergevoelige, diep geneste `Person`/`Event`/`RelationEP`/`Source`) — niet een zelfbedacht
+  plat schema (zie "Belangrijke ontwikkeling tijdens de ronde" in het worklog voor de eerdere,
+  afgekeurde poging). Zoekresultaten worden gededupliceerd op `archive_code` + `identifier`; bij
+  `number_found > 100` eindigt de job met status `PARTIAL` en een verfijningsverzoek, zonder
+  Records/Show-aanroep.
+- `PersonSearchAnswerBuilder` bouwt de antwoordzinnen uitsluitend uit gevalideerde Show-velden
+  (`Person`/`Event`/`RelationEP`/`Source`); elke zin krijgt een genummerde bronmarkering
+  (`PersonSearchSourceCitation`: beherende instelling, brontype, archief-/register-/akte-/
+  documentnummer, recordnummer/identifier, link naar
+  `https://www.openarchieven.nl/{archive_code}:{identifier}`, optioneel `SourceDigitalOriginal`-link
+  en `checkedAt`). Vervolgsporen (`followed-connection`) zijn de rollen met een gekoppelde
+  persoonsnaam in `RelationEP` van hetzelfde Show-record, in recordvolgorde, begrensd tot twee, en
+  vragen geen extra externe aanroep. Faalt de vereiste Records/Search- of Records/Show-aanroep, dan
+  levert de job status `FAILED` op: Open Archieven wordt exact aangeduid als "tijdelijk niet
+  geraadpleegd" en er verschijnt geen enkele archiefbewering.
+- `PersonSearchWikidataContextClient`/`WikidataPersonSearchContextClient` haalt optionele
+  Wikidata-contextinformatie op (basis-URI overschrijfbaar via
+  `hkh.personsearch.wikidata-base-url`/`HKH_PERSON_SEARCH_WIKIDATA_BASE_URL`, standaard
+  `https://www.wikidata.org`); een mislukte contextaanroep blokkeert nooit de archiefuitkomst en
+  levert alleen een ontbrekende `context` op. Contextinhoud draagt nooit zelfstandig een geboorte-,
+  huwelijks-, overlijdens-, doop- of bevolkingsregistratiebewering.
+- Frontend: vier nieuwe Flutter-schermen onder `frontend/lib/personsearch/` — `live_search_screen.dart`
+  (`live-search`), `supported_answer_screen.dart` (`supported-answer`, incl. bronmarkeringen, Context-
+  sectie en vervolgsporen), `followed_connection_screen.dart` (`followed-connection`) en
+  `source_outage_screen.dart` (`source-outage`) — elk met exact één desktop- en één mobile-uitwerking.
+  `person_search_client.dart`/`person_search_models.dart` ontsluiten `POST /api/person-search` en
+  modelleren de respons; `person_query_page.dart` dient de vraag in en schakelt op basis van de
+  respons door naar het passende scherm.
 
 ## Backendmodule `linkdossier`
 
