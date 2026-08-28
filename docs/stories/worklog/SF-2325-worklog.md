@@ -143,3 +143,42 @@ retentietaak, controller/service, en frontend-schermen/hervattenlogica/sessie-in
   sessie-indicator zelf telt wel alles correct. Geen blocker.
 
 Geen blockers of bugs gevonden in deze ronde.
+
+## Test (SF-2327)
+
+Vangnet opnieuw uitgevoerd op de huidige HEAD (`838694c`), geen preview-URL geconfigureerd
+(`preview_url_template` leeg in `docs/factory/deployment.md`), dus lokaal getest; geen docker-CLI
+beschikbaar in deze sandbox (bekend, zie agent-tip `docker-cli-missing-but-socket-present`) maar
+Testcontainers via de socket werkt gewoon voor de backend-integratietests.
+
+- `(cd backend && mvn -B --no-transfer-progress clean verify)`: 256/256 tests, BUILD SUCCESS.
+- `(cd frontend && flutter analyze)`: geen meldingen.
+- `(cd frontend && flutter test --concurrency=1 --reporter expanded)`: 74/74 tests, incl. de
+  nieuwe `background-search`/`search-ready`-scenario's (volledige flow, stoppen, andere vraag
+  stellen zonder te stoppen, niet-meer-beschikbaar-melding, hervatten na herlading, 320px,
+  Tab/Shift+Tab/Enter).
+- `(cd frontend && flutter build web)`: succesvol.
+- `frontend-admin` is door deze story niet gewijzigd (`git diff main...HEAD -- frontend-admin/`
+  is leeg); de admin-checks uit `.factory/verification.yaml` triggeren dan ook niet op hun
+  pathPrefixes en zijn terecht overgeslagen.
+
+Aanvullend een gerichte codelezing van de story-diff tegen de acceptatiecriteria (naast het
+vangnet, want de tester verifieert gedrag, niet alleen groene tests):
+
+- `PersonSearchController`/`PersonSearchService`/`PersonSearchJobStore`: het statusendpoint
+  retourneert de volledige payload uitsluitend wanneer `encryptedOutcome` gezet is, en dat veld
+  wordt alleen tegelijk met een terminale status gezet (`persistOutcome`, `cancel`,
+  `purgeExpired` zetten status én payload synchroon) - dus "volledige uitkomst pas bij terminale
+  status" klopt door constructie, niet alleen via een test-assertie.
+  `findByIdForSession`/`cancel`/`markOpened` zijn overal sessiegebonden fail-closed; de
+  achtergrondtaak gebruikt bewust de aparte, sessie-ongebonden `findById`. `isCancelled` wordt
+  vóór elke Open Archieven-/Wikidata-aanroep gecontroleerd, inclusief halverwege de Show-lus.
+  `PersonSearchPayloadCipher.secretKey()` gooit fail-closed (`check(base64Key.isNotBlank())`)
+  zonder geconfigureerde `HKH_PERSON_SEARCH_PAYLOAD_KEY`.
+- `background_search_screen.dart`/`search_ready_screen.dart`/`session_indicator_badge.dart`:
+  per-bronstatus toont zowel icoon als tekst (kleuronafhankelijk); `search-ready` heeft precies
+  één knop (`search-ready-view-answer`) die het antwoord opent; de sessie-indicator toont alleen
+  cijfers van de eigen sessie (backend levert dit al sessiegebonden) en faalt stil terug op de
+  laatst bekende waarde bij een ververfout, zonder een oude uitkomst als actueel te presenteren.
+
+Geen bugs of afwijkingen van de story gevonden; vangnet volledig groen.
