@@ -13,4 +13,4 @@ images:
   newTag: sha-95efa08
 - name: frontend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-frontend
-  newTag: sha-44194e5
+  newTag: sha-22715c0
