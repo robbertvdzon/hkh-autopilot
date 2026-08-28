@@ -3,53 +3,87 @@ package nl.vdzon.hkh.personsearch
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
 
+// Reële, geneste api.openarchieven.nl/1.1-responsvorm (geverifieerd via live aanroep), niet het
+// zelfbedachte platte schema waarmee dit bestand oorspronkelijk was geschreven.
+
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class ArchivesSearchResultDto(
+data class ArchivesSearchDocDto(
     @param:JsonProperty("archive_code") val archiveCode: String? = null,
     @param:JsonProperty("identifier") val identifier: String? = null,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class ArchivesSearchResponseDto(
+data class ArchivesSearchResponseBodyDto(
     @param:JsonProperty("number_found") val numberFound: Int? = null,
-    @param:JsonProperty("results") val results: List<ArchivesSearchResultDto>? = null,
-    @param:JsonProperty("error_code") val errorCode: String? = null,
+    @param:JsonProperty("docs") val docs: List<ArchivesSearchDocDto>? = null,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class ArchivesPersonDto(@param:JsonProperty("name") val name: String? = null)
+data class ArchivesSearchResponseDto(
+    @param:JsonProperty("response") val response: ArchivesSearchResponseBodyDto? = null,
+    @param:JsonProperty("error_code") val errorCode: Any? = null,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class ArchivesPersonNameDto(
+    @param:JsonProperty("PersonNameFirstName") val firstName: String? = null,
+    @param:JsonProperty("PersonNameLastName") val lastName: String? = null,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class ArchivesPersonDto(
+    @param:JsonProperty("@pid") val pid: String? = null,
+    @param:JsonProperty("PersonName") val personName: ArchivesPersonNameDto? = null,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class ArchivesEventDateDto(
+    @param:JsonProperty("Year") val year: String? = null,
+    @param:JsonProperty("Month") val month: String? = null,
+    @param:JsonProperty("Day") val day: String? = null,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class ArchivesEventPlaceDto(@param:JsonProperty("Place") val place: String? = null)
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class ArchivesEventDto(
-    @param:JsonProperty("type") val type: String? = null,
-    @param:JsonProperty("date") val date: String? = null,
-    @param:JsonProperty("place") val place: String? = null,
+    @param:JsonProperty("@eid") val eid: String? = null,
+    @param:JsonProperty("EventType") val type: String? = null,
+    @param:JsonProperty("EventDate") val date: ArchivesEventDateDto? = null,
+    @param:JsonProperty("EventPlace") val place: ArchivesEventPlaceDto? = null,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class ArchivesRelationDto(
-    @param:JsonProperty("role") val role: String? = null,
-    @param:JsonProperty("person") val person: String? = null,
+    @param:JsonProperty("PersonKeyRef") val personKeyRef: String? = null,
+    @param:JsonProperty("EventKeyRef") val eventKeyRef: String? = null,
+    @param:JsonProperty("RelationType") val relationType: String? = null,
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class ArchivesSourceReferenceDto(
+    @param:JsonProperty("InstitutionName") val institutionName: String? = null,
+    @param:JsonProperty("Archive") val archive: String? = null,
+    @param:JsonProperty("RegistryNumber") val registryNumber: String? = null,
+    @param:JsonProperty("DocumentNumber") val documentNumber: String? = null,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class ArchivesSourceDto(
-    @param:JsonProperty("institution") val institution: String? = null,
-    @param:JsonProperty("source_type") val sourceType: String? = null,
-    @param:JsonProperty("archive_number") val archiveNumber: String? = null,
-    @param:JsonProperty("register_number") val registerNumber: String? = null,
-    @param:JsonProperty("deed_number") val deedNumber: String? = null,
-    @param:JsonProperty("record_number") val recordNumber: String? = null,
-    @param:JsonProperty("digital_original_url") val digitalOriginalUrl: String? = null,
+    @param:JsonProperty("SourceType") val sourceType: String? = null,
+    @param:JsonProperty("SourceReference") val sourceReference: ArchivesSourceReferenceDto? = null,
+    @param:JsonProperty("RecordIdentifier") val recordIdentifier: String? = null,
+    @param:JsonProperty("SourceDigitalOriginal") val sourceDigitalOriginal: String? = null,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class ArchivesShowResponseDto(
-    @param:JsonProperty("person") val person: ArchivesPersonDto? = null,
-    @param:JsonProperty("event") val event: ArchivesEventDto? = null,
-    @param:JsonProperty("relationEP") val relationEP: List<ArchivesRelationDto>? = null,
-    @param:JsonProperty("source") val source: ArchivesSourceDto? = null,
-    @param:JsonProperty("error_code") val errorCode: String? = null,
+    @param:JsonProperty("Person") val person: List<ArchivesPersonDto>? = null,
+    @param:JsonProperty("Event") val event: ArchivesEventDto? = null,
+    @param:JsonProperty("RelationEP") val relationEP: List<ArchivesRelationDto>? = null,
+    @param:JsonProperty("Source") val source: ArchivesSourceDto? = null,
+    @param:JsonProperty("error_code") val errorCode: Any? = null,
 )
 
 /** Eén gededupliceerd kandidaatrecord (op `archive_code` + `identifier`) uit Records/Search. */

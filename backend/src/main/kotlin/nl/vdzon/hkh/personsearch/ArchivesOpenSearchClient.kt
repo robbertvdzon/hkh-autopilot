@@ -45,16 +45,16 @@ class RestClientArchivesOpenSearchClient(
 
         val body = entity.body
         if (!entity.statusCode.is2xxSuccessful || body == null) return ArchivesSearchOutcome.Failure
-        if (!body.errorCode.isNullOrBlank()) return ArchivesSearchOutcome.Failure
-        val numberFound = body.numberFound ?: return ArchivesSearchOutcome.Failure
-        val results = body.results ?: return ArchivesSearchOutcome.Failure
+        if (body.errorCode != null) return ArchivesSearchOutcome.Failure
+        val numberFound = body.response?.numberFound ?: return ArchivesSearchOutcome.Failure
+        val docs = body.response.docs ?: return ArchivesSearchOutcome.Failure
 
-        val items = results.mapNotNull { result ->
-            val archiveCode = result.archiveCode?.takeIf { it.isNotBlank() }
-            val identifier = result.identifier?.takeIf { it.isNotBlank() }
+        val items = docs.mapNotNull { doc ->
+            val archiveCode = doc.archiveCode?.takeIf { it.isNotBlank() }
+            val identifier = doc.identifier?.takeIf { it.isNotBlank() }
             if (archiveCode == null || identifier == null) null else ArchivesSearchResultItem(archiveCode, identifier)
         }
-        if (items.size != results.size) return ArchivesSearchOutcome.Failure
+        if (items.size != docs.size) return ArchivesSearchOutcome.Failure
 
         return ArchivesSearchOutcome.Success(numberFound, items)
     }
@@ -75,21 +75,39 @@ class RestClientArchivesOpenSearchClient(
 
         val body = entity.body
         if (!entity.statusCode.is2xxSuccessful || body == null) return ArchivesShowOutcome.Failure
-        if (!body.errorCode.isNullOrBlank()) return ArchivesShowOutcome.Failure
+        if (body.errorCode != null) return ArchivesShowOutcome.Failure
 
-        val personName = body.person?.name?.takeIf { it.isNotBlank() } ?: return ArchivesShowOutcome.Failure
-        val eventType = body.event?.type?.takeIf { it.isNotBlank() } ?: return ArchivesShowOutcome.Failure
-        val eventDate = body.event.date?.takeIf { it.isNotBlank() } ?: return ArchivesShowOutcome.Failure
-        val eventPlace = body.event.place?.takeIf { it.isNotBlank() } ?: return ArchivesShowOutcome.Failure
-        val institution = body.source?.institution?.takeIf { it.isNotBlank() } ?: return ArchivesShowOutcome.Failure
-        val sourceType = body.source.sourceType?.takeIf { it.isNotBlank() } ?: return ArchivesShowOutcome.Failure
-        val recordNumber = body.source.recordNumber?.takeIf { it.isNotBlank() } ?: return ArchivesShowOutcome.Failure
+        val event = body.event ?: return ArchivesShowOutcome.Failure
+        val eventType = event.type?.takeIf { it.isNotBlank() } ?: return ArchivesShowOutcome.Failure
+        val eventDate = formatIsoDate(event.date) ?: return ArchivesShowOutcome.Failure
+        val eventPlace = event.place?.place?.takeIf { it.isNotBlank() } ?: return ArchivesShowOutcome.Failure
 
-        val relations = body.relationEP.orEmpty().mapNotNull { relation ->
-            val role = relation.role?.takeIf { it.isNotBlank() }
-            val person = relation.person?.takeIf { it.isNotBlank() }
-            if (role == null || person == null) null else ArchivesRelation(role, person)
+        val personNamesByPid = body.person.orEmpty().mapNotNull { person ->
+            val pid = person.pid?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val fullName = listOfNotNull(person.personName?.firstName, person.personName?.lastName)
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .joinToString(" ")
+                .takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            pid to fullName
+        }.toMap()
+
+        val relationEntries = body.relationEP.orEmpty()
+            .let { entries -> if (event.eid != null) entries.filter { it.eventKeyRef == event.eid } else entries }
+        val mainRelation = relationEntries.firstOrNull() ?: return ArchivesShowOutcome.Failure
+        val personName = personNamesByPid[mainRelation.personKeyRef] ?: return ArchivesShowOutcome.Failure
+
+        val relations = relationEntries.drop(1).mapNotNull { relation ->
+            val role = relation.relationType?.takeIf { it.isNotBlank() }
+            val relatedPersonName = personNamesByPid[relation.personKeyRef]
+            if (role == null || relatedPersonName == null) null else ArchivesRelation(role, relatedPersonName)
         }
+
+        val source = body.source ?: return ArchivesShowOutcome.Failure
+        val institution = source.sourceReference?.institutionName?.takeIf { it.isNotBlank() }
+            ?: return ArchivesShowOutcome.Failure
+        val sourceType = source.sourceType?.takeIf { it.isNotBlank() } ?: return ArchivesShowOutcome.Failure
+        val recordNumber = source.recordIdentifier?.takeIf { it.isNotBlank() } ?: return ArchivesShowOutcome.Failure
 
         return ArchivesShowOutcome.Success(
             ArchivesShowRecord(
@@ -102,13 +120,21 @@ class RestClientArchivesOpenSearchClient(
                 relations = relations,
                 institution = institution,
                 sourceType = sourceType,
-                archiveNumber = body.source.archiveNumber?.takeIf { it.isNotBlank() },
-                registerNumber = body.source.registerNumber?.takeIf { it.isNotBlank() },
-                deedNumber = body.source.deedNumber?.takeIf { it.isNotBlank() },
+                archiveNumber = source.sourceReference?.archive?.takeIf { it.isNotBlank() },
+                registerNumber = source.sourceReference?.registryNumber?.takeIf { it.isNotBlank() },
+                deedNumber = source.sourceReference?.documentNumber?.takeIf { it.isNotBlank() },
                 recordNumber = recordNumber,
-                digitalOriginalUrl = body.source.digitalOriginalUrl?.takeIf { it.isNotBlank() },
+                digitalOriginalUrl = source.sourceDigitalOriginal?.takeIf { it.isNotBlank() },
             ),
         )
+    }
+
+    /** Bouwt een ISO-datum uit Year/Month/Day; zonder Month/Day blijft het bij het jaartal (geen gefabriceerde dag). */
+    private fun formatIsoDate(date: ArchivesEventDateDto?): String? {
+        val year = date?.year?.takeIf { it.isNotBlank() } ?: return null
+        val month = date.month?.takeIf { it.isNotBlank() }
+        val day = date.day?.takeIf { it.isNotBlank() }
+        return if (month != null && day != null) "$year-${month.padStart(2, '0')}-${day.padStart(2, '0')}" else year
     }
 
     private fun <T : Any> executeWithRetries(call: () -> ResponseEntity<T>): ResponseEntity<T>? {

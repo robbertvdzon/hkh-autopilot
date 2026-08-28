@@ -45,7 +45,7 @@ class PersonSearchNicolaasSinnigeExampleTest {
             respondJson(
                 exchange,
                 200,
-                """{"number_found": 1, "results": [{"archive_code": "nha", "identifier": "002ED0F3-F08C-4223-A5EA-BA385D04336E"}]}""",
+                """{"response": {"number_found": 1, "docs": [{"archive_code": "nha", "identifier": "002ED0F3-F08C-4223-A5EA-BA385D04336E"}]}}""",
             )
         }
         newServer.createContext("/records/show.json") { exchange ->
@@ -58,19 +58,21 @@ class PersonSearchNicolaasSinnigeExampleTest {
                 200,
                 """
                 {
-                  "person": {"name": "Nicolaas Jacobus Sinnige"},
-                  "event": {"type": "Geboorte", "date": "1878-07-25", "place": "Heemskerk"},
-                  "relationEP": [
-                    {"role": "Vader", "person": "Pieter Sinnige"},
-                    {"role": "Moeder", "person": "Anna Geertruida Eenhuis"}
+                  "Person": [
+                    {"@pid": "Person4179425028", "PersonName": {"PersonNameFirstName": "Nicolaas Jacobus", "PersonNameLastName": "Sinnige"}},
+                    {"@pid": "Person4179425029", "PersonName": {"PersonNameFirstName": "Pieter", "PersonNameLastName": "Sinnige"}},
+                    {"@pid": "Person4179425030", "PersonName": {"PersonNameFirstName": "Anna Geertruida", "PersonNameLastName": "Eenhuis"}}
                   ],
-                  "source": {
-                    "institution": "Noord-Hollands Archief",
-                    "source_type": "Geboorteakte",
-                    "archive_number": "123",
-                    "register_number": "4",
-                    "deed_number": "56",
-                    "record_number": "789"
+                  "Event": {"@eid": "Event1", "EventType": "Geboorte", "EventDate": {"Year": "1878", "Month": "07", "Day": "25"}, "EventPlace": {"Place": "Heemskerk"}},
+                  "RelationEP": [
+                    {"PersonKeyRef": "Person4179425028", "EventKeyRef": "Event1", "RelationType": "Kind"},
+                    {"PersonKeyRef": "Person4179425029", "EventKeyRef": "Event1", "RelationType": "Vader"},
+                    {"PersonKeyRef": "Person4179425030", "EventKeyRef": "Event1", "RelationType": "Moeder"}
+                  ],
+                  "Source": {
+                    "SourceType": "Geboorteakte",
+                    "SourceReference": {"InstitutionName": "Noord-Hollands Archief", "Archive": "123", "RegistryNumber": "4", "DocumentNumber": "56"},
+                    "RecordIdentifier": "789"
                   }
                 }
                 """.trimIndent(),

@@ -166,3 +166,44 @@ Bevinding (blokkerend, terug naar developer):
   `RelationType`/`PersonKeyRef` naar de rol+naam die de story vereist), en de bestaande
   fixture-tests bijwerken zodat ze het echte schema simuleren in plaats van het huidige
   aangenomen platte schema.
+
+## Developerronde SF-2319 (2026-08-28) — schema-fix na test-rejected
+
+- [x] `ArchivesOpenSearchModels.kt` herschreven naar het echte, live geverifieerde
+      `api.openarchieven.nl/1.1`-schema: Search-DTO leest `response.number_found` en
+      `response.docs[]` (i.p.v. top-level `number_found`/`results`); Show-DTO leest
+      `Person[]` (met `@pid`/`PersonName.PersonNameFirstName`/`PersonNameLastName`),
+      `Event` (met `@eid`/`EventType`/`EventDate{Year,Month,Day}`/`EventPlace.Place`),
+      `RelationEP[]` (met `PersonKeyRef`/`EventKeyRef`/`RelationType`) en `Source`
+      (met `SourceType`/`SourceReference.{InstitutionName,Archive,RegistryNumber,
+      DocumentNumber}`/`RecordIdentifier`/`SourceDigitalOriginal`). `error_code` is nu
+      `Any?` i.p.v. `String?`, want de echte API retourneert een numerieke waarde
+      (bv. `1`), niet een string.
+- [x] `ArchivesOpenSearchClient.kt` (`show()`) mapt de geneste Show-respons naar het
+      ongewijzigde interne `ArchivesShowRecord`-model: de hoofdpersoon van het record
+      is de persoon van de eerste `RelationEP`-ingang voor het event (in document-
+      volgorde), de overige `RelationEP`-ingangen (rol + naam via `PersonKeyRef`-
+      opzoeking in `Person[]`) worden de `relations`-lijst waaruit `followed-connection`
+      put. `eventDate` wordt uit `EventDate.Year/Month/Day` opgebouwd tot ISO
+      (`yyyy-MM-dd`) wanneer maand+dag aanwezig zijn; zonder maand/dag blijft het bij
+      het jaartal (geen gefabriceerde dag). Downstream (`PersonSearchAnswerBuilder`,
+      antwoordopbouw, bronmarkering) is ongewijzigd, want die werkt al op het interne
+      model, niet op de DTO's.
+- [x] Fixtures in `RestClientArchivesOpenSearchClientTest.kt` en
+      `PersonSearchNicolaasSinnigeExampleTest.kt` bijgewerkt naar het echte geneste
+      schema (incl. `error_code` als getal i.p.v. string).
+- [x] Live geverifieerd met `curl` tegen `api.openarchieven.nl` vóór het schrijven van
+      de fix: `name=Nicolaas Jacobus Sinnige 1878&archive_code=nha&eventplace=Heemskerk`
+      levert exact één match met `identifier=002ED0F3-F08C-4223-A5EA-BA385D04336E` op
+      (de jaartal-toevoeging aan `name` — al aanwezig via `searchNameQuery()` — is dus
+      noodzakelijk en correct); de bijbehorende Show-respons bevestigt de hierboven
+      beschreven structuur en levert Vader=Pieter Sinnige/Moeder=Anna Geertruida
+      Eenhuis op zoals in het gecontroleerde voorbeeld vereist.
+- [x] Volledig vangnet opnieuw groen gedraaid: backend `mvn -B --no-transfer-progress
+      clean verify` (237 tests, 0 failures/errors, incl. de aangepaste
+      `PersonSearchNicolaasSinnigeExampleTest` en `RestClientArchivesOpenSearchClientTest`),
+      frontend `flutter analyze` (geen issues), `flutter test --concurrency=1` (56/56
+      groen), `flutter build web` (succesvol), frontend-admin `flutter analyze` (geen
+      issues) en `flutter test --concurrency=1` (22/22 groen). Geen frontend-wijzigingen
+      nodig: de bug zat uitsluitend in de backend-DTO-mapping, niet in de al opgeleverde
+      Flutter-schermen.

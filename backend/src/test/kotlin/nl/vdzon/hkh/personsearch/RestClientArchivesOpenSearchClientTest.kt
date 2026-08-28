@@ -35,7 +35,7 @@ class RestClientArchivesOpenSearchClientTest {
     @Test
     fun `search sends the exact required query parameters and a descriptive user agent`() {
         val client = startClient { exchange ->
-            respondJson(exchange, 200, """{"number_found": 1, "results": [{"archive_code":"nha","identifier":"ABC"}]}""")
+            respondJson(exchange, 200, """{"response": {"number_found": 1, "docs": [{"archive_code":"nha","identifier":"ABC"}]}}""")
         }
 
         client.search("Nicolaas Jacobus Sinnige", start = 0, numberShow = 100)
@@ -54,7 +54,7 @@ class RestClientArchivesOpenSearchClientTest {
     @Test
     fun `search decodes a gzip encoded response transparently`() {
         val client = startClient { exchange ->
-            respondJson(exchange, 200, """{"number_found": 0, "results": []}""", gzip = true)
+            respondJson(exchange, 200, """{"response": {"number_found": 0, "docs": []}}""", gzip = true)
         }
 
         val result = client.search("Onbekend", start = 0, numberShow = 100) as ArchivesSearchOutcome.Success
@@ -75,7 +75,7 @@ class RestClientArchivesOpenSearchClientTest {
     @Test
     fun `a filled error_code at http 200 is a failed source consultation`() {
         val client = startClient { exchange ->
-            respondJson(exchange, 200, """{"number_found": 1, "results": [], "error_code": "RATE_LIMITED"}""")
+            respondJson(exchange, 200, """{"response": {"number_found": 1, "docs": []}, "error_code": 1}""")
         }
 
         val result = client.search("Naam", start = 0, numberShow = 100)
@@ -85,7 +85,7 @@ class RestClientArchivesOpenSearchClientTest {
 
     @Test
     fun `missing required search fields are a failed source consultation`() {
-        val client = startClient { exchange -> respondJson(exchange, 200, """{"results": []}""") }
+        val client = startClient { exchange -> respondJson(exchange, 200, """{"response": {"docs": []}}""") }
 
         val result = client.search("Naam", start = 0, numberShow = 100)
 
@@ -109,19 +109,21 @@ class RestClientArchivesOpenSearchClientTest {
                 200,
                 """
                 {
-                  "person": {"name": "Nicolaas Jacobus Sinnige"},
-                  "event": {"type": "Geboorte", "date": "1878-07-25", "place": "Heemskerk"},
-                  "relationEP": [
-                    {"role": "Vader", "person": "Pieter Sinnige"},
-                    {"role": "Moeder", "person": "Anna Geertruida Eenhuis"}
+                  "Person": [
+                    {"@pid": "Person1", "PersonName": {"PersonNameFirstName": "Nicolaas Jacobus", "PersonNameLastName": "Sinnige"}},
+                    {"@pid": "Person2", "PersonName": {"PersonNameFirstName": "Pieter", "PersonNameLastName": "Sinnige"}},
+                    {"@pid": "Person3", "PersonName": {"PersonNameFirstName": "Anna Geertruida", "PersonNameLastName": "Eenhuis"}}
                   ],
-                  "source": {
-                    "institution": "Noord-Hollands Archief",
-                    "source_type": "Geboorteakte",
-                    "archive_number": "123",
-                    "register_number": "4",
-                    "deed_number": "56",
-                    "record_number": "789"
+                  "Event": {"@eid": "Event1", "EventType": "Geboorte", "EventDate": {"Year": "1878", "Month": "07", "Day": "25"}, "EventPlace": {"Place": "Heemskerk"}},
+                  "RelationEP": [
+                    {"PersonKeyRef": "Person1", "EventKeyRef": "Event1", "RelationType": "Kind"},
+                    {"PersonKeyRef": "Person2", "EventKeyRef": "Event1", "RelationType": "Vader"},
+                    {"PersonKeyRef": "Person3", "EventKeyRef": "Event1", "RelationType": "Moeder"}
+                  ],
+                  "Source": {
+                    "SourceType": "Geboorteakte",
+                    "SourceReference": {"InstitutionName": "Noord-Hollands Archief", "Archive": "123", "RegistryNumber": "4", "DocumentNumber": "56"},
+                    "RecordIdentifier": "789"
                   }
                 }
                 """.trimIndent(),
@@ -145,7 +147,14 @@ class RestClientArchivesOpenSearchClientTest {
             respondJson(
                 exchange,
                 200,
-                """{"person": {"name": "X"}, "event": {"type":"Geboorte","date":"1900-01-01","place":"Heemskerk"}, "source": {"institution":"NHA","source_type":"Akte"}}""",
+                """
+                {
+                  "Person": [{"@pid": "Person1", "PersonName": {"PersonNameFirstName": "X", "PersonNameLastName": "Y"}}],
+                  "Event": {"@eid": "Event1", "EventType": "Geboorte", "EventDate": {"Year": "1900", "Month": "01", "Day": "01"}, "EventPlace": {"Place": "Heemskerk"}},
+                  "RelationEP": [{"PersonKeyRef": "Person1", "EventKeyRef": "Event1", "RelationType": "Kind"}],
+                  "Source": {"SourceType": "Akte", "SourceReference": {"InstitutionName": "NHA"}}
+                }
+                """.trimIndent(),
             )
         }
 
