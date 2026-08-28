@@ -116,3 +116,30 @@ Done / rationale:
   herlading maar één in de voorgrond (de eerste uit de sessie-indicatorlijst); dit is een bewuste,
   proportionele keuze gegeven dat de bestaande pagina één actief scherm per keer toont en de
   sessie-indicator alle jobs blijft meetellen.
+
+## Review (SF-2326)
+
+Volledige story-diff (`git diff main...HEAD`) beoordeeld: backend-statuscontract, cipher,
+retentietaak, controller/service, en frontend-schermen/hervattenlogica/sessie-indicator.
+
+- Verificatiebewijs: worktree-tree van de developercommit (`85bc1bb`) is exact gelijk aan
+  `testedTreeSha` (`585b4e9...`) uit het FACTORY VERIFICATION EVIDENCE-blok; alle vijf
+  uitgevoerde commando's groen (backend mvn verify 256/256, flutter analyze/test 74/74/build web).
+  Geen skips die als bewijs tellen zijn hierbij nodig (admin-checks correct geskipt,
+  ongewijzigde module).
+- Statuscontract, statusendpoint, sessie-isolatie (fail-closed 404), stopactie (blokkeert
+  vervolgaanroepen mid-executie, geverifieerd met een test die toont dat show-aanroepen na
+  cancel uitblijven), retentie/opschoning (24u en 60 min, beide met eigen test) en AES-256-GCM
+  fail-closed-encryptie zijn alle aantoonbaar en met gerichte tests gedekt.
+- Sessie-id komt nergens in een responsebody voor; job-id wordt alleen gebruikt als
+  poll-/hervattenidentifier, niet als zichtbare bronlink/analyticswaarde.
+- Frontend: nieuwe `background-search`/`search-ready`-schermen met 320px- en
+  Tab/Shift+Tab/Enter-tests, kleuronafhankelijke per-bronstatus (icoon + tekst),
+  sessie-indicator in de AppBar, hervattenlogica na reload met correcte fakes in alle
+  bestaande widgettests (voorkomt de eerder in agent-tips genoemde initState-netwerkval).
+- Bekende, expliciet gedocumenteerde beperking (bij meerdere gelijktijdige jobs toont hervatten
+  na herlading er één in de voorgrond) is proportioneel en buiten de acceptatiecriteria (die
+  spreken over "alle" jobs qua statuscontrole-hervatting, niet qua UI-voorgrond); de
+  sessie-indicator zelf telt wel alles correct. Geen blocker.
+
+Geen blockers of bugs gevonden in deze ronde.
