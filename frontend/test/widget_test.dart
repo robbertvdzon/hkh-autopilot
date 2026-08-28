@@ -209,6 +209,14 @@ void main() {
       );
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await tester.pump();
+      expect(
+        _hasPrimaryFocusWithin(
+          find.widgetWithText(FilledButton, 'Stel je vraag over Heemskerk'),
+        ),
+        isTrue,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
       expect(_hasPrimaryFocusWithin(find.byKey(retryKey)), isTrue);
       _expectVisibleFocusBorder<OutlinedButton>(tester, retryKey);
 
@@ -258,6 +266,31 @@ void main() {
     expect(find.text('Productprincipes'), findsOneWidget);
     expect(find.text('Verbonden'), findsOneWidget);
   });
+
+  testWidgets(
+    'nieuwe actie op de homepage opent het personquery-startscherm zonder de homepage te wijzigen',
+    (tester) async {
+      await tester.pumpWidget(
+        HkhApp(
+          statusSource: _SuccessfulStatusSource(),
+          newsSource: _NewsSource([_news]),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Lees onze productvisie'), findsOneWidget);
+      expect(find.text('Laatste nieuws'), findsOneWidget);
+
+      await tester.tap(find.text('Stel je vraag over Heemskerk'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.bySemanticsLabel('Stel je vraag over Heemskerk'),
+        findsOneWidget,
+      );
+      expect(find.byType(TextField), findsOneWidget);
+    },
+  );
 }
 
 List<SemanticsNode> _allSemanticsNodes(WidgetTester tester) {

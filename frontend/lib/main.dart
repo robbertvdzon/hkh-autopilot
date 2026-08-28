@@ -6,6 +6,7 @@ import 'backend/backend_client.dart';
 import 'backend/backend_status.dart';
 import 'config/app_config.dart';
 import 'news/latest_news.dart';
+import 'personquery/person_query_page.dart';
 import 'product_vision_page.dart';
 import 'self_update_prompt.dart';
 
@@ -200,6 +201,16 @@ class _ReadyState extends StatelessWidget {
           ),
           icon: const Icon(Icons.auto_stories_outlined),
           label: const Text('Lees onze productvisie'),
+        ),
+        const SizedBox(height: 12),
+        FilledButton.icon(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (context) => const PersonQueryPage(),
+            ),
+          ),
+          icon: const Icon(Icons.travel_explore_outlined),
+          label: const Text('Stel je vraag over Heemskerk'),
         ),
         const SizedBox(height: 28),
         Card(
