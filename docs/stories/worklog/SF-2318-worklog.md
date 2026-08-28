@@ -207,3 +207,25 @@ Bevinding (blokkerend, terug naar developer):
       issues) en `flutter test --concurrency=1` (22/22 groen). Geen frontend-wijzigingen
       nodig: de bug zat uitsluitend in de backend-DTO-mapping, niet in de al opgeleverde
       Flutter-schermen.
+
+## Reviewronde SF-2319 (2026-08-28) — na test-rejected schema-fix
+
+- Geverifieerd: `testedTreeSha eb78ef8...` (comment 3790) komt exact overeen met
+  `HEAD^{tree}` (`1120a1d`); `testedHeadSha 368da25...` is de HEAD vóór de
+  factory-commit. Alle vangnetcommando's groen; `admin-flutter-*` terecht geskipt
+  (geen wijzigingen in `frontend-admin/`).
+- Diff van deze ronde beperkt tot `ArchivesOpenSearchModels.kt`,
+  `ArchivesOpenSearchClient.kt`, de twee bijbehorende testbestanden en deze worklog —
+  consistent met de developer-samenvatting, geen scope-drift.
+- Zelf live geverifieerd met `curl` tegen `api.openarchieven.nl/1.1/records/search.json`
+  en `.../records/show.json` voor het Nicolaas Jacobus Sinnige-voorbeeld: de reële
+  respons (`response.number_found`/`response.docs`, geneste `Person[]`/`Event`/
+  `RelationEP[]`/`Source` met `RecordIdentifier=4179425027`, numerieke `error_code`)
+  komt exact overeen met wat de nieuwe DTO's en client-mapping verwachten. De eerder
+  door de tester gevonden schema-mismatch is dus daadwerkelijk opgelost, niet alleen
+  in fixtures maar tegen de echte externe API.
+- Geen nieuwe regressies: overige, al eerder goedgekeurde onderdelen (idempotentie,
+  sessie, number_found>100, bronmarkering/checkedAt, Context-sectie, followed-connection,
+  Flutter-schermen) zijn in deze ronde ongewijzigd.
+
+{"phase":"reviewed"}
