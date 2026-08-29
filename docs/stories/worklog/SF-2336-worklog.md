@@ -415,3 +415,70 @@ worklog. Geen wijzigingen aan `deploy/secrets-acceptance.env`,
   handmatige subtaak door de repo-eigenaar laten uitvoeren, zoals bij `5f494d5`).
 
 Besluit: review-rejected, om dezelfde inhoudelijke reden als ronde 1-5.
+
+## SF-2337 — developerronde 7 (2026-08-29, deze run)
+
+Voor de zevende keer, onafhankelijk van ronde 1-6, alle vier vereisten voor
+`./deploy/seal-secrets.sh` in deze uitvoerende sandbox herverifieerd (geen aannames uit
+eerdere rondes overgenomen zonder eigen check):
+
+- `which kubeseal` → exit 1 (niet geïnstalleerd).
+- `ls deploy/secrets-acceptance.env deploy/secrets-cluster.env` → "No such file or
+  directory"; `git log --all --oneline -- deploy/secrets-acceptance.env
+  deploy/secrets-cluster.env` → 0 commits (bestanden hebben nooit bestaan in de
+  geschiedenis, terecht gitignored).
+- `ls /work/` → alleen `agent-tips.md`, `factory.env`, `repo`, `task.md` — geen
+  sibling-checkout `robberts-infrastructure` met het kubeseal-clustercert waar
+  `deploy/seal-secrets.sh` op terugvalt.
+- `$SF_KUBECONFIG` (`/Users/robbertvdzon/okd-sno/sno/auth/kubeconfig-agent-readonly`) —
+  pad op de lokale Mac van de repo-eigenaar, niet aanwezig in deze sandbox.
+  `KUBECONFIG=$SF_KUBECONFIG kubectl config current-context` → "current-context is not
+  set"; `oc whoami` → "Missing or incomplete configuration info."
+- Live reproductie herhaald: `curl -X POST
+  https://hkh-autopilot-acceptance.vdzonsoftware.nl/api/person-search -H "Origin:
+  https://hkh-autopilot-acceptance.vdzonsoftware.nl"` → nog steeds HTTP 403.
+
+**Conclusie ronde 7**: identiek aan ronde 1-6 — alle vier onafhankelijke vereisten
+(kubeconfig/clustertoegang, sibling-infra-cert, lokale `secrets-acceptance.env`-inhoud,
+kubeseal-binary) ontbreken nog steeds structureel in deze factory-sandbox. Dit is nu zeven
+keer onafhankelijk (developer- én reviewerrondes) bevestigd. Conform de "geen
+vragen"-instructie voor deze run: zelf `deploy/secrets-acceptance.env` reconstrueren
+(gokken naar bestaande DB-wachtwoorden/tokens/CORS-origins) zou een groter
+integriteitsrisico zijn dan deze story nogmaals zonder de secret-resealing op te leveren,
+dus dat gebeurt niet.
+
+Herverifieerd dat de reeds aanwezige, secret-loze delen ongewijzigd en correct blijven:
+`diff deploy/argocd/application.yaml deploy/argocd/application-acceptance.yaml` toont
+uitsluitend de verwachte verschillen (`name`, `path: deploy/overlays/acceptance`,
+`namespace: hkh-autopilot-acceptance`); `kubectl kustomize deploy/overlays/acceptance`
+bouwt foutloos; `deploy/README.md` bevat nog steeds de korte ArgoCD-acceptance-sectie. Er
+zijn in deze ronde geen inhoudelijke wijzigingen aan de repository doorgevoerd buiten deze
+worklog-aanvulling.
+
+`.factory/verification.yaml` is uitsluitend `pathPrefixes`-gated op `backend/`,
+`frontend/` en `frontend-admin/`; deze diff raakt alleen `deploy/`/`docs/`, dus het
+vangnet blijft terecht `skipped` — consistent met ronde 1-6.
+
+**Handmatige vervolgstap (ongewijzigd, nog steeds noodzakelijk):**
+1. Op een machine met `deploy/secrets-acceptance.env`, `kubeseal` en het sibling
+   `robberts-infrastructure`-cluster-cert (of clustertoegang voor `kubeseal --fetch-cert`):
+   `https://hkh-autopilot-acceptance.vdzonsoftware.nl` toevoegen aan
+   `HKH_CORS_ALLOWED_ORIGIN_PATTERNS` en `HKH_PERSON_SEARCH_PAYLOAD_KEY` controleren/aanvullen.
+2. `./deploy/seal-secrets.sh` draaien en `deploy/overlays/acceptance/acceptance-secret.yaml` +
+   `deploy/base/sealed-secret-runtime.yaml` committen/pushen.
+3. Na de eerstvolgende `build-images.yml`-run: verifiëren dat de backend-Deployment in
+   `hkh-autopilot-acceptance` een nieuwe Pod met bijpassende
+   `hkh.vdzonsoftware.nl/runtime-secret-checksum`-annotatie heeft.
+4. `oc apply -f deploy/argocd/application-acceptance.yaml` uitvoeren (indien nog niet op
+   het cluster aanwezig via een ander pad).
+5. Curl-reproductie herhalen (`POST /api/person-search` met Origin
+   `https://hkh-autopilot-acceptance.vdzonsoftware.nl`) om te bevestigen dat de 403
+   verdwenen is.
+
+**Aanbeveling (herhaald, nu voor de zevende keer bevestigd)**: dit blijft een proces-/
+omgevingsvraagstuk dat buiten de automatische developer-reviewlus moet worden opgelost —
+secret-/cert-injectie voor factory-runs beschikbaar maken, of deze specifieke stap bewust
+als handmatige subtaak door de repo-eigenaar laten uitvoeren (zoals bij `5f494d5`) en de
+story dienovereenkomstig splitsen.
+
+Geen secretwaarden zijn in deze worklog, in commits of in logs terechtgekomen.
