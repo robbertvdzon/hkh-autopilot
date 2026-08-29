@@ -68,6 +68,15 @@ patches:
     kind: Route
     name: admin
     version: v1
+- patch: |-
+    - op: replace
+      path: /spec/template/metadata/annotations/hkh.vdzonsoftware.nl~1runtime-secret-checksum
+      value: "a7bb56d2a3785c613841042aaccd08b2151c92f33f096f45d6a2e22a83eca043"
+  target:
+    group: apps
+    kind: Deployment
+    name: backend
+    version: v1
 images:
 - name: admin-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-admin
