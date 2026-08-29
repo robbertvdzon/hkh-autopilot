@@ -230,3 +230,51 @@ Besluit: review-rejected, om dezelfde inhoudelijke reden als ronde 1 (kern-CORS-
 uitgevoerd/gecommit), nu bevestigd met grondiger, onafhankelijk geverifieerd bewijs dat dit een
 structurele sandbox-beperking is. Aanbeveling: dit als omgevings-/procesblokkade escaleren buiten de
 automatische developer-reviewlus, in plaats van een derde identieke developerronde te starten.
+
+## SF-2337 — developerronde 3 (2026-08-29, deze run)
+
+Opnieuw, onafhankelijk van ronde 1/2, alle vier de vereisten voor `./deploy/seal-secrets.sh` in deze
+uitvoerende run gecontroleerd (geen aannames overgenomen uit eerdere rondes zonder herverificatie):
+
+- `env | grep -i -E "kube|SF_"`: `SF_KUBECONFIG=/Users/robbertvdzon/okd-sno/sno/auth/kubeconfig-agent-readonly`
+  en `SF_PREVIEW_CLEANUP_KUBECONFIG=/Users/robbertvdzon/okd-sno/sno/auth/kubeconfig-preview-cleanup/kubeconfig`
+  — beide paden op de lokale Mac van de repo-eigenaar, niet aanwezig in deze sandbox (`ls` → "No such
+  file or directory"). Geen `~/.kube/config`. `KUBECONFIG=$SF_KUBECONFIG kubectl config current-context`
+  → "current-context is not set"; `oc whoami` → "Missing or incomplete configuration info."
+- `deploy/secrets-acceptance.env` en `deploy/secrets-cluster.env`: bestaan niet in deze checkout;
+  `git log --all --oneline -- deploy/secrets-acceptance.env deploy/secrets-cluster.env` levert nog
+  steeds 0 commits op.
+- `ls /work/`: bevat alleen `repo/`, `factory.env`, `task.md`, `agent-tips.md` — geen sibling-checkout
+  `robberts-infrastructure` met het kubeseal-clustercert.
+- `which kubeseal`: niet aanwezig (dit keer niet opnieuw handmatig geïnstalleerd in `/tmp`, want dat
+  loste in ronde 2 al aantoonbaar niets op zonder de overige drie vereisten).
+- Live reproductie herhaald: `curl -X POST
+  https://hkh-autopilot-acceptance.vdzonsoftware.nl/api/person-search -H "Origin:
+  https://hkh-autopilot-acceptance.vdzonsoftware.nl"` → nog steeds HTTP 403.
+
+**Conclusie ronde 3**: alle vier onafhankelijke vereisten (kubeconfig/clustertoegang, sibling-cert,
+lokale `secrets-acceptance.env`-inhoud, en — zij het oplosbaar — de `kubeseal`-binary zelf) ontbreken
+nog steeds, identiek aan ronde 1 en 2. Er is geen nieuw feit dat een andere uitkomst dan ronde 2
+rechtvaardigt; een vierde ronde zou dezelfde conclusie opleveren. Conform de "geen vragen"-instructie
+voor deze run wordt dit niet als vraag gesteld: de meest verantwoorde aanname is dat dit een
+structurele omgevingsbeperking van de factory-sandbox is (bevestigd in drie onafhankelijke rondes),
+niet een kwestie van onvoldoende onderzoek of doorzettingsvermogen. Het risico van zelf een
+`deploy/secrets-acceptance.env` "reconstrueren" (gokken naar bestaande DB-wachtwoorden/tokens) weegt
+zwaarder dan het risico van deze story nogmaals zonder de secret-fix op te leveren, dus dat wordt niet
+gedaan.
+
+Deze run laat de reeds aanwezige, secret-loze delen (ArgoCD Application-manifest + README) ongewijzigd
+staan (opnieuw geverifieerd: `kubectl kustomize deploy/overlays/acceptance` bouwt nog steeds foutloos)
+en voegt geen nieuwe wijzigingen toe buiten deze worklog-aanvulling. De handmatige vervolgstappen uit
+ronde 2 (hierboven) blijven ongewijzigd van toepassing en worden hier niet herhaald.
+
+**Aanbeveling (herhaald, nu voor de derde keer bevestigd)**: dit issue kan niet door een volgende
+automatische developer/reviewronde in deze pijplijn worden opgelost. Escaleer buiten de
+developer-reviewlus: maak `deploy/secrets-acceptance.env`-inhoud en het kubeseal-clustercert
+(of een kubeconfig met schrijftoegang tot de sealed-secrets-controller) beschikbaar aan een
+factory-run, óf accepteer dat deze specifieke stap bewust handmatig door de repo-eigenaar wordt
+uitgevoerd (zoals bij `5f494d5`) en splits de story dienovereenkomstig, zodat het ArgoCD-gedeelte
+niet langer wordt geblokkeerd door een stap die dezelfde ontbrekende randvoorwaarden heeft als ronde
+1 en 2.
+
+Geen secretwaarden zijn in deze worklog, in commits of in logs terechtgekomen.
