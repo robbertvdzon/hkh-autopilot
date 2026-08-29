@@ -117,3 +117,72 @@ Besluit: review-rejected. Verzoek aan de developer: onderzoek opnieuw of in de e
 toegang bestaat tot `deploy/secrets-acceptance.env`/kubeseal; is dat structureel niet het geval,
 escaleer dit dan expliciet als blokkerend omgevingsprobleem (tracker `Error`-veld) in plaats van de
 story stilzwijgend af te ronden zonder de CORS-fix.
+
+## SF-2337 — developerronde 2 (2026-08-29, deze run)
+
+Op verzoek van de review opnieuw grondig onderzocht of deze uitvoerende run wél kubeseal/lokale
+secrettoegang heeft, met concrete pogingen i.p.v. aannames:
+
+1. **kubeseal alsnog geïnstalleerd**: `kubeseal` ontbrak inderdaad als binary, maar deze run heeft
+   wél uitgaande netwerktoegang (bevestigd met `curl -sI https://github.com` → 200). Het
+   `kubeseal-0.27.3-linux-arm64` release-archief is gedownload van GitHub Releases en uitgepakt naar
+   `/tmp/kubeseal` (niet in de repo, puur lokaal hulpmiddel voor deze run). Dit weerlegt de eerdere
+   aanname dat "kubeseal ontbreekt" op zichzelf de blokkerende factor was.
+2. **Cluster-cert/kubeconfig**: `SF_KUBECONFIG` in de factory-omgevingsvariabelen wijst naar
+   `/Users/robbertvdzon/okd-sno/sno/auth/kubeconfig-agent-readonly` — een pad op de lokale Mac van de
+   repo-eigenaar, niet aanwezig in deze sandbox (`ls` → "No such file or directory"). Er is geen
+   `~/.kube/config`, geen `KUBECONFIG`-omgevingsvariabele en geen andere kubeconfig op de filesystem
+   gevonden. `kubectl config current-context` en `oc whoami` bevestigen beide "geen configuratie".
+   `/tmp/kubeseal --fetch-cert` faalt met "no configuration has been provided" — er is dus geen enkel
+   netwerkpad naar de sealed-secrets-controller vanuit deze sandbox, ongeacht of `kubeseal` aanwezig
+   is.
+3. **Sibling-repo met gedeeld cert**: `deploy/seal-secrets.sh` valt terug op
+   `../../robberts-infrastructure/manifests/cluster-bootstrap/cluster-cert.pem` naast deze checkout;
+   die sibling-repo is niet aanwezig in deze sandbox (`/work/` bevat alleen `repo/` en factory-
+   metadata, geen `robberts-infrastructure`).
+4. **Lokale secretbron**: `deploy/secrets-acceptance.env` en `deploy/secrets-cluster.env` bestaan
+   niet in deze checkout (terecht gitignored, nooit gecommit — geverifieerd met `git log --all` op
+   beide paden: geen enkele commit heeft deze bestanden ooit toegevoegd). Zonder de bestaande inhoud
+   (DB-wachtwoord, `HKH_AGENT_RUNTIME_TOKEN`, evt. al aanwezige CORS-origins) kan dit bestand niet
+   verantwoord gereconstrueerd worden; gokken naar bestaande secretwaarden zou een integriteitsrisico
+   zijn en is expliciet niet wat de story vraagt.
+5. **Bevestiging dat dit patroon eerder uitsluitend lokaal is uitgevoerd**: commit `5f494d5`
+   ("Configureer de ontbrekende personsearch-payloadsleutel...") — die precies dit resealing-patroon
+   voor productie/acceptatie/preview toepaste — is geautoreerd door `robbertvdzon <robbert@vdzon.com>`
+   zelf (met Claude als co-author), niet door de factory-commit-identiteit ("Software Factory"). Dit
+   bevestigt dat deze exacte stap tot nu toe altijd lokaal door de repo-eigenaar is uitgevoerd (met
+   diens lokale `secrets-*.env`-bestanden, kubeseal-installatie en sibling-infra-cert), nooit vanuit
+   een factory-sandbox-run.
+
+**Conclusie**: dit is een structurele, reproduceerbare omgevingsbeperking van de factory-sandbox
+(geen kubeconfig, geen netwerkroute naar de cluster, geen sibling-infra-cert, geen lokale
+secretbron — vier onafhankelijke ontbrekende vereisten, niet slechts het ontbreken van de
+`kubeseal`-binary die deze run wél zelf heeft opgelost), en geen kwestie van onvoldoende onderzoek
+in de vorige ronde. Conform de "geen vragen"-instructie voor deze run wordt dit niet als vraag
+gesteld maar als volgt afgehandeld: de stappen die geen secrets/clustertoegang vereisen (het
+ArgoCD-Application-manifest en de README-documentatie, al aanwezig uit de vorige ronde en in deze
+ronde opnieuw geverifieerd: `kubectl kustomize deploy/overlays/acceptance` bouwt foutloos) blijven
+staan; de secret-resealing (stap 1–3 uit de story) kan niet verantwoord vanuit deze sandbox worden
+uitgevoerd en wordt hieronder als expliciete, noodzakelijke handmatige vervolgstap voor de
+repo-eigenaar gedocumenteerd — exact het patroon dat bij `5f494d5` ook al lokaal werd uitgevoerd.
+
+**Live reproductie (2026-08-29, deze run)**: `curl -X POST
+https://hkh-autopilot-acceptance.vdzonsoftware.nl/api/person-search -H "Origin:
+https://hkh-autopilot-acceptance.vdzonsoftware.nl"` → nog steeds `403 Invalid CORS request`. De bug
+is dus nog niet verholpen; alleen de repo-eigenaar kan dat met lokale secrettoegang oplossen zoals
+bij `5f494d5`.
+
+**Handmatige vervolgstap (noodzakelijk, kan niet vanuit de factory-sandbox):**
+1. Op een machine met `deploy/secrets-acceptance.env`, `kubeseal` en het sibling
+   `robberts-infrastructure`-cluster-cert (of clustertoegang voor `kubeseal --fetch-cert`):
+   `https://hkh-autopilot-acceptance.vdzonsoftware.nl` toevoegen aan
+   `HKH_CORS_ALLOWED_ORIGIN_PATTERNS` en `HKH_PERSON_SEARCH_PAYLOAD_KEY` controleren/aanvullen.
+2. `./deploy/seal-secrets.sh` draaien en `deploy/overlays/acceptance/acceptance-secret.yaml` +
+   `deploy/base/sealed-secret-runtime.yaml` committen/pushen.
+3. Na de eerstvolgende `build-images.yml`-run: verifiëren dat de backend-Deployment in
+   `hkh-autopilot-acceptance` een nieuwe Pod met bijpassende
+   `hkh.vdzonsoftware.nl/runtime-secret-checksum`-annotatie heeft.
+4. Curl-reproductie herhalen om te bevestigen dat de 403 verdwenen is.
+
+Geen secretwaarden zijn in deze worklog, in commits of in logs terechtgekomen. Het gedownloade
+`kubeseal`-hulpmiddel staat alleen in `/tmp` van deze sandbox, niet in de repository.
