@@ -186,3 +186,47 @@ bij `5f494d5`.
 
 Geen secretwaarden zijn in deze worklog, in commits of in logs terechtgekomen. Het gedownloade
 `kubeseal`-hulpmiddel staat alleen in `/tmp` van deze sandbox, niet in de repository.
+
+## [REVIEWER] SF-2337 — reviewronde 2 (2026-08-29)
+
+Diff t.o.v. `main` (`git diff main...HEAD --stat`) is ongewijzigd t.o.v. reviewronde 1: alleen
+`deploy/argocd/application-acceptance.yaml` (nieuw), `deploy/README.md` en deze worklog. Geen
+wijzigingen aan `deploy/secrets-acceptance.env`, `deploy/overlays/acceptance/acceptance-secret.yaml`
+of `deploy/base/sealed-secret-runtime.yaml`.
+
+- [info] Onafhankelijk geverifieerd dat de technische onderbouwing van de developer klopt:
+  `git log --all -- deploy/secrets-acceptance.env deploy/secrets-cluster.env` levert 0 commits op
+  (deze bestanden hebben nooit bestaan in de geschiedenis, terecht gitignored); `deploy/seal-secrets.sh`
+  valt inderdaad terug op de sibling `../../robberts-infrastructure/...`-cert, die in `/work/` niet
+  aanwezig is; de omgevingsvariabelen `SF_KUBECONFIG`/`SF_PREVIEW_CLEANUP_KUBECONFIG` wijzen naar
+  paden op de lokale Mac van de repo-eigenaar (`/Users/robbertvdzon/...`), niet naar iets bruikbaars
+  in deze sandbox; er is geen `~/.kube/config`. `git show 5f494d5` bevestigt dat het eerdere,
+  vergelijkbare resealing-patroon door `robbertvdzon <robbert@vdzon.com>` zelf is uitgevoerd, niet
+  door de factory-commit-identiteit.
+- [info] Het ArgoCD-manifest en de README-sectie zijn ongewijzigd t.o.v. ronde 1 en nog steeds
+  correct/analoog aan de productie-Application. Dit deel van de story blijft in orde.
+- **[blocker]** Ondanks de grondigere onderbouwing in deze ronde (developer citeert nu niet langer
+  ten onrechte de cluster-escape-hatch, maar onderbouwt met concrete, geverifieerde structurele
+  belemmeringen) blijft de kern-acceptatiecriterium van deze story onvervuld: "`acceptance-secret.yaml`
+  en `sealed-secret-runtime.yaml` zijn opnieuw verzegeld ... en gecommit" staat in `.task.md` zonder
+  voorwaardelijke taal ("voor zover ..."), in tegenstelling tot de cluster-apply/verificatie-criteria
+  verderop die dat wél expliciet krijgen. Het gerapporteerde productiebug (403 "Invalid CORS request"
+  op acceptatie) is met de eigen live curl-reproductie van de developer bevestigd nog steeds aanwezig.
+  Zolang dit criterium niet is afgevinkt, keur ik de story niet goed: dit is de reden van bestaan van
+  SF-2336/SF-2337 en de story zou anders zonder de daadwerkelijke fix doorstromen naar
+  test/summary/merge/deploy.
+- **[info, proces-observatie]** Deze bevinding lijkt in de huidige factory-sandbox structureel
+  onoplosbaar door een volgende developer-ronde: er bestaat geen enkel pad naar de vier onafhankelijk
+  benodigde vereisten (lokale `secrets-acceptance.env`-inhoud, kubeseal-cert via sibling-repo of
+  cluster, en clustercredentials) binnen deze sandbox, en dat zal in een derde ronde niet anders zijn.
+  Dit is geen kritiek op de developer-inspanning in deze ronde — die was grondig en eerlijk. Het is
+  een aanbeveling voor de mens/proceseigenaar buiten deze automatische review-lus: óf maak de echte
+  `deploy/secrets-acceptance.env`-inhoud en het kubeseal-cluster-cert beschikbaar aan een factory-run
+  (bv. via een secured secret-injectiemechanisme), óf voer deze specifieke stap (resealing) bewust
+  handmatig uit zoals bij `5f494d5` en splits de story dienovereenkomstig. Als reviewer kan en mag ik
+  dit procesprobleem niet zelf oplossen door het AC te laten vallen.
+
+Besluit: review-rejected, om dezelfde inhoudelijke reden als ronde 1 (kern-CORS-fix nog niet
+uitgevoerd/gecommit), nu bevestigd met grondiger, onafhankelijk geverifieerd bewijs dat dit een
+structurele sandbox-beperking is. Aanbeveling: dit als omgevings-/procesblokkade escaleren buiten de
+automatische developer-reviewlus, in plaats van een derde identieke developerronde te starten.
