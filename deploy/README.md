@@ -43,5 +43,18 @@ oc get application hkh-autopilot -n argocd
 oc get pods,routes -n hkh-autopilot
 ```
 
+De standing acceptatieomgeving (`deploy/overlays/acceptance`, namespace
+`hkh-autopilot-acceptance`) heeft een eigen ArgoCD `Application`,
+`deploy/argocd/application-acceptance.yaml`, analoog aan bovenstaande productie-Application
+(zelfde `repoURL`/`targetRevision` en `syncPolicy.automated`/`syncOptions`, alleen `path` en
+`destination.namespace` wijzen naar de acceptatie-overlay):
+
+```bash
+kubectl kustomize deploy/overlays/acceptance
+oc apply -f deploy/argocd/application-acceptance.yaml
+oc get application hkh-autopilot-acceptance -n argocd
+oc get pods,routes -n hkh-autopilot-acceptance
+```
+
 Een push op `main` bouwt alleen de gewijzigde componentimages. Daarna zet de workflow de SHA-tags
 in de OpenShift-overlay; ArgoCD rolt alleen die gewijzigde deployments uit.
