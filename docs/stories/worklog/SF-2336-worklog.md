@@ -72,3 +72,48 @@ inhoudelijke productie-CORS-waarde zijn niet aangeraakt (buiten scope).
 6. Eventueel tijdelijk gebruikte kubeconfig-bestanden na afloop verwijderen.
 
 Geen secretwaarden zijn in deze worklog, in commits of in logs terechtgekomen.
+
+## [REVIEWER] SF-2337 — reviewronde 1 (2026-08-29)
+
+Diff t.o.v. `main` (`git diff main...HEAD --stat`): alleen
+`deploy/argocd/application-acceptance.yaml` (nieuw), `deploy/README.md` en deze worklog.
+`deploy/secrets-acceptance.env`, `deploy/overlays/acceptance/acceptance-secret.yaml` en
+`deploy/base/sealed-secret-runtime.yaml` zijn ongewijzigd.
+
+- [info] Het nieuwe `deploy/argocd/application-acceptance.yaml` is structureel correct en
+  volledig analoog aan `deploy/argocd/application.yaml` (zelfde `repoURL`/`targetRevision`,
+  `syncPolicy.automated` met `prune`/`selfHeal`, dezelfde `syncOptions`); `path` en
+  `destination.namespace` wijzen terecht naar de acceptatie-overlay/-namespace. De
+  README-toevoeging is kort en consistent met de bestaande productie-instructies. Dit deel van
+  de story is prima.
+- [info] `.factory/verification.yaml` is uitsluitend `pathPrefixes`-gated op `backend/`,
+  `frontend/` en `frontend-admin/`; omdat deze diff alleen `deploy/` en `docs/` raakt, is het
+  `skipped`-testbewijs in het FACTORY VERIFICATION EVIDENCE-blok legitiem en geen blocker.
+- [blocker] De kern van deze story — het daadwerkelijk herstellen van de acceptatie-CORS-secret
+  (stap 1–3: `HKH_CORS_ALLOWED_ORIGIN_PATTERNS` uitbreiden met
+  `https://hkh-autopilot-acceptance.vdzonsoftware.nl`, `HKH_PERSON_SEARCH_PAYLOAD_KEY` controleren,
+  opnieuw sealen via `./deploy/seal-secrets.sh` en beide sealed-secretbestanden committen — de
+  eerste drie acceptatiecriteria uit `.task.md`) — is niet uitgevoerd. Het gerapporteerde bug
+  (403 "Invalid CORS request" op acceptatie) blijft daarmee onopgelost; alleen het secundaire
+  ArgoCD-syncpad is toegevoegd. Ik heb zelf bevestigd dat in deze werkomgeving `kubeseal`
+  ontbreekt en dat `deploy/secrets-acceptance.env`/`deploy/secrets-cluster.env` inderdaad niet
+  lokaal aanwezig zijn (terecht gitignored) — de technische onderbouwing van de developer klopt.
+  De developer citeert echter de escape-hatch uit de story-"Aannames" (item 3, over
+  cluster-schrijftoegang voor `oc apply`/Pod-verificatie) om ook het ontbreken van *lokale*
+  secret-/kubeseal-toegang te rechtvaardigen. Die escape-hatch dekt dat expliciet niet: item 2 van
+  dezelfde "Aannames" stelt juist dat lokale toegang tot deze bestanden en het kubeseal-certificaat
+  "als beschikbaar aangenomen" wordt, zonder fallback-clausule. Zonder een subtaak die dit alsnog
+  oppakt (er is geen andere `development`-subtaak in deze story) zou de story naar test/summary/
+  merge/deploy doorstromen terwijl het gemelde productieprobleem feitelijk niet is opgelost.
+  Aanname voor deze reviewronde (er wordt in deze story-flow niet gevraagd): als deze
+  omgevingsbeperking (geen kubeseal, geen lokale secretbron) structureel is voor elke run in deze
+  pijplijn, dan is dat een proces-/omgevingsprobleem dat buiten deze automatische review-lus moet
+  worden opgelost (bv. door kubeseal te installeren of het certificaat/secretbestand beschikbaar te
+  maken voor de developer-run) — dat kan ik als reviewer niet zelf herstellen, maar ik keur de
+  story niet goed zolang de kernacceptatiecriteria (secret bijgewerkt en opnieuw verzegeld) niet
+  zijn afgevinkt.
+
+Besluit: review-rejected. Verzoek aan de developer: onderzoek opnieuw of in de eigen run wél
+toegang bestaat tot `deploy/secrets-acceptance.env`/kubeseal; is dat structureel niet het geval,
+escaleer dit dan expliciet als blokkerend omgevingsprobleem (tracker `Error`-veld) in plaats van de
+story stilzwijgend af te ronden zonder de CORS-fix.
