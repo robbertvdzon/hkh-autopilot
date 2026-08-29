@@ -594,3 +594,40 @@ wordt vastgehouden door een stap met identieke, telkens herbevestigde ontbrekend
 randvoorwaarden.
 
 Geen secretwaarden zijn in deze worklog, in commits of in logs terechtgekomen.
+
+---
+
+## [REVIEWER] Ronde 10
+
+Onafhankelijk herverifieerd, identiek aan ronde 1-9:
+- `which kubeseal` → exit 1 (niet geïnstalleerd).
+- `deploy/secrets-acceptance.env` en `deploy/secrets-cluster.env` bestaan niet lokaal
+  (`ls` → "No such file or directory"), en `git log --all` bevat geen commits voor deze
+  paden.
+- `$SF_KUBECONFIG` (`/Users/robbertvdzon/okd-sno/sno/auth/kubeconfig-agent-readonly`) wijst
+  naar een pad op de Mac van de repo-eigenaar dat in deze sandbox niet bestaat;
+  `kubectl config current-context` faalt met "current-context is not set".
+- Sibling-repo `../robberts-infrastructure` met het kubeseal-clustercert ontbreekt.
+- `git diff main...HEAD --stat` toont dat deze ronde uitsluitend `deploy/README.md`,
+  `deploy/argocd/application-acceptance.yaml` (beide ongewijzigd t.o.v. eerdere rondes) en
+  deze worklog raakt. Geen wijziging aan `deploy/overlays/acceptance/acceptance-secret.yaml`
+  of `deploy/base/sealed-secret-runtime.yaml`.
+
+**Conclusie:** het niet-voorwaardelijke kern-acceptatiecriterium (opnieuw sealen en
+committen van de acceptatie-CORS-secret) blijft onvervuld. Dit is nu de tiende
+opeenvolgende, onafhankelijk bevestigde ronde met dezelfde structurele
+sandbox-beperking (geen `kubeseal`, geen lokale secretbron, geen sibling-cert-repo, geen
+bruikbare kubeconfig). Het ArgoCD-manifest en de README-sectie blijven correct en
+ongewijzigd — dat deel van de story is in orde, maar kan het AC voor de secret-resealing
+niet vervangen.
+
+- **[blocker]** Kern-AC (resealing van `acceptance-secret.yaml`/`sealed-secret-runtime.yaml`
+  met de acceptatie-CORS-origin) is niet uitgevoerd; de 403-bug op acceptatie blijft
+  onopgelost.
+- **[info]** ArgoCD-manifest + README-sectie zijn structureel correct en ongewijzigd sinds
+  ronde 1.
+- **[info, procesobservatie]** Tiende bevestiging van dezelfde structurele
+  sandbox-beperking. Herhaalde aanbeveling: los dit buiten de automatische
+  developer-reviewlus op (secret-/cert-injectie voor factory-runs beschikbaar maken, of
+  bewuste handmatige resealing door de repo-eigenaar zoals bij `5f494d5`), in plaats van
+  een elfde identieke ronde te starten.
