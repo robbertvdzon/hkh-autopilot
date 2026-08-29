@@ -278,3 +278,35 @@ niet langer wordt geblokkeerd door een stap die dezelfde ontbrekende randvoorwaa
 1 en 2.
 
 Geen secretwaarden zijn in deze worklog, in commits of in logs terechtgekomen.
+
+## [REVIEWER] SF-2337 — reviewronde 4 (2026-08-29)
+
+Diff t.o.v. `main` (`git diff main...HEAD --stat`) is ongewijzigd t.o.v. ronde 1-3: alleen
+`deploy/argocd/application-acceptance.yaml`, `deploy/README.md` en deze worklog. Geen wijzigingen
+aan `deploy/secrets-acceptance.env`, `deploy/overlays/acceptance/acceptance-secret.yaml` of
+`deploy/base/sealed-secret-runtime.yaml`.
+
+- [info] Onafhankelijk herverifieerd (nieuwe probes, niet overgenomen uit eerdere rondes):
+  `$SF_KUBECONFIG` (`/Users/robbertvdzon/okd-sno/sno/auth/kubeconfig-agent-readonly`) bestaat niet
+  in deze sandbox; `kubeseal` is niet geïnstalleerd; `deploy/secrets-acceptance.env` en
+  `deploy/secrets-cluster.env` bestaan niet lokaal en hebben nul commits in `git log --all`; er is
+  geen sibling-checkout `../robberts-infrastructure`. Alle vier structurele belemmeringen uit ronde
+  1-3 zijn dus opnieuw, voor de vierde keer, bevestigd — geen nieuw feit dat een andere uitkomst
+  rechtvaardigt.
+- [info] `deploy/argocd/application-acceptance.yaml` en de `deploy/README.md`-sectie zijn
+  byte-voor-byte ongewijzigd t.o.v. ronde 1 en blijven structureel correct/analoog aan de
+  productie-Application (`repoURL`/`targetRevision`/`syncPolicy.automated` met `prune`/`selfHeal`,
+  juiste `path: deploy/overlays/acceptance` en `destination.namespace: hkh-autopilot-acceptance`).
+- **[blocker]** Het niet-voorwaardelijke acceptatiecriterium — opnieuw verzegelen en committen van
+  `acceptance-secret.yaml`/`sealed-secret-runtime.yaml` met de acceptatie-CORS-origin — blijft
+  onvervuld. De gerapporteerde 403-bug op acceptatie is dus nog niet verholpen. Dit is inhoudelijk
+  dezelfde blocker als ronde 1-3, niet een nieuwe bevinding; ik kan dit AC niet laten vallen zonder
+  dat de story haar eigen bestaansreden (de CORS-fix) niet levert.
+- **[info, procesobservatie, herhaald]** Vier opeenvolgende rondes (ontwikkelaar en reviewer,
+  onafhankelijk van elkaar) bevestigen dezelfde structurele sandbox-beperking. Een volgende
+  developerronde zal zeer waarschijnlijk dezelfde uitkomst opleveren. Herhaal de eerdere aanbeveling:
+  los dit op als proces-/omgevingsvraagstuk buiten deze automatische lus (secret-/cert-injectie voor
+  factory-runs beschikbaar maken, of de resealing-stap bewust als handmatige subtaak door de
+  repo-eigenaar laten uitvoeren, zoals bij `5f494d5`), in plaats van dit AC te laten vallen.
+
+Besluit: review-rejected, om dezelfde inhoudelijke reden als ronde 1-3.
