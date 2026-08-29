@@ -482,3 +482,48 @@ als handmatige subtaak door de repo-eigenaar laten uitvoeren (zoals bij `5f494d5
 story dienovereenkomstig splitsen.
 
 Geen secretwaarden zijn in deze worklog, in commits of in logs terechtgekomen.
+
+## [REVIEWER] SF-2337 — reviewronde 8 (2026-08-29)
+
+`git diff main...HEAD --stat` bevestigt: alleen `deploy/argocd/application-acceptance.yaml`
+(nieuw), `deploy/README.md` en deze worklog wijken af van `main`. Geen wijzigingen aan
+`deploy/secrets-acceptance.env` (bestaat niet lokaal), `deploy/overlays/acceptance/acceptance-secret.yaml`
+of `deploy/base/sealed-secret-runtime.yaml`.
+
+- [info] Onafhankelijk opnieuw geprobeerd (nieuwe probes deze ronde, geen aannames uit
+  eerdere rondes overgenomen): `which kubeseal` → exit 1 (niet aanwezig); `ls
+  deploy/secrets-acceptance.env deploy/secrets-cluster.env` → "No such file or directory";
+  `ls ../robberts-infrastructure` → "No such file or directory" (geen sibling-checkout met
+  het kubeseal-clustercert); `echo $SF_KUBECONFIG` → pad op de lokale Mac van de
+  repo-eigenaar (`/Users/robbertvdzon/okd-sno/...`), niet aanwezig in deze sandbox;
+  `kubectl config current-context` en `oc whoami` bevestigen: geen bruikbare
+  kubeconfig/clustercontext. Alle vier structurele belemmeringen uit ronde 1-7 zijn dus
+  voor de achtste keer onafhankelijk bevestigd.
+- [info] Ook `deploy/secrets-acceptance.env.example` bekeken als mogelijke ontsnapping: dit
+  bevat uitsluitend placeholder-/voorbeeldwaarden (lege CORS-lijst, generiek
+  DB-wachtwoord, geen `HKH_PERSON_SEARCH_PAYLOAD_KEY`) en is dus geen bruikbare bron om het
+  echte, nooit-gecommitte acceptatiebestand te reconstrueren. Bevestigt dat de
+  developer-conclusie ("zelf reconstrueren = gokken naar bestaande secretwaarden") klopt.
+- [info] `deploy/argocd/application-acceptance.yaml` en de `deploy/README.md`-sectie zijn
+  ongewijzigd t.o.v. ronde 1 en blijven structureel correct/analoog aan
+  `deploy/argocd/application.yaml` (zelfde `repoURL`/`targetRevision`/`syncPolicy.automated`
+  met `prune`/`selfHeal`/`syncOptions`; correcte `path: deploy/overlays/acceptance` en
+  `destination.namespace: hkh-autopilot-acceptance`). Dit deel van de story blijft in orde.
+- **[blocker]** Het niet-voorwaardelijke acceptatiecriterium — `deploy/secrets-acceptance.env`
+  bijwerken, opnieuw sealen via `./deploy/seal-secrets.sh` en `acceptance-secret.yaml`/
+  `sealed-secret-runtime.yaml` committen — blijft onvervuld. De gerapporteerde 403-bug op
+  acceptatie is dus nog steeds niet opgelost. Dit is geen nieuwe bevinding maar dezelfde
+  kernblocker als ronde 1-7, nu onafhankelijk voor de achtste keer bevestigd.
+- **[info, procesobservatie, herhaald]** Acht opeenvolgende rondes (developer én reviewer,
+  onafhankelijk van elkaar, elk met eigen verse probes) bevestigen dezelfde structurele
+  sandbox-beperking: er is geen factory-sandbox-pad naar de vier vereisten (lokale
+  secretbron, kubeseal-binary, sibling-cert-repo, kubeconfig) voor `./deploy/seal-secrets.sh`.
+  Als reviewer kan ik dit AC niet laten vallen zonder dat de story haar eigen bestaansreden
+  (de CORS-fix) niet levert; nogmaals herhalen van deze developer-reviewlus zal dezelfde
+  uitkomst geven. Herhaal de aanbeveling om dit buiten de automatische lus als
+  proces-/omgevingsvraagstuk op te lossen (secret-/cert-injectie voor factory-runs
+  beschikbaar maken, of de resealing-stap bewust als handmatige subtaak door de
+  repo-eigenaar laten uitvoeren, zoals bij `5f494d5`, en de story dienovereenkomstig
+  splitsen zodat het reeds correcte ArgoCD-gedeelte niet langer wordt vastgehouden).
+
+Besluit: review-rejected, om dezelfde inhoudelijke reden als ronde 1-7.
