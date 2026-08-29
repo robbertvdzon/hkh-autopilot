@@ -8,7 +8,7 @@ patches:
 - patch: |-
     - op: replace
       path: /spec/template/metadata/annotations/hkh.vdzonsoftware.nl~1runtime-secret-checksum
-      value: "7c75a026b987dbec87f6e8f5ec61d0a7813240f509fb76b95d7e6f3ecda4ee13"
+      value: "8feb08fc4a2eae0c26a16b62320fdaed96e7c16b8fad0338e50e79d846d98f1d"
   target:
     group: apps
     kind: Deployment
