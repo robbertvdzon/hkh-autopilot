@@ -7,6 +7,7 @@ on:
       - "backend/**"
       - "frontend/**"
       - "frontend-admin/**"
+      - "deploy/**"
       - ".github/workflows/build-images.yml"
   pull_request:
     branches: [main]
@@ -209,6 +210,23 @@ jobs:
           if [[ "$ADMIN_CHANGED" == "true" ]]; then
             kustomize edit set image admin-image=ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}-admin:${IMAGE_TAG}-acceptance
           fi
+
+      # Kubernetes herstart een lopende Pod niet automatisch wanneer alleen de inhoud van de door
+      # envFrom/secretRef gerefereerde Secret verandert. Deze stap houdt daarom, onafhankelijk van of
+      # backend-/frontend-/admin-broncode ook wijzigt, een checksum-annotatie op het Pod-template van
+      # de backend-Deployment actueel: zodra het gesealde runtime-secretmanifest van een omgeving
+      # wijzigt (nieuw versleuteld op main gecommit, bijvoorbeeld door deploy/seal-secrets.sh),
+      # verandert deze checksum en dwingt dat bij de volgende ArgoCD-sync een echte rollout af. Er
+      # wordt geen geheime waarde ontsleuteld; de checksum is over het versleutelde manifestbestand
+      # zelf, wat voldoende is om "de secretinhoud is opnieuw geseald" te detecteren.
+      - name: Force backend rollout when the runtime secret content changes
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          OPENSHIFT_CHECKSUM=$(sha256sum deploy/base/sealed-secret-runtime.yaml | cut -d' ' -f1)
+          ACCEPTANCE_CHECKSUM=$(sha256sum deploy/overlays/acceptance/acceptance-secret.yaml | cut -d' ' -f1)
+          sed -i "/hkh.vdzonsoftware.nl~1runtime-secret-checksum/{n;s/value: \".*\"/value: \"${OPENSHIFT_CHECKSUM}\"/}" deploy/overlays/openshift/kustomization.yaml
+          sed -i "/hkh.vdzonsoftware.nl~1runtime-secret-checksum/{n;s/value: \".*\"/value: \"${ACCEPTANCE_CHECKSUM}\"/}" deploy/overlays/acceptance/kustomization.yaml
 
       - name: Commit GitOps image pins
         if: github.event_name == 'push'

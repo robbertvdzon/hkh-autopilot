@@ -11,6 +11,8 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: backend
+      annotations:
+        hkh.vdzonsoftware.nl/runtime-secret-checksum: "unset"
     spec:
       containers:
         - name: backend

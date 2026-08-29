@@ -2,7 +2,27 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../../base
-  - preview-secret.yaml
+# hkh-runtime wordt hieronder als secretGenerator (met kustomize's ingebouwde content-hash-suffix)
+# aangemaakt i.p.v. als los manifest (preview-secret.yaml): zodra de literals wijzigen, verandert
+# de gegenereerde Secret-naam en herschrijft kustomize automatisch de envFrom.secretRef.name van de
+# backend-Deployment daarnaar, wat een echte Pod-rollout afdwingt. Een los Secret-manifest zonder
+# generator laat de bestaande Pod, net als bij de sealed secrets in productie/acceptatie, ongemoeid
+# bij een inhoudelijke wijziging.
+secretGenerator:
+  - name: hkh-runtime
+    literals:
+      - HKH_DATABASE_URL=jdbc:postgresql://database:5432/hkh
+      - HKH_DATABASE_USER=hkh_preview
+      - HKH_DATABASE_PASSWORD=hkh_preview_only
+      - HKH_CORS_ALLOWED_ORIGIN_PATTERNS=
+      - HKH_GOOGLE_CLIENT_ID=
+      - HKH_ADMIN_ALLOWED_EMAILS=
+      - HKH_PREVIEW_ENABLED=true
+      - HKH_PREVIEW_MARKER=hkh-autopilot-pr-preview
+      - HKH_PERSON_SEARCH_PAYLOAD_KEY=w++k4hdkPjjHMxZhpdW03g4aP+mZvG5WZm6Sftt+1eA=
+    options:
+      labels:
+        preview.vdzonsoftware.nl/data-class: disposable
 patches:
   - target:
       version: v1

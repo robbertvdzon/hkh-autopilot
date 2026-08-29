@@ -4,6 +4,16 @@ namespace: hkh-autopilot
 resources:
 - ../../base
 - postgres-backup.yaml
+patches:
+- patch: |-
+    - op: replace
+      path: /spec/template/metadata/annotations/hkh.vdzonsoftware.nl~1runtime-secret-checksum
+      value: "7c75a026b987dbec87f6e8f5ec61d0a7813240f509fb76b95d7e6f3ecda4ee13"
+  target:
+    group: apps
+    kind: Deployment
+    name: backend
+    version: v1
 images:
 - name: admin-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-admin
