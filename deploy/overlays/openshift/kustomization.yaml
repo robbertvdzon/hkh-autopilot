@@ -17,10 +17,10 @@ patches:
 images:
 - name: admin-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-admin
-  newTag: sha-44194e5
+  newTag: sha-fac1946
 - name: backend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-backend
-  newTag: sha-0da1349
+  newTag: sha-fac1946
 - name: frontend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-frontend
-  newTag: sha-0da1349
+  newTag: sha-fac1946
