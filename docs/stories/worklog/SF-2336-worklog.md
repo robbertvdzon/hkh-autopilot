@@ -380,3 +380,38 @@ wordt vastgehouden door een stap met identieke, telkens herbevestigde ontbrekend
 randvoorwaarden.
 
 Geen secretwaarden zijn in deze worklog, in commits of in logs terechtgekomen.
+
+## [REVIEWER] SF-2337 — reviewronde 6 (2026-08-29)
+
+Diff t.o.v. `main` (`git diff main...HEAD --stat`) is ongewijzigd t.o.v. ronde 1-5:
+alleen `deploy/argocd/application-acceptance.yaml` (nieuw), `deploy/README.md` en deze
+worklog. Geen wijzigingen aan `deploy/secrets-acceptance.env`,
+`deploy/overlays/acceptance/acceptance-secret.yaml` of `deploy/base/sealed-secret-runtime.yaml`.
+
+- [info] Onafhankelijk herverifieerd (nieuwe probes deze ronde): `which kubeseal` → leeg;
+  `ls deploy/secrets-acceptance.env deploy/secrets-cluster.env` → "No such file or directory";
+  `git log --all --oneline -- deploy/secrets-acceptance.env deploy/secrets-cluster.env` → 0
+  commits; `ls /work/` → alleen `agent-tips.md`, `factory.env`, `repo`, `task.md`, géén sibling
+  `robberts-infrastructure`; `$SF_KUBECONFIG` (`/Users/robbertvdzon/okd-sno/...`) bestaat niet in
+  deze sandbox. Alle vier structurele belemmeringen uit ronde 1-5 zijn dus voor de zesde keer
+  onafhankelijk bevestigd.
+- [info] `deploy/argocd/application-acceptance.yaml` en de `deploy/README.md`-sectie zijn
+  byte-voor-byte ongewijzigd t.o.v. ronde 1 en blijven structureel correct/analoog aan
+  `deploy/argocd/application.yaml` (zelfde `repoURL`/`targetRevision`/`syncPolicy.automated` met
+  `prune`/`selfHeal`/`syncOptions`; correcte `path: deploy/overlays/acceptance` en
+  `destination.namespace: hkh-autopilot-acceptance`). Dit deel van de story blijft in orde.
+- **[blocker]** Het niet-voorwaardelijke acceptatiecriterium — `deploy/secrets-acceptance.env`
+  bijwerken, opnieuw sealen via `./deploy/seal-secrets.sh` en `acceptance-secret.yaml`/
+  `sealed-secret-runtime.yaml` committen — blijft onvervuld. De gerapporteerde 403-bug op
+  acceptatie is dus nog steeds niet opgelost. Dit is geen nieuwe bevinding maar dezelfde
+  kernblocker als ronde 1-5.
+- **[info, procesobservatie, herhaald]** Zes opeenvolgende rondes (developer én reviewer,
+  onafhankelijk van elkaar) bevestigen dezelfde structurele sandbox-beperking: er is geen
+  factory-sandbox-pad naar de vier vereisten (lokale secretbron, kubeseal-binary, sibling-cert,
+  kubeconfig) voor `./deploy/seal-secrets.sh`. Ik kan dit AC als reviewer niet laten vallen zonder
+  dat de story haar eigen bestaansreden (de CORS-fix) niet levert. Herhaal de aanbeveling om dit
+  buiten de automatische developer-reviewlus als proces-/omgevingsvraagstuk op te lossen
+  (secret-/cert-injectie voor factory-runs beschikbaar maken, of de resealing-stap bewust als
+  handmatige subtaak door de repo-eigenaar laten uitvoeren, zoals bij `5f494d5`).
+
+Besluit: review-rejected, om dezelfde inhoudelijke reden als ronde 1-5.
