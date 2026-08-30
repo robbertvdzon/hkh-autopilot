@@ -47,7 +47,12 @@ class RestClientArchivesOpenSearchClient(
         if (!entity.statusCode.is2xxSuccessful || body == null) return ArchivesSearchOutcome.Failure
         if (body.errorCode != null) return ArchivesSearchOutcome.Failure
         val numberFound = body.response?.numberFound ?: return ArchivesSearchOutcome.Failure
-        val docs = body.response.docs ?: return ArchivesSearchOutcome.Failure
+        val docs = body.response.docs
+            ?: return if (numberFound == 0) {
+                ArchivesSearchOutcome.Success(numberFound, emptyList())
+            } else {
+                ArchivesSearchOutcome.Failure
+            }
 
         val items = docs.mapNotNull { doc ->
             val archiveCode = doc.archiveCode?.takeIf { it.isNotBlank() }
