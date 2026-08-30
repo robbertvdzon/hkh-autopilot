@@ -53,3 +53,34 @@ Done / rationale:
   web)` en `(cd frontend-admin && flutter analyze / flutter test)` — alle groen, geen wijzigingen aan
   frontend/frontend-admin nodig voor deze story.
 - `.factory/verification.yaml` was al actueel voor deze wijziging (geen nieuwe commando's/paden nodig).
+
+## SF-2351 - Story-brede test
+
+- Diff gecontroleerd tegen story-scope: `PersonSearchService.handleSearchSuccess` filtert nu op
+  `ArchivesShowOutcome.Success`, wordt alleen `FAILED`/`SourceOutage` bij een lege resultatenlijst,
+  en geeft `unverifiedCount` door aan `PersonSearchAnswerBuilder.build`. `buildDisclaimer` breidt de
+  bestaande bewijsbegrenzingstekst uit met een enkelvouds-/meervoudsvermelding zodra
+  `unverifiedCount > 0`. Alleen backend-bestanden gewijzigd; geen wijzigingen aan
+  `PersonSearchRateLimiter`, retries, timeouts, deduplicatie of jobopslag — conform scope.
+- Vangnet gedraaid: `(cd backend && mvn -B --no-transfer-progress clean verify)` →
+  **BUILD SUCCESS, Tests run: 261, Failures: 0, Errors: 0, Skipped: 0** (inclusief de nieuwe tests
+  `partial show failures among ten or more candidates still yield ready with only the successful
+  records` en `show failures for every candidate among ten or more still yield failed`, beide groen).
+  `frontend`/`frontend-admin` niet geraakt door deze story-diff, dus conform
+  `.factory/verification.yaml`-pathPrefixes niet opnieuw gedraaid.
+- Live gedragsverificatie op preview (`https://hkh-autopilot-pr-56.vdzonsoftware.nl`, PR 56, huidige
+  HEAD): `POST /api/person-search` met `recognizedName=Nicolaas Jacobus Sinnige` (>2s, dus
+  achtergrondpad) resulteerde na polling van `/api/person-search/{jobId}/status` in status `READY`
+  met `openArchievenStatus=SUCCEEDED`, een antwoord gebaseerd op 1 succesvol Show-record, en
+  disclaimer-tekst **"... 6 van de 7 gevonden kandidaten konden niet worden geverifieerd en zijn
+  buiten beschouwing gelaten."** — dit is een reëel live voorbeeld van exact het scenario dat deze
+  story fixt (7 kandidaten uit Open Archieven, 6 Show-aanroepen faalden/niet-verifieerbaar, 1 succesvol);
+  vóór deze fix zou dit tot `FAILED` hebben geleid. Bevestigt zowel de partial-success-logica als de
+  nieuwe disclaimer-vermelding end-to-end tegen de echte Open Archieven-API.
+- Geen browser/screenshot-tool beschikbaar in deze sandbox (zie agent-tip
+  `sf2343-no-browser-tool-in-tester-sandbox`); curl tegen de backend-API met een cookie-jar is gebruikt
+  als gelijkwaardig bewijs voor het sessiegebonden achtergrondpad.
+- Geen tijdelijke testdata aangemaakt buiten de preview-eigen job (achtergrondzoekjob, geen
+  structurele opslag, zoals de story vereist); geen cleanup nodig.
+- Conclusie: alle acceptatiecriteria geverifieerd, vangnet volledig groen (exitcode 0, 0
+  failures/errors) → `tested`.
