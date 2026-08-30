@@ -97,9 +97,13 @@ Open Archieven Records/Search (`GET https://api.openarchieven.nl/1.1/records/sea
 `archive_code=nha`, `eventplace=Heemskerk`, `lang=nl`, `number_show=100`, URL-gecodeerde `name`,
 `start` voor paginering) wordt bevraagd met een beschrijvende User-Agent, gzip, maximaal 4
 requests/seconde, korte timeouts en een begrensde eindige back-off. Een respons telt alleen als
-geslaagd bij HTTP 2xx, geldige JSON, aanwezige verplichte velden (`number_found`, `results`) en een
-leeg `error_code`; elke afwijking (ook een gevuld `error_code` bij HTTP 200) is een mislukte
-bronraadpleging. Resultaten worden gededupliceerd op `archive_code` + `identifier`. Levert
+geslaagd bij HTTP 2xx, geldige JSON, aanwezig `number_found` en een leeg `error_code`; elke
+afwijking (ook een gevuld `error_code` bij HTTP 200) is een mislukte bronraadpleging. Een
+ontbrekend of `null` `docs`-veld is alleen een mislukte bronraadpleging als `number_found` groter
+dan 0 is; bij `number_found` gelijk aan 0 is een ontbrekend/`null` `docs`-veld een geldig
+nul-resultaat (geen bronuitval, geen "tijdelijk niet geraadpleegd"-melding, wel de
+no-reliable-source/`NO_EVIDENCE`-schermvariant). Resultaten worden gededupliceerd op
+`archive_code` + `identifier`. Levert
 Records/Search `number_found > 100` op, dan claimt geen enkele route een volledige uitkomst: de job
 eindigt met status `PARTIAL`, de gebruiker krijgt een verfijningsverzoek (naam aanvullen, periode of
 gebeurtenistype opgeven) en er volgt geen Records/Show-aanroep.

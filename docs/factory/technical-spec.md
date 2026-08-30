@@ -142,9 +142,14 @@ andere modules, ook niet op `auth` — opgenomen in de moduleset van `ModulithAr
   User-Agent, vraagt gzip aan (`GzipRequestInterceptor`) en loopt via `PersonSearchRateLimiter`
   (maximaal 4 requests/seconde, procesbreed) met korte timeouts (connect 800ms/read 1200ms) en een
   begrensde, eindige back-off bij transiënte fouten. Validatie is altijd fail-closed: alleen HTTP
-  2xx, geldige JSON, aanwezige verplichte velden (`number_found`/`docs` resp. de Show-velden) en een
-  leeg `error_code` gelden als geslaagde bronraadpleging; elke afwijking (inclusief een gevuld
-  `error_code` bij HTTP 200) is een mislukte bronraadpleging. `ArchivesOpenSearchModels.kt` modelleert
+  2xx, geldige JSON, aanwezig `number_found` (resp. de Show-velden) en een leeg `error_code` gelden
+  als geslaagde bronraadpleging; elke afwijking (inclusief een gevuld `error_code` bij HTTP 200) is
+  een mislukte bronraadpleging. Voor Search is een uitzondering op fail-closed voor `docs`: een
+  ontbrekend of `null` `docs`-veld is alleen een `Failure` als `number_found > 0` (inconsistente
+  respons); bij `number_found == 0` is dit een geldig nul-resultaat
+  (`ArchivesSearchOutcome.Success(numberFound = 0, results = emptyList())`), wat via
+  `PersonSearchService` tot `PersonSearchOutcome.NoResults`/status `NO_EVIDENCE` leidt in plaats van
+  `SourceOutage`/`FAILED`. `ArchivesOpenSearchModels.kt` modelleert
   de échte, geneste API-respons (Search: `response.number_found`/`response.docs`; Show:
   hoofdlettergevoelige, diep geneste `Person`/`Event`/`RelationEP`/`Source`) — niet een zelfbedacht
   plat schema (zie "Belangrijke ontwikkeling tijdens de ronde" in het worklog voor de eerdere,

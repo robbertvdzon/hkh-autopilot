@@ -84,6 +84,41 @@ class RestClientArchivesOpenSearchClientTest {
     }
 
     @Test
+    fun `a zero number_found with a missing docs field is a genuine empty result, not a failure`() {
+        val client = startClient { exchange ->
+            respondJson(exchange, 200, """{"response": {"number_found": 0}}""")
+        }
+
+        val result = client.search("Naam", start = 0, numberShow = 100) as ArchivesSearchOutcome.Success
+
+        assertEquals(0, result.numberFound)
+        assertTrue(result.results.isEmpty())
+    }
+
+    @Test
+    fun `a zero number_found with a null docs field is a genuine empty result, not a failure`() {
+        val client = startClient { exchange ->
+            respondJson(exchange, 200, """{"response": {"number_found": 0, "docs": null}}""")
+        }
+
+        val result = client.search("Naam", start = 0, numberShow = 100) as ArchivesSearchOutcome.Success
+
+        assertEquals(0, result.numberFound)
+        assertTrue(result.results.isEmpty())
+    }
+
+    @Test
+    fun `a positive number_found with a missing docs field remains a failed source consultation`() {
+        val client = startClient { exchange ->
+            respondJson(exchange, 200, """{"response": {"number_found": 1}}""")
+        }
+
+        val result = client.search("Naam", start = 0, numberShow = 100)
+
+        assertEquals(ArchivesSearchOutcome.Failure, result)
+    }
+
+    @Test
     fun `missing required search fields are a failed source consultation`() {
         val client = startClient { exchange -> respondJson(exchange, 200, """{"response": {"docs": []}}""") }
 
