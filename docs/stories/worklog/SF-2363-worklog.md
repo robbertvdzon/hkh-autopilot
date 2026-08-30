@@ -121,3 +121,28 @@ HEAD-tree; alle verplichte commands groen; admin-flutter-analyze/test
 terecht overgeslagen (geen wijzigingen onder frontend-admin/, path-gated).
 
 Geen blockers gevonden. Akkoord.
+
+## Test SF-2365
+
+Volledig verplicht vangnet opnieuw uitgevoerd op HEAD (0c37bf1):
+- `(cd backend && mvn -B --no-transfer-progress clean verify)` → BUILD SUCCESS, 271 tests, 0
+  failures/errors.
+- `(cd frontend && flutter analyze)` → geen meldingen.
+- `(cd frontend && flutter test -j 1)` → 79 tests, alle groen (inclusief de nieuwe
+  sessie-isolatie-, EXPIRED-, hervat- en toetsenbordtests uit `person_query_page_test.dart` en
+  `person_search_screens_test.dart`).
+- `(cd frontend && flutter build web)` → geslaagd.
+- `(cd frontend-admin && flutter analyze)` → geen meldingen.
+- `(cd frontend-admin && flutter test -j 1)` → 22 tests, alle groen (ongewijzigd door deze
+  story, path-gated).
+
+Steekproef op de nieuwe backendtests (`PersonSearchControllerTest`: cancel/open vanuit een
+niet-eigenaar-sessie, bronlinks zonder job-/sessie-id, EXPIRED zonder oud antwoord) bevestigt dat
+ze het daadwerkelijke gedrag toetsen (geen tautologische asserts) en overeenkomen met de
+acceptatiecriteria. Diff bevat uitsluitend testbestanden en deze worklog; geen productiecode
+gewijzigd, consistent met de bevinding van de developer/reviewer dat er geen epic-afwijking was
+om te corrigeren. Werkboom is schoon (geen tijdelijke testdata achtergebleven).
+
+Oordeel: alle zes AC-gebieden (sessie-isolatie, stopactie, hervatten, bewaartermijnen/EXPIRED,
+PARTIAL-verfijning, toetsenbord-/screenreadersweep) zijn aantoonbaar met geautomatiseerde tests
+bewezen en het volledige vangnet is groen. `tested`.
