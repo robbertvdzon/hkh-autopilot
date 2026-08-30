@@ -51,7 +51,7 @@ private fun eventNoun(eventType: String): String = when (eventType.trim().lowerc
 @Component
 class PersonSearchAnswerBuilder {
 
-    fun build(records: List<ArchivesShowRecord>, checkedAt: Instant): PersonSearchAnswer {
+    fun build(records: List<ArchivesShowRecord>, checkedAt: Instant, unverifiedCount: Int = 0): PersonSearchAnswer {
         require(records.isNotEmpty()) { "Er is minstens één gevalideerd Show-record nodig." }
 
         val sources = records.mapIndexed { index, record ->
@@ -88,15 +88,15 @@ class PersonSearchAnswerBuilder {
             .take(2)
             .map { PersonSearchConnectionOption(role = it.role, personName = it.personName) }
 
-        val disclaimer = buildDisclaimer(records)
+        val disclaimer = buildDisclaimer(records, unverifiedCount)
 
         return PersonSearchAnswer(sentences, sources, connections, disclaimer)
     }
 
-    private fun buildDisclaimer(records: List<ArchivesShowRecord>): String {
+    private fun buildDisclaimer(records: List<ArchivesShowRecord>, unverifiedCount: Int): String {
         val years = records.map { eventYear(it.eventDate) }.distinct()
         val yearPhrase = if (years.size == 1) years.first() else years.joinToString(", ")
-        return if (records.size == 1) {
+        val baseDisclaimer = if (records.size == 1) {
             val record = records.first()
             "Deze ene ${eventNoun(record.eventType)} is geen volledig levensverhaal van ${record.personName} " +
                 "en geen overzicht van alle gebeurtenissen in Heemskerk in $yearPhrase."
@@ -104,5 +104,15 @@ class PersonSearchAnswerBuilder {
             "Deze ${records.size} bronnen zijn samen geen volledig levensverhaal en geen overzicht van alle " +
                 "gebeurtenissen in Heemskerk in $yearPhrase."
         }
+        if (unverifiedCount <= 0) return baseDisclaimer
+
+        val totalCandidates = records.size + unverifiedCount
+        val unverifiedNotice = if (unverifiedCount == 1) {
+            "1 van de $totalCandidates gevonden kandidaten kon niet worden geverifieerd en is buiten beschouwing gelaten."
+        } else {
+            "$unverifiedCount van de $totalCandidates gevonden kandidaten konden niet worden geverifieerd " +
+                "en zijn buiten beschouwing gelaten."
+        }
+        return "$baseDisclaimer $unverifiedNotice"
     }
 }
