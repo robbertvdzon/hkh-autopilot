@@ -89,4 +89,36 @@ class PersonSearchAnswerBuilderTest {
         assertEquals(listOf(1, 2), answer.sources.map { it.number })
         assertTrue(answer.sources[1].openArchivesLink.endsWith("SECOND-IDENTIFIER"))
     }
+
+    @Test
+    fun `disclaimer mentions a single unverifiable candidate by count`() {
+        val answer = PersonSearchAnswerBuilder().build(listOf(nicolaasRecord), checkedAt, unverifiedCount = 1)
+
+        assertTrue(
+            answer.disclaimer.contains(
+                "1 van de 2 gevonden kandidaten kon niet worden geverifieerd en is buiten beschouwing gelaten.",
+            ),
+        )
+    }
+
+    @Test
+    fun `disclaimer mentions multiple unverifiable candidates by count`() {
+        val second = nicolaasRecord.copy(identifier = "SECOND-IDENTIFIER", relations = emptyList())
+
+        val answer = PersonSearchAnswerBuilder().build(listOf(nicolaasRecord, second), checkedAt, unverifiedCount = 3)
+
+        assertTrue(
+            answer.disclaimer.contains(
+                "3 van de 5 gevonden kandidaten konden niet worden geverifieerd en zijn buiten beschouwing gelaten.",
+            ),
+        )
+    }
+
+    @Test
+    fun `disclaimer has no unverifiable notice when every candidate was verified`() {
+        val answer = PersonSearchAnswerBuilder().build(listOf(nicolaasRecord), checkedAt, unverifiedCount = 0)
+
+        assertTrue(!answer.disclaimer.contains("kon niet worden geverifieerd"))
+        assertTrue(!answer.disclaimer.contains("konden niet worden geverifieerd"))
+    }
 }

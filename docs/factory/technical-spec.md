@@ -158,9 +158,16 @@ andere modules, ook niet op `auth` — opgenomen in de moduleset van `ModulithAr
   `https://www.openarchieven.nl/{archive_code}:{identifier}`, optioneel `SourceDigitalOriginal`-link
   en `checkedAt`). Vervolgsporen (`followed-connection`) zijn de rollen met een gekoppelde
   persoonsnaam in `RelationEP` van hetzelfde Show-record, in recordvolgorde, begrensd tot twee, en
-  vragen geen extra externe aanroep. Faalt de vereiste Records/Search- of Records/Show-aanroep, dan
-  levert de job status `FAILED` op: Open Archieven wordt exact aangeduid als "tijdelijk niet
-  geraadpleegd" en er verschijnt geen enkele archiefbewering.
+  vragen geen extra externe aanroep. `PersonSearchService.handleSearchSuccess` filtert de
+  Show-uitkomsten op `ArchivesShowOutcome.Success`: zijn er bij meerdere kandidaatrecords geen
+  geslaagde Show-records (alle mislukken, of de vereiste Records/Search-aanroep faalt), dan levert
+  de job status `FAILED` op — Open Archieven wordt exact aangeduid als "tijdelijk niet geraadpleegd"
+  en er verschijnt geen enkele archiefbewering. Is er ten minste één geslaagd Show-record, dan wordt
+  de job `READY` op basis van uitsluitend die deelverzameling; mislukte kandidaten leveren geen
+  feitelijke zin of bronmarkering en blokkeren de overige, wel gevalideerde records niet. Zijn er
+  wel-maar-niet-alle kandidaten onverifieerbaar, dan breidt `PersonSearchAnswerBuilder.buildDisclaimer`
+  de bewijsbegrenzingstekst uit met een aantal-gebaseerde vermelding (bijv. "1 van de 4 gevonden
+  kandidaten kon niet worden geverifieerd en is buiten beschouwing gelaten.").
 - `PersonSearchWikidataContextClient`/`WikidataPersonSearchContextClient` haalt optionele
   Wikidata-contextinformatie op (basis-URI overschrijfbaar via
   `hkh.personsearch.wikidata-base-url`/`HKH_PERSON_SEARCH_WIKIDATA_BASE_URL`, standaard

@@ -180,15 +180,16 @@ class PersonSearchService(
             if (jobStore.isCancelled(jobId)) return null
             archivesClient.show(item.archiveCode, item.identifier)
         }
-        if (shows.any { it is ArchivesShowOutcome.Failure }) {
+        val records = shows.filterIsInstance<ArchivesShowOutcome.Success>().map { it.record }
+        if (records.isEmpty()) {
             updateOpenArchievenStatus(jobId, PersonSearchSourceConsultationStatus.FAILED)
             return PersonSearchOutcome.SourceOutage(context = fetchContextTracked(jobId))
         }
         updateOpenArchievenStatus(jobId, PersonSearchSourceConsultationStatus.SUCCEEDED)
         if (jobStore.isCancelled(jobId)) return null
 
-        val records = shows.filterIsInstance<ArchivesShowOutcome.Success>().map { it.record }
-        val answer = answerBuilder.build(records, checkedAt = Instant.now(clock))
+        val unverifiedCount = shows.size - records.size
+        val answer = answerBuilder.build(records, checkedAt = Instant.now(clock), unverifiedCount = unverifiedCount)
         return PersonSearchOutcome.SupportedAnswer(answer, context = fetchContextTracked(jobId))
     }
 

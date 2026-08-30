@@ -156,6 +156,58 @@ class PersonSearchServiceTest {
     }
 
     @Test
+    fun `partial show failures among ten or more candidates still yield ready with only the successful records`() {
+        val candidateIds = (1..10).map { "CANDIDATE-$it" }
+        val failedIds = setOf("CANDIDATE-2", "CANDIDATE-5", "CANDIDATE-9")
+        val showResults = candidateIds.associateWith { id ->
+            if (id in failedIds) {
+                ArchivesShowOutcome.Failure
+            } else {
+                ArchivesShowOutcome.Success(nicolaasRecord.copy(identifier = id))
+            }
+        }
+        val client = FakeArchivesOpenSearchClient(
+            searchResult = ArchivesSearchOutcome.Success(
+                numberFound = candidateIds.size,
+                results = candidateIds.map { ArchivesSearchResultItem("nha", it) },
+            ),
+            showResults = showResults,
+        )
+
+        val result = service(client).submit("session-1", PersonSearchRequest(recognizedName = "Jansen"))
+
+        assertEquals(PersonSearchStatus.READY, result.status)
+        val answer = result.payload!!.answer!!
+        assertEquals(candidateIds.size - failedIds.size, answer.sources.size)
+        assertTrue(
+            answer.sources.none { source -> failedIds.any { source.openArchivesLink.endsWith(it) } },
+        )
+        assertTrue(
+            answer.disclaimer.contains(
+                "${failedIds.size} van de ${candidateIds.size} gevonden kandidaten konden niet worden " +
+                    "geverifieerd en zijn buiten beschouwing gelaten.",
+            ),
+        )
+    }
+
+    @Test
+    fun `show failures for every candidate among ten or more still yield failed`() {
+        val candidateIds = (1..10).map { "CANDIDATE-$it" }
+        val showResults = candidateIds.associateWith { ArchivesShowOutcome.Failure }
+        val client = FakeArchivesOpenSearchClient(
+            searchResult = ArchivesSearchOutcome.Success(
+                numberFound = candidateIds.size,
+                results = candidateIds.map { ArchivesSearchResultItem("nha", it) },
+            ),
+            showResults = showResults,
+        )
+
+        val result = service(client).submit("session-1", PersonSearchRequest(recognizedName = "Jansen"))
+
+        assertEquals(PersonSearchStatus.FAILED, result.status)
+    }
+
+    @Test
     fun `results are deduplicated on archive_code and identifier before fetching show`() {
         val client = FakeArchivesOpenSearchClient(
             searchResult = ArchivesSearchOutcome.Success(
