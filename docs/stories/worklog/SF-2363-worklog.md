@@ -82,3 +82,42 @@ uitgebreid).
 `(cd backend && mvn -B --no-transfer-progress clean verify)` → 271 tests, 0 failures/errors.
 `(cd frontend && flutter analyze && flutter test && flutter build web)` → groen.
 `(cd frontend-admin && flutter analyze && flutter test)` → groen.
+
+## Review SF-2364
+
+Volledige diff (main...HEAD) beoordeeld: alleen testbestanden
+(`PersonSearchJobStoreTest.kt`, `PersonSearchServiceTest.kt`,
+`PersonSearchTestFixtures.kt`, `PersonSearchControllerTest.kt`,
+`person_query_page_test.dart`, `person_search_screens_test.dart`) plus deze
+worklog. Geen productiecode gewijzigd.
+
+Gecontroleerd per AC:
+- Sessie-isolatie status/cancel/open: alle drie afzonderlijk getest, 404 +
+  ongewijzigde staat geverifieerd.
+- Bronlinks zonder job-/sessie-id: nieuwe test bevestigt
+  `openArchivesLink`/`digitalOriginalLink` bevatten geen jobId/sessionId;
+  geen analytics-mechanisme in frontend aanwezig (geverifieerd via grep),
+  dus dat deelcriterium is triviaal voldaan.
+- Stopactie: bestaande tests dekten CANCELLED/payload-wipe/call-count al af;
+  geen wijziging nodig, klopt.
+- Bewaartermijnen: nieuwe geparametriseerde tests over alle vijf terminale
+  statussen voor zowel 60-min-inactiviteit als 24-uur-grens; nieuwe
+  HTTP-niveau EXPIRED-test zonder oud antwoord.
+- Hervatten na reload: nieuwe test toont READY-job na hervatten direct naar
+  search-ready met voltooiingstijd, bronnen en precies één actie (consistent
+  met bestaand patroon voor de RUNNING-variant).
+- PARTIAL-verfijningspad achtergrondroute: nieuwe test toont number_found>100
+  in de achtergrond alsnog PARTIAL oplevert zonder `show`-aanroep; synchrone
+  route was al gedekt.
+- Toetsenbord-/screenreadersweep: ontbrekende schermen (live-search,
+  source-outage, followed-connection, no-reliable-source) nu voorzien van
+  Tab/Enter-tests; overige vijf schermen (start, meaning-selection,
+  background-search, search-ready, supported-answer) hadden al dekking.
+  Sweep dekt nu aantoonbaar alle negen uxScreens.
+
+Factory-verificatiebewijs gecontroleerd: tested worktree tree
+(5c18634d1ac607c1b12a12261a75a39b2bef3803) komt overeen met de huidige
+HEAD-tree; alle verplichte commands groen; admin-flutter-analyze/test
+terecht overgeslagen (geen wijzigingen onder frontend-admin/, path-gated).
+
+Geen blockers gevonden. Akkoord.
