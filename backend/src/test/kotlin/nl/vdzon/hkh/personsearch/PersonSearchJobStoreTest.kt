@@ -1,9 +1,7 @@
 package nl.vdzon.hkh.personsearch
 
-import java.time.Clock
 import java.time.Duration
 import java.time.Instant
-import java.time.ZoneOffset
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -151,7 +149,7 @@ class PersonSearchJobStoreTest {
     @Test
     fun `purgeExpired wipes a job after 24 hours regardless of session activity`() {
         val start = Instant.parse("2026-08-28T10:00:00Z")
-        val clock = MutableClock(start)
+        val clock = MutablePersonSearchClock(start)
         val store = PersonSearchJobStore(cipher, clock)
         store.save(
             job(
@@ -174,7 +172,7 @@ class PersonSearchJobStoreTest {
     @Test
     fun `purgeExpired wipes a job after 60 minutes of session inactivity even before 24 hours`() {
         val start = Instant.parse("2026-08-28T10:00:00Z")
-        val clock = MutableClock(start)
+        val clock = MutablePersonSearchClock(start)
         val store = PersonSearchJobStore(cipher, clock)
         store.touchSessionActivity("session-a")
         store.save(job(status = PersonSearchStatus.READY, createdAt = start))
@@ -188,7 +186,7 @@ class PersonSearchJobStoreTest {
     @Test
     fun `purgeExpired leaves an active job untouched`() {
         val start = Instant.parse("2026-08-28T10:00:00Z")
-        val clock = MutableClock(start)
+        val clock = MutablePersonSearchClock(start)
         val store = PersonSearchJobStore(cipher, clock)
         store.touchSessionActivity("session-a")
         store.save(job(status = PersonSearchStatus.RUNNING, createdAt = start))
@@ -199,9 +197,66 @@ class PersonSearchJobStoreTest {
         assertEquals(PersonSearchStatus.RUNNING, store.findByIdForSession("job-1", "session-a")?.status)
     }
 
-    private class MutableClock(var instant: Instant) : Clock() {
-        override fun getZone() = ZoneOffset.UTC
-        override fun withZone(zone: java.time.ZoneId) = this
-        override fun instant() = instant
+    @Test
+    fun `purgeExpired wipes every terminal status after 60 minutes of session inactivity`() {
+        val start = Instant.parse("2026-08-28T10:00:00Z")
+        val terminalStatuses = listOf(
+            PersonSearchStatus.READY,
+            PersonSearchStatus.NO_EVIDENCE,
+            PersonSearchStatus.PARTIAL,
+            PersonSearchStatus.FAILED,
+            PersonSearchStatus.CANCELLED,
+        )
+        for (status in terminalStatuses) {
+            val clock = MutablePersonSearchClock(start)
+            val store = PersonSearchJobStore(cipher, clock)
+            store.touchSessionActivity("session-a")
+            store.save(
+                job(
+                    status = status,
+                    createdAt = start,
+                    encryptedOutcome = cipher.encryptPayload(PersonSearchStoredPayload()),
+                ),
+            )
+
+            clock.instant = start.plus(Duration.ofMinutes(61))
+            store.purgeExpired()
+
+            val purged = store.findByIdForSession("job-1", "session-a")
+            assertEquals(PersonSearchStatus.EXPIRED, purged?.status, "status $status moet na 60 min inactiviteit EXPIRED zijn")
+            assertNull(purged?.encryptedOutcome, "status $status moet de payload wissen bij verlopen")
+        }
+    }
+
+    @Test
+    fun `purgeExpired wipes every terminal status after 24 hours regardless of session activity`() {
+        val start = Instant.parse("2026-08-28T10:00:00Z")
+        val terminalStatuses = listOf(
+            PersonSearchStatus.READY,
+            PersonSearchStatus.NO_EVIDENCE,
+            PersonSearchStatus.PARTIAL,
+            PersonSearchStatus.FAILED,
+            PersonSearchStatus.CANCELLED,
+        )
+        for (status in terminalStatuses) {
+            val clock = MutablePersonSearchClock(start)
+            val store = PersonSearchJobStore(cipher, clock)
+            store.save(
+                job(
+                    status = status,
+                    createdAt = start,
+                    encryptedOutcome = cipher.encryptPayload(PersonSearchStoredPayload()),
+                ),
+            )
+            store.touchSessionActivity("session-a")
+
+            clock.instant = start.plus(Duration.ofHours(24))
+            store.touchSessionActivity("session-a")
+            store.purgeExpired()
+
+            val purged = store.findByIdForSession("job-1", "session-a")
+            assertEquals(PersonSearchStatus.EXPIRED, purged?.status, "status $status moet na 24 uur EXPIRED zijn")
+            assertNull(purged?.encryptedOutcome, "status $status moet de payload wissen bij verlopen")
+        }
     }
 }

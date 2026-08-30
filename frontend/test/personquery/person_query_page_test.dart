@@ -971,4 +971,95 @@ void main() {
       expect(find.text('Wie was Jan Jansen?'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'na herlading leidt een inmiddels READY job direct naar search-ready met voltooiingstijd, bronnen en precies één actie',
+    (tester) async {
+      await useGenerousViewport(tester);
+      final searchSource = _FakeBackgroundPersonSearchSource(
+        submitResult: const PersonSearchResult(
+          jobId: 'job-1',
+          status: PersonSearchStatus.running,
+          originalQuery: 'Wie was Jan Jansen?',
+        ),
+        statusSequence: [_readyStatus(jobId: 'resumed-job')],
+        initialSessionIndicator: const PersonSearchSessionIndicator(
+          runningCount: 0,
+          readyUnopenedCount: 1,
+          runningJobIds: [],
+          readyUnopenedJobIds: ['resumed-job'],
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: PersonQueryPage(personSearchSource: searchSource)),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Je antwoord staat klaar'), findsOneWidget);
+      expect(
+        find.textContaining('Voltooid om 2026-08-28T10:00:05.000Z'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining(
+          'Open Archieven en Wikidata · Context geraadpleegd',
+        ),
+        findsOneWidget,
+      );
+      expect(find.byType(FilledButton), findsOneWidget);
+      expect(searchSource.openCalls, 0);
+
+      await tester.tap(find.text('Bekijk het antwoord'));
+      await tester.pumpAndSettle();
+
+      expect(searchSource.openCalls, 1);
+      expect(searchSource.lastOpenedJobId, 'resumed-job');
+      expect(
+        find.textContaining('Jan Jansen is geboren op 1 januari 1900'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'no-reliable-source is met Tab en Enter volledig bedienbaar zonder muis',
+    (tester) async {
+      await useGenerousViewport(tester);
+      var backPressed = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: NoReliableSourceScreen(
+              originalQuery: 'Wat gebeurde er in Heemskerk in 1878?',
+              onPickSuggestion: (_) {},
+              onBackToStart: () => backPressed = true,
+            ),
+          ),
+        ),
+      );
+
+      final statusNodes = find.semantics
+          .byPredicate(
+            (node) => node.getSemanticsData().role == SemanticsRole.status,
+            view: tester.view,
+          )
+          .evaluate();
+      expect(statusNodes, isNotEmpty);
+
+      for (var i = 0; i < 20 && !backPressed; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        if (backPressed) break;
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+      }
+      expect(
+        backPressed,
+        isTrue,
+        reason:
+            '"Terug naar het startscherm" moet via Tab/Enter bereikbaar en bedienbaar zijn.',
+      );
+    },
+  );
 }
