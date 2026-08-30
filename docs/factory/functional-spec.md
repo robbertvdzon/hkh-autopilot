@@ -131,11 +131,17 @@ recordvolgorde — zonder extra externe aanroep.
 
 Op `supported-answer` en `source-outage` verschijnt optionele Wikidata-informatie uitsluitend onder
 een sectie die letterlijk 'Context' heet; deze sectie draagt nooit zelfstandig een geboorte-,
-huwelijks-, overlijdens-, doop- of bevolkingsregistratiebewering. Faalt de voor een antwoord
-vereiste Records/Search- of Records/Show-aanroep volgens de validatieregels, dan verschijnt
-`source-outage`: Open Archieven wordt exact aangeduid als 'tijdelijk niet geraadpleegd', er
-verschijnt geen enkele archiefbewering, ook niet wanneer Wikidata wel bereikbaar was (dan uitsluitend
-onder 'Context').
+huwelijks-, overlijdens-, doop- of bevolkingsregistratiebewering. Faalt de vereiste Records/Search-
+aanroep, of falen bij meerdere kandidaatrecords **alle** Records/Show-aanroepen volgens de
+validatieregels, dan verschijnt `source-outage`: Open Archieven wordt exact aangeduid als 'tijdelijk
+niet geraadpleegd', er verschijnt geen enkele archiefbewering, ook niet wanneer Wikidata wel
+bereikbaar was (dan uitsluitend onder 'Context'). Levert bij meerdere kandidaatrecords ten minste
+één Records/Show-aanroep wél een geldig, gevalideerd record op, dan verschijnt in plaats daarvan
+`supported-answer`, uitsluitend gebaseerd op die geslaagde records; de mislukte kandidaten dragen
+geen feitelijke zin en geen bronmarkering. In dat geval vermeldt de bewijsbegrenzingstekst
+(`disclaimer`) zichtbaar hoeveel van de gevonden kandidaten niet konden worden geverifieerd en
+buiten beschouwing zijn gelaten (bijvoorbeeld '1 van de 4 gevonden kandidaten kon niet worden
+geverifieerd en is buiten beschouwing gelaten.').
 
 `live-search`, `supported-answer`, `followed-connection` en `source-outage` zijn bedienbaar met
 Tab/Shift+Tab/Enter, met zichtbare focus; live-/gereed-/Context-/uitvalstatus is zonder kleur

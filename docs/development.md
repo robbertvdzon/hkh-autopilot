@@ -90,9 +90,15 @@ session-id + normalized query + chosen Heemskerk meaning, and synchronously runs
 Records/Search and Records/Show calls (`ArchivesOpenSearchClient`, rate-limited to 4 requests/second,
 fail-closed validation on HTTP status/JSON/required fields/`error_code`) plus an optional Wikidata
 context call within a hard 2000ms deadline. `number_found > 100` ends the job as `PARTIAL` with a
-refinement request and skips Records/Show; a failed required call ends it as `FAILED` with Open
-Archieven reported as unavailable. Answer sentences are built only from validated Show fields
-(`Person`/`Event`/`RelationEP`/`Source`) with numbered source citations.
+refinement request and skips Records/Show. `PersonSearchService.handleSearchSuccess` builds the
+answer from whichever candidate records got a valid Show record: only when the required
+Records/Search call fails, or *none* of the candidates' Records/Show calls succeed, does the job end
+as `FAILED` with Open Archieven reported as unavailable. If at least one Show call succeeds while
+others fail, the job still ends as `READY`, using only the successful records — failed candidates
+contribute no sentence or source citation and don't block the rest. When some but not all
+candidates were unverifiable, the answer's `disclaimer` also names how many candidates were skipped.
+Answer sentences are built only from validated Show fields (`Person`/`Event`/`RelationEP`/`Source`)
+with numbered source citations.
 
 The job status contract is worker-independent — `QUEUED, RUNNING, READY, NO_EVIDENCE, PARTIAL,
 FAILED, CANCELLED, EXPIRED` — and runs on the ordinary shared executor, no Agent Runtime involved.
