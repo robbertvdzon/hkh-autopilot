@@ -305,6 +305,35 @@ class PersonSearchServiceTest {
     }
 
     @Test
+    fun `a job that exceeds the two second budget still yields partial in the background without calling show`() {
+        val startedLatch = CountDownLatch(1)
+        val releaseLatch = CountDownLatch(1)
+        val client = FakeArchivesOpenSearchClient(
+            searchResult = ArchivesSearchOutcome.Success(101, emptyList()),
+            onSearch = {
+                startedLatch.countDown()
+                assertTrue(releaseLatch.await(5, TimeUnit.SECONDS))
+            },
+        )
+        val jobStore = testJobStore(fixedClock)
+        val personSearchService = service(client, deadlineMillis = 50, jobStore = jobStore)
+
+        val result = personSearchService.submit("session-1", PersonSearchRequest(recognizedName = "Jansen"))
+
+        assertEquals(PersonSearchStatus.RUNNING, result.status)
+        assertTrue(startedLatch.await(5, TimeUnit.SECONDS))
+        releaseLatch.countDown()
+
+        await(5000) { jobStore.findByIdForSession(result.jobId, "session-1")?.status == PersonSearchStatus.PARTIAL }
+        val job = jobStore.findByIdForSession(result.jobId, "session-1")
+        assertEquals(PersonSearchStatus.PARTIAL, job?.status)
+        assertEquals(0, client.showCalls)
+        val payload = jobStore.decryptOutcome(job!!)
+        assertTrue(payload?.refinementMessage?.isNotBlank() == true)
+        assertNull(payload?.answer)
+    }
+
+    @Test
     fun `a job that has not yet reached the executor is QUEUED`() {
         val startedLatch = CountDownLatch(1)
         val releaseLatch = CountDownLatch(1)

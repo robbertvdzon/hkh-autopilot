@@ -134,6 +134,33 @@ void main() {
         lessThanOrEqualTo(320),
       );
     });
+
+    testWidgets('Tab bereikt de terugknop en Enter activeert deze', (
+      tester,
+    ) async {
+      await useGenerousViewport(tester);
+      var backPressed = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: LiveSearchScreen(
+              originalQuery: 'Wie was Jan Jansen?',
+              stillRunning: true,
+              onBackToStart: () => backPressed = true,
+            ),
+          ),
+        ),
+      );
+
+      for (var i = 0; i < 12; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+      }
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+
+      expect(backPressed, isTrue);
+    });
   });
 
   group('SupportedAnswerScreen', () {
@@ -323,6 +350,33 @@ void main() {
         tester.getSize(find.byType(MaterialApp)).width,
         lessThanOrEqualTo(320),
       );
+    });
+
+    testWidgets('Tab bereikt de terugknop en Enter activeert deze', (
+      tester,
+    ) async {
+      await useGenerousViewport(tester);
+      var backPressed = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SourceOutageScreen(
+              originalQuery: 'Wie was Jan Jansen?',
+              wikidataContext: null,
+              onBackToStart: () => backPressed = true,
+            ),
+          ),
+        ),
+      );
+
+      for (var i = 0; i < 12; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+      }
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pump();
+
+      expect(backPressed, isTrue);
     });
   });
 
@@ -618,5 +672,52 @@ void main() {
         lessThanOrEqualTo(320),
       );
     });
+
+    testWidgets(
+      'Tab bereikt beide knoppen en Enter activeert de gefocuste knop',
+      (tester) async {
+        await useGenerousViewport(tester);
+        var backToAnswerPressed = false;
+        var backToStartPressed = false;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: FollowedConnectionScreen(
+                originalQuery: 'Wie was Nicolaas Jacobus Sinnige?',
+                connection: connection,
+                onBackToAnswer: () => backToAnswerPressed = true,
+                onBackToStart: () => backToStartPressed = true,
+              ),
+            ),
+          ),
+        );
+
+        for (var i = 0; i < 20 && !backToAnswerPressed; i++) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pump();
+          if (backToAnswerPressed) break;
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pump();
+        }
+        expect(
+          backToAnswerPressed,
+          isTrue,
+          reason:
+              '"Terug naar het antwoord" moet via Tab/Enter bereikbaar zijn.',
+        );
+
+        for (var i = 0; i < 20 && !backToStartPressed; i++) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await tester.pump();
+        }
+        expect(
+          backToStartPressed,
+          isTrue,
+          reason: '"Nieuwe vraag stellen" moet via Tab/Enter bereikbaar zijn.',
+        );
+      },
+    );
   });
 }

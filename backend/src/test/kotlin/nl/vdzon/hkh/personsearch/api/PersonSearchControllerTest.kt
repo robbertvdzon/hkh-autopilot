@@ -20,11 +20,13 @@ import nl.vdzon.hkh.personsearch.ArchivesShowRecord
 import nl.vdzon.hkh.personsearch.PERSON_SEARCH_DEADLINE_MILLIS
 import nl.vdzon.hkh.personsearch.PersonSearchAnswerBuilder
 import nl.vdzon.hkh.personsearch.PersonSearchContextSource
+import nl.vdzon.hkh.personsearch.MutablePersonSearchClock
 import nl.vdzon.hkh.personsearch.PersonSearchJobStore
 import nl.vdzon.hkh.personsearch.PersonSearchService
 import nl.vdzon.hkh.personsearch.PersonSearchSessionResolver
 import nl.vdzon.hkh.personsearch.PersonSearchWikidataContext
 import nl.vdzon.hkh.personsearch.testJobStore
+import nl.vdzon.hkh.personsearch.testPayloadCipher
 import org.springframework.http.HttpStatus
 import org.springframework.mock.web.MockHttpServletRequest
 import org.springframework.mock.web.MockHttpServletResponse
@@ -185,6 +187,111 @@ class PersonSearchControllerTest {
         val otherSessionResponse = personSearchController.status(jobId, requestWithCookie("other-session"), MockHttpServletResponse())
 
         assertEquals(HttpStatus.NOT_FOUND, otherSessionResponse.statusCode)
+    }
+
+    @Test
+    fun `a cancel request from another session behaves as if the job does not exist and does not cancel it`() {
+        val client = fakeClient(ArchivesSearchOutcome.Success(0, emptyList()))
+        val personSearchController = controller(client)
+        val cookieRequest = MockHttpServletRequest()
+        val cookieResponse = MockHttpServletResponse()
+
+        val submitResponse = personSearchController.submit(
+            PersonSearchApiRequest(recognizedName = "Jansen"),
+            cookieRequest,
+            cookieResponse,
+        )
+        val jobId = (submitResponse.body as PersonSearchApiResponse).jobId
+        val sessionId = extractSessionCookie(cookieResponse)
+
+        val otherSessionResponse = personSearchController.cancel(jobId, requestWithCookie("other-session"), MockHttpServletResponse())
+        assertEquals(HttpStatus.NOT_FOUND, otherSessionResponse.statusCode)
+
+        val ownerStatus = personSearchController.status(jobId, requestWithCookie(sessionId), MockHttpServletResponse()).body
+            as PersonSearchStatusResponse
+        assertTrue(ownerStatus.status != "CANCELLED")
+    }
+
+    @Test
+    fun `an open request from another session behaves as if the job does not exist and does not mark it opened`() {
+        val client = fakeClient(
+            ArchivesSearchOutcome.Success(1, listOf(ArchivesSearchResultItem("nha", "002ED0F3-F08C-4223-A5EA-BA385D04336E"))),
+            mapOf("002ED0F3-F08C-4223-A5EA-BA385D04336E" to ArchivesShowOutcome.Success(nicolaasRecord)),
+        )
+        val personSearchController = controller(client)
+        val cookieRequest = MockHttpServletRequest()
+        val cookieResponse = MockHttpServletResponse()
+
+        val submitResponse = personSearchController.submit(
+            PersonSearchApiRequest(recognizedName = "Jansen"),
+            cookieRequest,
+            cookieResponse,
+        )
+        val jobId = (submitResponse.body as PersonSearchApiResponse).jobId
+        val sessionId = extractSessionCookie(cookieResponse)
+
+        val otherSessionResponse = personSearchController.open(jobId, requestWithCookie("other-session"), MockHttpServletResponse())
+        assertEquals(HttpStatus.NOT_FOUND, otherSessionResponse.statusCode)
+
+        val beforeOpen = personSearchController.session(requestWithCookie(sessionId), MockHttpServletResponse()).body
+            as PersonSearchSessionIndicatorResponse
+        assertEquals(1, beforeOpen.readyUnopenedCount)
+    }
+
+    @Test
+    fun `visible source links never contain the session or job identifier`() {
+        val client = fakeClient(
+            ArchivesSearchOutcome.Success(1, listOf(ArchivesSearchResultItem("nha", "002ED0F3-F08C-4223-A5EA-BA385D04336E"))),
+            mapOf("002ED0F3-F08C-4223-A5EA-BA385D04336E" to ArchivesShowOutcome.Success(nicolaasRecord)),
+        )
+        val httpRequest = MockHttpServletRequest()
+        val httpResponse = MockHttpServletResponse()
+
+        val response = controller(client).submit(
+            PersonSearchApiRequest(recognizedName = "Nicolaas Jacobus Sinnige", yearOrPeriod = "1878"),
+            httpRequest,
+            httpResponse,
+        )
+
+        val body = response.body as PersonSearchApiResponse
+        val sessionId = extractSessionCookie(httpResponse)
+        for (source in body.answer!!.sources) {
+            assertTrue(!source.openArchivesLink.contains(body.jobId))
+            assertTrue(!source.openArchivesLink.contains(sessionId))
+            assertTrue(source.digitalOriginalLink?.contains(body.jobId) != true)
+            assertTrue(source.digitalOriginalLink?.contains(sessionId) != true)
+        }
+    }
+
+    @Test
+    fun `a status request for an expired job returns EXPIRED without exposing the previous answer`() {
+        val client = fakeClient(
+            ArchivesSearchOutcome.Success(1, listOf(ArchivesSearchResultItem("nha", "002ED0F3-F08C-4223-A5EA-BA385D04336E"))),
+            mapOf("002ED0F3-F08C-4223-A5EA-BA385D04336E" to ArchivesShowOutcome.Success(nicolaasRecord)),
+        )
+        val cipher = testPayloadCipher()
+        val clock = MutablePersonSearchClock(Instant.parse("2026-08-28T10:00:00Z"))
+        val jobStore = PersonSearchJobStore(cipher, clock)
+        val personSearchController = controller(client, jobStore = jobStore)
+        val cookieRequest = MockHttpServletRequest()
+        val cookieResponse = MockHttpServletResponse()
+
+        val submitResponse = personSearchController.submit(
+            PersonSearchApiRequest(recognizedName = "Nicolaas Jacobus Sinnige", yearOrPeriod = "1878"),
+            cookieRequest,
+            cookieResponse,
+        )
+        val jobId = (submitResponse.body as PersonSearchApiResponse).jobId
+        val sessionId = extractSessionCookie(cookieResponse)
+        assertEquals("READY", (submitResponse.body as PersonSearchApiResponse).status)
+
+        clock.instant = clock.instant.plus(java.time.Duration.ofHours(24))
+        jobStore.purgeExpired()
+
+        val expiredResponse = personSearchController.status(jobId, requestWithCookie(sessionId), MockHttpServletResponse())
+        val expiredBody = expiredResponse.body as PersonSearchStatusResponse
+        assertEquals("EXPIRED", expiredBody.status)
+        assertEquals(null, expiredBody.answer)
     }
 
     @Test
