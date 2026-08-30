@@ -83,7 +83,7 @@ images:
   newTag: sha-fac1946-acceptance
 - name: backend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-backend
-  newTag: sha-fac1946
+  newTag: sha-d53da8e
 - name: frontend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-frontend
   newTag: sha-fac1946-acceptance
