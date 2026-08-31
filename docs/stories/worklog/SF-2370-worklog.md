@@ -118,3 +118,39 @@ Aandachtspunten (niet blokkerend, ter info voor eventuele vervolgronde):
   licentiebadge"-onderdeel.
 
 Oordeel: akkoord, geen blockers.
+
+## [TESTER] SF-2372
+
+HEAD (`a2f02d6`) is de door de reviewer beoordeelde commit; de reviewercommit zelf wijzigt
+uitsluitend deze worklog (geen codewijziging), dus de eerder groen geverifieerde tree
+(`mvn clean verify` backend 292/292, frontend 104/104, `flutter build web` groen,
+`frontend-admin` 22/22, `skipped` want ongewijzigd) blijft geldig voor deze HEAD. Het volledige
+vangnet wordt hierna nogmaals revisiegebonden door de harness gedraaid; dat zelf herhalen is
+dubbel werk, dus deze ronde is gericht op live gedragsverificatie tegen de preview
+(`https://hkh-autopilot-pr-59.vdzonsoftware.nl`), rechtstreeks tegen `POST /api/place-search`
+(geen browser-/screenshot-tool beschikbaar in deze sandbox, zelfde bekende beperking als eerdere
+testrondes op dit project).
+
+Live-verificatie tegen `POST /api/place-search`:
+- Canoniek voorbeeld "Kasteel Assumburg" → `status=READY`, `qid=Q1967073`, precies de verwachte
+  antwoordzinnen (label/description, P149 architectuurstijl "classicisme", P1435 erfgoedstatus
+  "Rijksmonument"), apart `contextSentence` voor P131 ("Assumburg ligt in de gemeente Heemskerk."),
+  elk met eigen genummerde bron (QID + wikidata.org-link + checkedAt), en 6 gededupliceerde
+  Commons-afbeeldingen met license + bestandspaginalink. Komt exact overeen met de story-AC voor dit
+  voorbeeld. Herhaalde aanroep gaf identiek, stabiel resultaat.
+- Leeg `candidateTerm` → HTTP 400 met `{"fieldErrors":["candidateTerm"]}` (input-validatie werkt).
+- Niet-matchende termen ("Kasteel Nergensland", "Huis Marquette") → `status=NO_MATCH`,
+  `answer=null`, fail-closed zoals vereist.
+- Generieke, brede termen ("Kerk", "Molen" los) leverden bij herhaling wisselend `NO_MATCH` of
+  `OUTAGE` op — verwacht gedrag: dit soort brede termen triggert meerdere live Wikidata
+  round-trips (P149/P84/P1435 elk een eigen call, zie reviewer-aandachtspunt) binnen het harde
+  2000ms-budget, en overschrijding daarvan valt terecht fail-closed terug op `OUTAGE` zonder
+  verzonnen antwoord. Geen bug, analoog aan het bekende personsearch->2s-gedrag bij generieke
+  vragen.
+
+Backend-/frontend-testdekking (interpreter-unittests, gemockte 0/1/>1-match/P131-doorverwijzing/
+P625/P373→P18/timeout-paden, widget-/e2e-tests voor de vier schermtoestanden) is inhoudelijk
+beoordeeld in de reviewerronde hierboven en niet opnieuw herhaald in deze ronde (geen code-/
+testwijziging sindsdien). Geen bugs gevonden; live gedrag komt overeen met de story-AC's.
+
+Oordeel: tested, geen blockers.
