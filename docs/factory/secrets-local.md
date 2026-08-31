@@ -31,6 +31,13 @@ overschrijven waarden uit het bestand; `HKH_SECRETS_FILE` kan naar een andere lo
   antwoordbeweringen) versleuteld op te slaan tot aan retentie-opschoning (60 minuten
   sessie-inactiviteit of 24 uur na indienen, of eerder bij een expliciete stopactie).
   Versleuteling faalt fail-closed zolang deze leeg is: een indiening kan dan niet worden opgeslagen.
+- `HKH_PLACESEARCH_WIKIDATA_BASE_URL`: optionele basis-URI voor de Wikidata-aanroepen vanuit de
+  `placesearch`-backendmodule, standaard `https://www.wikidata.org`; uitsluitend bedoeld om lokaal
+  of in tests tegen een fixture-/mock-endpoint te draaien. Geen API-key nodig.
+- `HKH_PLACESEARCH_COMMONS_BASE_URL`: optionele basis-URI voor de Wikimedia Commons Action-API-
+  aanroepen (beeldmateriaal) vanuit de `placesearch`-backendmodule, standaard
+  `https://commons.wikimedia.org`; uitsluitend bedoeld om lokaal of in tests tegen een
+  fixture-/mock-endpoint te draaien. Geen API-key nodig.
 - `HKH_AGENT_RUNTIME_URL`: basis-URL van de gedeelde Agent Runtime;
 - `HKH_AGENT_RUNTIME_TOKEN`: eigen, minimaal bevoegde HKH Autopilot-consumentcredential;
 - `HKH_AGENT_RUNTIME_PROJECT_PREFIX`: exact `HKH_AUTOPILOT`;

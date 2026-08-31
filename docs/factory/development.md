@@ -42,16 +42,28 @@ Wanneer een feature Agent Runtime gebruikt, voer na het maken van `secrets.env` 
   antwoordpayload worden versleuteld bewaard (`PersonSearchPayloadCipher`, AES-256-GCM,
   `HKH_PERSON_SEARCH_PAYLOAD_KEY`, fail-closed zonder sleutel) en door
   `PersonSearchRetentionCleanupTask` (`@Scheduled`) verwijderd na 60 min sessie-inactiviteit of 24
-  uur, wat eerder komt;
+  uur, wat eerder komt; en de module `placesearch` met het `POST /api/place-search`-endpoint voor de
+  plek/gebouw-route (Wikidata + Wikimedia Commons): geen sessiegebonden achtergrondjob, maar één
+  synchrone aanroep binnen een harde 2000ms-deadline (`PlaceSearchService`, eigen
+  `placeSearchExecutor`-bean). `PlaceSearchWikidataClient` doet `wbsearchentities` gevolgd door
+  `Special:EntityData` per QID en filtert op P131 (Q9926, evt. één niveau doorverwezen) of P625
+  binnen een vaste, code-gedocumenteerde bounding box (geen SPARQL); bij precies 1 match bouwt
+  `PlaceSearchAnswerBuilder` genummerde antwoordzinnen (label/description/P571/P149/P84/P1435) met
+  bronverwijzing per QID, en haalt `PlaceSearchCommonsClient` via P373 (categorie) of P18-fallback
+  maximaal 6 gededupliceerde Commons-afbeeldingen op. Alles kortstondig in-memory TTL-gecachet
+  (`PlaceSearchCache`), fail-closed op elke fout/timeout/budgetoverschrijding (`OUTAGE`);
 - `frontend/`: Flutter-gebruikersapp; homepage en statusflows staan in `lib/main.dart`,
   broninterfaces onder `lib/backend/` en `lib/news/`, widgettests onder `test/`; de volledig
   client-side persoonsvraag-/Heemskerk-disambiguatiemodule (start-, meaning-selection- en
   no-reliable-source-scherm, `PersonQueryInterpreter`, `WikidataMeaningClient`) staat onder
-  `lib/personquery/`, widget- en unittests onder `test/personquery/`; de zes schermen voor de live
+  `lib/personquery/` — `PersonQueryInterpreter` herkent hier ook een landmark-gebaseerd
+  plek/gebouw-kandidaat die voorrang krijgt op de persoonsroute; de zes schermen voor de live
   zoek-/antwoordroute (`live-search`, `supported-answer`, `followed-connection`, `source-outage`,
   `background-search`, `search-ready`), de sessie-indicator (`SessionIndicatorBadge`) en de
   bijbehorende client (`PersonSearchClient`) staan onder `lib/personsearch/`, widget- en
-  unittests onder `test/personsearch/`;
+  unittests onder `test/personsearch/`; de drie schermen voor de synchrone plek/gebouw-route
+  (`place-answer`, `place-empty`, `place-outage`) en de bijbehorende client (`PlaceSearchClient`)
+  staan onder `lib/placesearch/`, widget- en unittests onder `test/placesearch/`;
 - `frontend-admin/`: afzonderlijke Flutter-webbeheerapp en widgettests;
 - `deploy/`: OpenShift-, Kustomize- en ArgoCD-manifests;
 - `.factory/verification.yaml`: machine-leesbaar, revisiongebonden verificatievangnet.

@@ -116,6 +116,27 @@ first. Configuration and behavior are documented in
 [factory/technical-spec.md](factory/technical-spec.md) and
 [factory/secrets-local.md](factory/secrets-local.md).
 
+`nl.vdzon.hkh.placesearch` exposes `POST /api/place-search`, the synchronous search-and-answer route
+for a recognized place/building question (e.g. "Wat is Kasteel Assumburg?"). Unlike `personsearch`,
+it has no session-scoped background job infrastructure: a single request runs
+`wbsearchentities` (`language=nl`, `type=item`, `limit=5`) followed by a live `Special:EntityData`
+fetch per candidate QID, all within a hard 2000ms total deadline (`PlaceSearchService`, its own
+`placeSearchExecutor` bean plus `Future.get(timeout)`). A candidate only counts within Heemskerk when
+its P131 claim (optionally resolved one level further) equals `Q9926`, or its P625 coordinates fall
+inside a fixed, code-documented bounding box (`PlaceSearchWikidataClient`, own geometric assumption,
+no official Wikidata geometry, no SPARQL/Query Service call). Exactly one match builds an answer from
+label/description/P571/P149/P84/P1435, each sentence with its own numbered `PlaceSearchSourceCitation`
+(QID, `wikidata.org/wiki/{QID}` link, `checkedAt`); zero or more than one match returns `NO_MATCH`,
+with candidate labels as a refinement suggestion when there is more than one. Images come from
+Wikimedia Commons via P373 (category) or a P18 fallback, deduplicated by filename to a maximum of 6,
+each with its file URL, license and file-page link; a Commons-only failure leaves the Wikidata answer
+in place with `commonsOutage=true`. Any Wikidata/Commons failure, invalid JSON or deadline overrun
+yields fail-closed `OUTAGE`, with no answer constructed. Fetched Wikidata entities and Commons
+imageinfo responses are cached in-memory only, with a 5-minute TTL (`PlaceSearchCache`) — no
+structural database storage. Configuration and behavior are documented in
+[factory/technical-spec.md](factory/technical-spec.md) and
+[factory/secrets-local.md](factory/secrets-local.md).
+
 ## User frontend
 
 The user application supports Flutter web and Android. It uses `http://localhost:8080` as its
@@ -151,6 +172,14 @@ running and ready-unopened job counts for the current session on every screen of
 jobs after in-app navigation, reload or return within the same session; an expired or deleted job
 shows a clear "no longer available" screen offering to resubmit the question instead of a stale
 answer.
+
+`PersonQueryInterpreter.interpret` also recognizes a place/building candidate (a landmark keyword —
+`kasteel, kerk, molen, toren, gemaal, station, brug, huis, hof, plein, sluis, kapel, klooster` —
+directly next to a capitalized word), which takes priority over the person route. A recognized
+candidate is submitted synchronously (no polling) to `lib/placesearch/` (`PlaceSearchClient`, `POST
+/api/place-search`), switching between the `place-answer`, `place-empty` and `place-outage` screens
+based on the response, each reusing `person_query_widgets.dart` for focus/status styling and each
+with a desktop and mobile layout.
 
 Run the frontend checks with:
 
