@@ -7,6 +7,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.stereotype.Service
@@ -49,7 +50,7 @@ class PersonSearchService(
     private val contextSource: PersonSearchContextSource,
     private val answerBuilder: PersonSearchAnswerBuilder,
     private val jobStore: PersonSearchJobStore,
-    private val executor: ExecutorService,
+    @param:Qualifier("personSearchExecutor") private val executor: ExecutorService,
     private val clock: Clock = Clock.systemUTC(),
     private val deadlineMillis: Long = PERSON_SEARCH_DEADLINE_MILLIS,
 ) {

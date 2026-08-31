@@ -7,6 +7,8 @@ import 'package:hkh_app/personquery/person_query_page.dart';
 import 'package:hkh_app/personquery/wikidata_meaning_client.dart';
 import 'package:hkh_app/personsearch/person_search_client.dart';
 import 'package:hkh_app/personsearch/person_search_models.dart';
+import 'package:hkh_app/placesearch/place_search_client.dart';
+import 'package:hkh_app/placesearch/place_search_models.dart';
 
 /// Deterministische fake voor `PersonSearchSource`, zodat widgettests nooit
 /// een echte backend-aanroep doen. Legt de meegegeven `heemskerkMeaningQid`
@@ -59,6 +61,28 @@ class _FakePersonSearchSource implements PersonSearchSource {
       runningJobIds: [],
       readyUnopenedJobIds: [],
     );
+  }
+}
+
+/// Deterministische fake voor `PlaceSearchSource`, zodat routeringstests
+/// nooit een echte backend-aanroep doen.
+class _FakePlaceSearchSource implements PlaceSearchSource {
+  _FakePlaceSearchSource.result(this._result) : _error = null;
+  _FakePlaceSearchSource.failure() : _result = null, _error = 'offline';
+
+  final PlaceSearchResult? _result;
+  final String? _error;
+  int calls = 0;
+  String? lastCandidateTerm;
+
+  @override
+  Future<PlaceSearchResult> search({required String candidateTerm}) async {
+    calls++;
+    lastCandidateTerm = candidateTerm;
+    if (_error != null) {
+      throw PlaceSearchSubmitException(_error);
+    }
+    return _result!;
   }
 }
 
@@ -1060,6 +1084,121 @@ void main() {
         reason:
             '"Terug naar het startscherm" moet via Tab/Enter bereikbaar en bedienbaar zijn.',
       );
+    },
+  );
+
+  testWidgets(
+    'een landmark-vraag zoals "Wat is Kasteel Assumburg?" gaat naar de plek/gebouw-route, niet de persoonsroute',
+    (tester) async {
+      await useGenerousViewport(tester);
+      final placeSource = _FakePlaceSearchSource.result(
+        PlaceSearchResult(
+          status: PlaceSearchStatus.ready,
+          candidateTerm: 'Kasteel Assumburg',
+          answer: PlaceSearchAnswer(
+            qid: 'Q1968571',
+            label: 'Kasteel Assumburg',
+            description: 'kasteel in Heemskerk',
+            sentences: const [
+              PlaceSearchAnswerSentence(
+                text: 'Kasteel Assumburg is een kasteel in Heemskerk.',
+                sourceNumbers: [1],
+              ),
+            ],
+            contextSentence: const PlaceSearchAnswerSentence(
+              text: 'Kasteel Assumburg ligt in de gemeente Heemskerk.',
+              sourceNumbers: [2],
+            ),
+            sources: const [],
+            images: const [],
+            commonsOutage: false,
+            disclaimer: 'disclaimer',
+            checkedAt: DateTime.utc(2026, 8, 31, 10),
+          ),
+        ),
+      );
+      final personSource = _FakePersonSearchSource.idle();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PersonQueryPage(
+            personSearchSource: personSource,
+            placeSearchSource: placeSource,
+          ),
+        ),
+      );
+
+      await _submit(tester, 'Wat is Kasteel Assumburg?');
+
+      expect(placeSource.calls, 1);
+      expect(placeSource.lastCandidateTerm, 'Kasteel Assumburg');
+      expect(personSource.calls, 0);
+      expect(
+        find.textContaining('Kasteel Assumburg is een kasteel in Heemskerk'),
+        findsOneWidget,
+      );
+      expect(find.text('Context'), findsOneWidget);
+    },
+  );
+
+  testWidgets('0 of >1 matches op de plek/gebouw-route tonen place-empty', (
+    tester,
+  ) async {
+    await useGenerousViewport(tester);
+    final placeSource = _FakePlaceSearchSource.result(
+      const PlaceSearchResult(
+        status: PlaceSearchStatus.noMatch,
+        candidateTerm: 'Kasteel Onbekend',
+        refinementCandidates: [
+          PlaceSearchCandidate(qid: 'Q1', label: 'Kasteel A'),
+          PlaceSearchCandidate(qid: 'Q2', label: 'Kasteel B'),
+        ],
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PersonQueryPage(
+          personSearchSource: _FakePersonSearchSource.idle(),
+          placeSearchSource: placeSource,
+        ),
+      ),
+    );
+
+    await _submit(tester, 'Wat is Kasteel Onbekend?');
+
+    expect(
+      find.text('Hiervoor vinden we geen betrouwbare bron'),
+      findsOneWidget,
+    );
+    expect(find.text('Kasteel A'), findsOneWidget);
+    expect(find.text('Kasteel B'), findsOneWidget);
+  });
+
+  testWidgets(
+    'een mislukte Wikidata-raadpleging op de plek/gebouw-route toont place-outage met een retry-actie',
+    (tester) async {
+      await useGenerousViewport(tester);
+      final placeSource = _FakePlaceSearchSource.failure();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PersonQueryPage(
+            personSearchSource: _FakePersonSearchSource.idle(),
+            placeSearchSource: placeSource,
+          ),
+        ),
+      );
+
+      await _submit(tester, 'Wat is Kasteel Assumburg?');
+
+      expect(
+        find.text('Wikidata is tijdelijk niet geraadpleegd'),
+        findsOneWidget,
+      );
+      expect(placeSource.calls, 1);
+
+      await tester.tap(find.byKey(const Key('place-outage-retry')));
+      await tester.pumpAndSettle();
+
+      expect(placeSource.calls, 2);
     },
   );
 }

@@ -15,6 +15,7 @@ class ModulithArchitectureTest {
         "linkdossier",
         "news",
         "personsearch",
+        "placesearch",
         "previewdata",
         "privacyclassification",
         "recordintake",

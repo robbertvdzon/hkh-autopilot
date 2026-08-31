@@ -12,6 +12,11 @@ import '../personsearch/search_ready_screen.dart';
 import '../personsearch/session_indicator_badge.dart';
 import '../personsearch/source_outage_screen.dart';
 import '../personsearch/supported_answer_screen.dart';
+import '../placesearch/place_answer_screen.dart';
+import '../placesearch/place_empty_screen.dart';
+import '../placesearch/place_outage_screen.dart';
+import '../placesearch/place_search_client.dart';
+import '../placesearch/place_search_models.dart';
 import 'meaning_selection_screen.dart';
 import 'no_reliable_source_screen.dart';
 import 'person_query_interpreter.dart';
@@ -29,6 +34,9 @@ enum _PersonQueryScreen {
   supportedAnswer,
   followedConnection,
   sourceOutage,
+  placeAnswer,
+  placeEmpty,
+  placeOutage,
 }
 
 /// Hoe vaak de client tijdens `background-search` de status van een job
@@ -48,14 +56,17 @@ class PersonQueryPage extends StatefulWidget {
     this.interpreter = const PersonQueryInterpreter(),
     WikidataMeaningSource? meaningSource,
     PersonSearchSource? personSearchSource,
+    PlaceSearchSource? placeSearchSource,
     super.key,
   }) : meaningSource = meaningSource ?? const _LazyWikidataMeaningClient(),
        personSearchSource =
-           personSearchSource ?? const _LazyPersonSearchClient();
+           personSearchSource ?? const _LazyPersonSearchClient(),
+       placeSearchSource = placeSearchSource ?? const _LazyPlaceSearchClient();
 
   final PersonQueryInterpreter interpreter;
   final WikidataMeaningSource meaningSource;
   final PersonSearchSource personSearchSource;
+  final PlaceSearchSource placeSearchSource;
 
   @override
   State<PersonQueryPage> createState() => _PersonQueryPageState();
@@ -116,6 +127,17 @@ class _LazyPersonSearchClient implements PersonSearchSource {
   }
 }
 
+class _LazyPlaceSearchClient implements PlaceSearchSource {
+  const _LazyPlaceSearchClient();
+
+  @override
+  Future<PlaceSearchResult> search({required String candidateTerm}) {
+    return PlaceSearchClient(
+      AppConfig.apiBaseUrl,
+    ).search(candidateTerm: candidateTerm);
+  }
+}
+
 class _PersonQueryPageState extends State<PersonQueryPage> {
   final _controller = TextEditingController();
   final _fieldFocusNode = FocusNode(debugLabel: 'person-query-field');
@@ -127,6 +149,11 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
   bool _stillRunning = false;
   PersonSearchConnectionOption? _followedConnection;
   int _searchGeneration = 0;
+
+  /// Laatst bekende uitkomst van de plek/gebouw-route (`place-answer`/
+  /// `place-empty`/`place-outage`), synchroon en zonder achtergrondpolling.
+  PlaceSearchResult? _placeResult;
+  String? _lastPlaceCandidateTerm;
 
   /// Laatst bekende voortgang van de job die op `background-search`/
   /// `search-ready` wordt getoond; `null` buiten die twee schermen.
@@ -179,7 +206,10 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
     setState(() {
       _submittedQuery = text;
       _interpretation = interpretation;
-      if (!interpretation.hasRecognizedName) {
+      if (interpretation.hasPlaceCandidate) {
+        // Landmark-herkenning krijgt voorrang op de persoonsroute.
+        _startPlaceSearch(interpretation.placeCandidate!);
+      } else if (!interpretation.hasRecognizedName) {
         _screen = _PersonQueryScreen.noReliableSource;
       } else if (interpretation.heemskerkAmbiguous) {
         _screen = _PersonQueryScreen.meaningSelection;
@@ -187,6 +217,54 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
         _startLiveSearch(interpretation, null);
       }
     });
+  }
+
+  void _startPlaceSearch(String candidateTerm) {
+    _lastPlaceCandidateTerm = candidateTerm;
+    _placeResult = null;
+    final generation = ++_searchGeneration;
+    widget.placeSearchSource
+        .search(candidateTerm: candidateTerm)
+        .then((result) => _onPlaceSearchResult(generation, result))
+        .catchError((_) => _onPlaceSearchFailure(generation));
+  }
+
+  void _onPlaceSearchResult(int generation, PlaceSearchResult result) {
+    if (!mounted || generation != _searchGeneration) return;
+    setState(() {
+      _placeResult = result;
+      switch (result.status) {
+        case PlaceSearchStatus.ready:
+          _screen = _PersonQueryScreen.placeAnswer;
+        case PlaceSearchStatus.noMatch:
+          _screen = _PersonQueryScreen.placeEmpty;
+        case PlaceSearchStatus.outage:
+          _screen = _PersonQueryScreen.placeOutage;
+      }
+    });
+  }
+
+  void _onPlaceSearchFailure(int generation) {
+    if (!mounted || generation != _searchGeneration) return;
+    setState(() {
+      _placeResult = null;
+      _screen = _PersonQueryScreen.placeOutage;
+    });
+  }
+
+  void _retryPlaceSearch() {
+    final term = _lastPlaceCandidateTerm;
+    if (term == null) return;
+    setState(() => _startPlaceSearch(term));
+  }
+
+  void _pickPlaceCandidate(String label) {
+    setState(() {
+      _controller.text = label;
+      _controller.selection = TextSelection.collapsed(offset: label.length);
+      _screen = _PersonQueryScreen.start;
+    });
+    _fieldFocusNode.requestFocus();
   }
 
   void _pickSuggestion(String suggestion) {
@@ -507,6 +585,25 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
           wikidataContext: _lastResult?.context,
           onBackToStart: _backToStart,
         );
+      case _PersonQueryScreen.placeAnswer:
+        return PlaceAnswerScreen(
+          originalQuery: _submittedQuery,
+          answer: _placeResult!.answer!,
+          onBackToStart: _backToStart,
+        );
+      case _PersonQueryScreen.placeEmpty:
+        return PlaceEmptyScreen(
+          originalQuery: _submittedQuery,
+          refinementCandidates: _placeResult?.refinementCandidates ?? const [],
+          onPickCandidate: _pickPlaceCandidate,
+          onBackToStart: _backToStart,
+        );
+      case _PersonQueryScreen.placeOutage:
+        return PlaceOutageScreen(
+          originalQuery: _submittedQuery,
+          onRetry: _retryPlaceSearch,
+          onBackToStart: _backToStart,
+        );
     }
   }
 
@@ -612,6 +709,7 @@ class _StartScreen extends StatelessWidget {
   static const exampleQuestions = [
     'Wie was Nicolaas Jacobus Sinnige, geboren in 1878?',
     'Wie waren de ouders van Trijntje Beentjes?',
+    'Wat is Kasteel Assumburg?',
   ];
 
   final TextEditingController controller;
@@ -745,9 +843,56 @@ class _StartScreen extends StatelessWidget {
             'aanvullende context.',
           ),
           const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: const [
+              _CoverageBadge(
+                key: Key('coverage-badge-open-archieven'),
+                icon: Icons.family_restroom,
+                label: 'Open Archieven — persoonsgegevens',
+              ),
+              _CoverageBadge(
+                key: Key('coverage-badge-wikidata-commons'),
+                icon: Icons.location_city,
+                label:
+                    'Wikidata + Wikimedia Commons — plekken, gebouwen en monumenten',
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           const Text(
             'Een langer lopende zoekopdracht kan binnen deze sessie gewoon '
             'doorlopen; je hoeft niet te wachten voordat je verdergaat.',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Dekkingsbadge: icoon + tekstlabel, nooit uitsluitend kleurafhankelijk.
+class _CoverageBadge extends StatelessWidget {
+  const _CoverageBadge({required this.icon, required this.label, super.key});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        border: Border.all(color: Theme.of(context).colorScheme.outline),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(label, style: Theme.of(context).textTheme.bodySmall),
           ),
         ],
       ),
