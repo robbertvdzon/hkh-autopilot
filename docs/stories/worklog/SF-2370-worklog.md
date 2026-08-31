@@ -71,3 +71,50 @@ Done / rationale:
   path-prefix-regels dekken de nieuwe bestanden al af); geen wijziging aan `frontend-admin` (story
   raakt uitsluitend de gebruikersfrontend en de backend); geen SPARQL/Query Service-aanroep conform
   de story-restrictie.
+
+## [REVIEWER] SF-2371 (subtaak van deze story)
+
+Volledige story-diff (`main...HEAD`, commit `b7a5d52`) tegen de story/AC's beoordeeld. Tree-sha van de
+factory-verificatie (`212055a1...`) komt overeen met de huidige HEAD-tree; het meegeleverde
+`[FACTORY VERIFICATION EVIDENCE]`-blok toont alle vier commando's `passed` (backend 292/292, frontend
+104/104, build web groen); `admin-flutter-*` terecht `skipped` (geen wijziging in `frontend-admin`).
+
+Geverifieerd, geen blockers gevonden:
+- Interpreter: landmark-herkenning + voorrangsregel + onvoorwaardelijke verwijdering van "Heemskerk"
+  precies zoals gespecificeerd; goede unittests inclusief het canonieke voorbeeld, prioriteitsgeval en
+  negatieve gevallen (`person_query_interpreter_test.dart`).
+- Backend `placesearch`-module: eigen `package-info.java`/`allowedDependencies = {}`, opgenomen in
+  `ModulithArchitectureTest`; wbsearchentities → Special:EntityData → P131 (incl. één niveau
+  doorverwijzing) / P625-bounding-box-filter, geen SPARQL; fail-closed op elke fout/timeout/budget via
+  `Future.get(2000ms)`; P373→P18-fallback voor Commons, dedup op bestandsnaam, max. 6. Uitstekende
+  testdekking met embedded `HttpServer`-fixtures (geen echte netwerkaanroepen in de testsuite):
+  0/1/>1-matches, P131-doorverwijzing, P625 binnen/buiten box, Commons-fout, Wikidata-fout, timeout.
+- `PersonSearchService.kt`-wijziging (alleen de `@Qualifier`-toevoeging) is een noodzakelijke, minimale
+  fix voor de door de developer beschreven bean-ambiguïteit; geen ongerelateerde wijzigingen.
+- Frontend-schermen (`place-answer`/`place-empty`/`place-outage`) volgen de UX-artifacts qua
+  structuur, hergebruiken `person_query_widgets.dart` voor focusrand/statussemantiek, en zijn getest
+  op 320px en toetsenbordbediening.
+- `.factory/verification.yaml` inderdaad ongewijzigd correct: bestaande `backend/`- en
+  `frontend/`-path-prefixes dekken alle nieuwe bestanden.
+
+Aandachtspunten (niet blokkerend, ter info voor eventuele vervolgronde):
+- [info] Bij het indienen van een plek/gebouw-vraag (`person_query_page.dart:_submit`) blijft het
+  scherm op `start` staan totdat de (max. 2s) synchrone aanroep terugkomt — er is geen tussentijds
+  laad-/wachtscherm zoals bij de persoonsroute (`liveSearch`). Niet door de AC's vereist (de route is
+  bewust synchroon), maar UX-technisch kan dit tot 2 seconden zonder zichtbare feedback aanvoelen.
+- [info] `PlaceSearchWikidataClient.evaluateHeemskerkMatch` haalt de "één-niveau-doorverwezen"
+  P131-entiteit op via een rechtstreekse `fetchEntity`-aanroep buiten `PlaceSearchService`s
+  `entityCache` om; dat ene opgehaalde record wordt dus niet TTL-gecachet (in tegenstelling tot de
+  overige opgehaalde Wikidata-records). Beperkte impact: uitsluitend relevant bij herhaalde identieke
+  aanvragen binnen de 5-minuten-TTL.
+- [info] De architectuurstijl/architect/erfgoedstatus-labels (P149/P84/P1435) vereisen elk een eigen
+  sequentiële Wikidata-round-trip bovenop de kandidaat-opzoeking; dit is al door de developer zelf
+  gedocumenteerd als operationeel aandachtspunt (agent-tip `live-external-api-round-trip-budget`) en
+  wordt hier bevestigd, geen actie in deze ronde.
+- [info] Geen widget-test rendert de `_ImageGallery`/`_ImageTile` met een niet-lege `images`-lijst
+  (alle screen-tests in `place_screens_test.dart` gebruiken de default lege lijst); de backend-kant
+  van de beeld-pijplijn (dedup/max 6/P373→P18) is wel grondig getest. Niet AC-blokkerend, wel een
+  kleine hiaat in de frontend-testdekking van het specifiek genoemde "beeldgalerij met per-afbeelding
+  licentiebadge"-onderdeel.
+
+Oordeel: akkoord, geen blockers.
