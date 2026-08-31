@@ -102,4 +102,66 @@ void main() {
       expect(result.lastName, 'Beentjes');
     },
   );
+
+  test('herkent de voorbeeldvraag "Wat is Kasteel Assumburg?" als '
+      'plek/gebouw-zoekterm', () {
+    final result = interpreter.interpret('Wat is Kasteel Assumburg?');
+
+    expect(result.hasPlaceCandidate, isTrue);
+    expect(result.placeCandidate, 'Kasteel Assumburg');
+  });
+
+  test('herkent een landmark-trefwoord ná de naam', () {
+    final result = interpreter.interpret('Wat is Assumburg Kasteel?');
+
+    expect(result.hasPlaceCandidate, isTrue);
+    expect(result.placeCandidate, 'Assumburg Kasteel');
+  });
+
+  test(
+    'landmark-trefwoord naast een naam met "Heemskerk" ertussen verwijderd',
+    () {
+      final result = interpreter.interpret(
+        'Wat is Kasteel Assumburg in Heemskerk?',
+      );
+
+      expect(result.hasPlaceCandidate, isTrue);
+      expect(result.placeCandidate, 'Kasteel Assumburg');
+    },
+  );
+
+  test('een landmark-trefwoord zonder aangrenzend hoofdletterwoord levert '
+      'geen plek/gebouw-kandidaat op', () {
+    final result = interpreter.interpret('Wat is een kasteel?');
+
+    expect(result.hasPlaceCandidate, isFalse);
+    expect(result.placeCandidate, isNull);
+  });
+
+  test('landmark-herkenning krijgt voorrang op persoonsherkenning wanneer '
+      'beide zouden kunnen matchen', () {
+    final result = interpreter.interpret('Wat is Kasteel Assumburg?');
+
+    expect(result.hasPlaceCandidate, isTrue);
+    expect(result.hasRecognizedName, isTrue);
+    expect(result.placeCandidate, 'Kasteel Assumburg');
+  });
+
+  test('zonder landmark-trefwoord blijft het bestaande persoonsgedrag '
+      'ongewijzigd (>=2 opeenvolgende hoofdletterwoorden)', () {
+    final result = interpreter.interpret(
+      'Wie was Nicolaas Jacobus Sinnige, geboren in 1878?',
+    );
+
+    expect(result.hasPlaceCandidate, isFalse);
+    expect(result.hasRecognizedName, isTrue);
+  });
+
+  test('een vraag zonder naam en zonder landmark-kandidaat levert geen van '
+      'beide op', () {
+    final result = interpreter.interpret('Wat gebeurde er in Heemskerk?');
+
+    expect(result.hasPlaceCandidate, isFalse);
+    expect(result.hasRecognizedName, isFalse);
+  });
 }

@@ -36,6 +36,15 @@ bestaande homepage (`main.dart`, naar het patroon van de bestaande "Lees onze pr
   herkennen). Resultaat is het immutable `PersonQueryInterpretation`-record met naam-, jaar- en
   gebeurtenistype-kandidaten en de drie Heemskerk-vlaggen (`heemskerkMentioned`,
   `heemskerkUnambiguousPlace`, `heemskerkAmbiguous`).
+- Diezelfde `interpret`-aanroep herkent ook een plek/gebouw-kandidaat voor de `placesearch`-route
+  hieronder: op een apart genormaliseerde tekst (na vraagwoorden/functiewoorden, met "Heemskerk"
+  hier wél onvoorwaardelijk verwijderd — in tegenstelling tot de naam-normalisatie) zoekt
+  `_findPlaceCandidate` een landmark-trefwoord uit de vaste `_landmarkWords`-set (`kasteel, kerk,
+  molen, toren, gemaal, station, brug, huis, hof, plein, sluis, kapel, klooster`) direct naast
+  minstens één hoofdletterwoord. Het resultaat komt op `PersonQueryInterpretation.placeCandidate`/
+  `hasPlaceCandidate` en krijgt in `person_query_page.dart` voorrang op de persoonsroute; zonder
+  landmark-trefwoord blijft de bestaande naamherkenning (≥2 opeenvolgende hoofdletterwoorden)
+  bepalend.
 - `wikidata_meaning_client.dart` bevat de vaste QID's (`WikidataMeaningIds.place` = `Q9926`,
   `WikidataMeaningIds.surname` = `Q91564725`), de injecteerbare `WikidataMeaningSource`-interface
   (zodat widgettests nooit een echte Wikidata-aanroep doen) en `WikidataMeaningClient`, die eerst
@@ -208,6 +217,98 @@ andere modules, ook niet op `auth` — opgenomen in de moduleset van `ModulithAr
   verwijderde/verlopen job (404 op de statusaanvraag) toont `_JobUnavailableScreen` een duidelijke
   niet-meer-beschikbaar-melding met een aanbod om de vraag opnieuw in te dienen, in plaats van een
   oud antwoord als actuele uitkomst.
+
+## Backendmodule `placesearch`
+
+De plek/gebouw-vraag over Heemskerk zit in de zelfstandige Spring Modulith-module
+`nl.vdzon.hkh.placesearch` (inclusief de subpackage `placesearch.api`), met `package-info.java` en
+`@ApplicationModule(allowedDependencies = {})` — geen afhankelijkheid op andere modules, ook niet op
+`personsearch` — opgenomen in de moduleset van `ModulithArchitectureTest`. Anders dan `personsearch`
+gebruikt deze route geen sessiegebonden achtergrondjob-infrastructuur (QUEUED/RUNNING-polling): één
+synchrone request/response-aanroep binnen een harde totale deadline volstaat.
+
+- `POST /api/place-search` (`PlaceSearchController`) neemt per verzoek precies één herkende
+  `candidateTerm` in (leeg/ontbrekend geeft HTTP 400 met `fieldErrors: ["candidateTerm"]`) en voert
+  de Wikidata-/Commons-zoekopdracht synchroon in dezelfde requestthread uit. De respons
+  (`PlaceSearchApiResponse`) bevat `status` (`READY` bij precies 1 match, `NO_MATCH` bij 0 of >1
+  match, `OUTAGE` bij een Wikidata-fout/timeout/budgetoverschrijding), de opgegeven `candidateTerm`
+  en, afhankelijk van de uitkomst, `answer` (zinnen met bronverwijzingen, genummerde bronnen,
+  beeldgalerij, `commonsOutage`-vlag en disclaimer) of `refinementCandidates` (kandidaatlabels bij
+  `NO_MATCH` met meer dan één treffer).
+- `PlaceSearchExecutorConfiguration` levert een eigen, kleine `placeSearchExecutor`-bean
+  (`Executors.newFixedThreadPool(2)`, met een expliciete `@Qualifier("placeSearchExecutor")` op de
+  constructor-parameter). `PlaceSearchService.search` dient de zoekopdracht in op die executor en
+  wacht met `Future.get(deadlineMillis, MILLISECONDS)` (`PLACE_SEARCH_DEADLINE_MILLIS = 2000`) op een
+  terminale uitkomst; een timeout annuleert de future en levert fail-closed
+  `PlaceSearchOutcome.WikidataOutage` op, net als elke andere onverwachte fout. Het toevoegen van
+  deze tweede `ExecutorService`-bean botste initieel met de bestaande, gelijknamige
+  `executor`-constructorparameter van `personsearch.PersonSearchService` (`NoUniqueBeanDefinitionException`
+  bij het opstarten van de volledige Spring-context); opgelost met een expliciete `@Qualifier` op
+  beide services, inclusief een kleine, noodzakelijke wijziging in `PersonSearchService.kt`.
+- `PlaceSearchWikidataClient` doet `GET /w/api.php?action=wbsearchentities&search=<term>&language=nl
+  &type=item&format=json&limit=5` en haalt per teruggekomen QID live `GET
+  /wiki/Special:EntityData/{qid}.json` op, naar het patroon van de bestaande
+  `WikidataPersonSearchContextClient`. `evaluateHeemskerkMatch` telt een kandidaat alleen mee bij
+  P131 (`entityIds("P131")`) gelijk aan `PLACE_SEARCH_HEEMSKERK_QID` (`Q9926`) — direct, of via één
+  extra `fetchEntity`-aanroep op de P131-waarde zelf (één niveau doorverwezen) — óf bij P625-
+  coördinaten binnen een vaste, in codecommentaar gedocumenteerde bounding box
+  (`HEEMSKERK_MIN/MAX_LATITUDE/LONGITUDE`, eigen geometrische aanname, geen officiële
+  Wikidata-geometrie). Er wordt bewust geen SPARQL/Query Service-aanroep gedaan. De doorverwezen
+  P131-entiteit wordt buiten `PlaceSearchService.entityCache` om opgehaald en dus niet TTL-gecachet.
+- `PlaceSearchService.performSearch` haalt via `searchCandidateIds` (begrensd tot 5) en per QID
+  `getCachedEntity` de kandidaten op, filtert op Heemskerk-lidmaatschap en levert bij precies 1
+  overblijvende match een `PlaceEntityFacts` (label, description, P571-oprichtingsjaar,
+  P149-architectuurstijl-, P84-architect- en P1435-erfgoedstatuslabel — elk via een eigen,
+  sequentiële `resolveCachedLabel`-Wikidata-round-trip — en het municipality-label bij een
+  P131-match) op aan `PlaceSearchAnswerBuilder.build`. Bij 0 of >1 match levert
+  `PlaceSearchOutcome.NoMatch` de gevonden kandidaten (QID + label) als verfijningsvoorstel, zonder
+  resultaten van verschillende kandidaten samen te voegen.
+- `PlaceSearchAnswerBuilder` bouwt genummerde antwoordzinnen uit `PlaceEntityFacts`, elk met een
+  eigen `PlaceSearchSourceCitation` (nummer, QID, `wikidataItemLink(qid)`, `checkedAt`) naar hetzelfde
+  QID; de P131-gemeentekoppeling komt als apart `contextSentence` terug. Ontbrekende claims (bv. geen
+  P571) leveren gewoon geen zin op, geen fout.
+- `PlaceSearchCommonsClient` haalt beeldmateriaal op bij Wikimedia Commons: bij een P373-waarde
+  (Commons-categorienaam) `GET /w/api.php?action=query&generator=categorymembers&gcmtitle=Category:
+  <P373>&gcmtype=file&gcmlimit=12&prop=imageinfo&iiprop=url|extmetadata&format=json`; zonder P373
+  maar met een P18-bestandsnaam wordt in plaats daarvan dat ene bestand rechtstreeks opgehaald.
+  Resultaten worden gededupliceerd op bestandsnaam tot maximaal 6 `PlaceSearchImage`
+  (url, fileName, license uit `imageinfo.extmetadata.LicenseShortName.value`, filePageUrl). Ontbreken
+  zowel P373 als P18, of levert de bevraging nul resultaten op, dan is de beeldenlijst leeg — nooit
+  een placeholder- of verzonnen afbeelding. Een mislukte Commons-aanroep (`null` in plaats van een
+  lege lijst) blokkeert het Wikidata-antwoord niet: `PlaceSearchOutcome.SupportedAnswer.commonsOutage`
+  wordt dan `true` en het beeldblok toont "Wikimedia Commons · niet uitgevoerd · afhankelijk van
+  Wikidata", terwijl de rest van het antwoord gewoon getoond wordt.
+- `PlaceSearchCache<K, V>` is een kleine, generieke in-memory TTL-cache (5 minuten, injecteerbare
+  `Clock`) die `PlaceSearchService` gebruikt voor zowel opgehaalde Wikidata-entiteiten
+  (`entityCache`) als Commons-imageinfo-resultaten (`imageCache`, sleutel `category:<naam>` resp.
+  `file:<naam>`); geen structurele database-opslag.
+- `PlaceSearchGzipSupport.kt` bevat een eigen kopie van het gzip-request-interceptorpatroon (de
+  module mag niet op `personsearch` steunen). `PlaceSearchClientConfiguration` volgt het beanpatroon
+  van `PersonSearchClientConfiguration` met twee overschrijfbare basis-URI's:
+  `hkh.placesearch.wikidata-base-url`/`HKH_PLACESEARCH_WIKIDATA_BASE_URL` (standaard
+  `https://www.wikidata.org`) en `hkh.placesearch.commons-base-url`/`HKH_PLACESEARCH_COMMONS_BASE_URL`
+  (standaard `https://commons.wikimedia.org`), uitsluitend zodat tests tegen een lokale fixture
+  kunnen draaien. Elk verzoek gebruikt een beschrijvende User-Agent
+  (`hkh-autopilot-placesearch/1.0`) en vraagt gzip aan.
+- Modeldata (`WikidataEntity`, `WikidataClaim`, `WikidataSnak`, `WikidataDataValue`) gebruikt Jackson
+  3 (`tools.jackson.databind.JsonNode`) voor claimwaarden, net als de rest van het RestClient-gebruik
+  in deze repo — niet Jackson 2 (`com.fasterxml.jackson.databind.*`); de bestaande
+  `com.fasterxml.jackson.annotation.*`-annotaties op de DTO's blijven wel gewoon werken.
+- Frontend: `frontend/lib/placesearch/` bevat `place_search_models.dart`, `place_search_client.dart`
+  (`PlaceSearchSource`/`PlaceSearchClient`, roept `POST /api/place-search` aan) en de drie schermen
+  `place_answer_screen.dart` (`place-answer`: vraagtitel, `checkedAt`, antwoord met genummerde
+  bronmarkeringen, bronbox, beeldgalerij met per-afbeelding licentiebadge, apart gelabeld
+  "Context"-blok), `place_empty_screen.dart` (`place-empty`: "Hiervoor vinden we geen betrouwbare
+  bron" + bronnenstatus + verfijningsvoorstellen bij meerdere kandidaten) en
+  `place_outage_screen.dart` (`place-outage`: "Wikidata is tijdelijk niet geraadpleegd" +
+  afhankelijke Commons-status + retry-actie). Alle drie hergebruiken `person_query_widgets.dart`
+  (`PersonQueryStatusMessage`, `personQueryFocusedButtonStyle`, hetzelfde breakpoint als
+  `personquery`) voor focusrand, statussemantiek en responsive layout. `person_query_page.dart`
+  routeert een herkend `placeCandidate` synchroon naar deze module (geen achtergrondpolling), via een
+  `_LazyPlaceSearchClient` naar het bestaande lazy-client-patroon; het startscherm kreeg een derde
+  voorbeeldvraag ("Wat is Kasteel Assumburg?") en een tweede `_CoverageBadge` ("Wikidata + Wikimedia
+  Commons — plekken, gebouwen en monumenten") naast de bestaande Open Archieven-badge (badgetekst in
+  een `Flexible` om `RenderFlex`-overflow op smalle breedtes te voorkomen).
 
 ## Backendmodule `linkdossier`
 

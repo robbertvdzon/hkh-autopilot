@@ -207,6 +207,70 @@ desktop- en één mobile-uitwerking, bruikbaar zonder horizontaal scrollen bij 3
 
 Buiten scope van deze route: Agent Runtime als uitvoeringsadapter.
 
+## Plek/gebouw-vraag over Heemskerk (gebruikersfrontend + backend)
+
+Naast de persoonsroute herkent dezelfde client-side interpreter (`PersonQueryInterpreter`) ook een
+vraag over een plek, gebouw of monument in Heemskerk, bijvoorbeeld "Wat is Kasteel Assumburg?". Na
+het verwijderen van vraagwoorden en functiewoorden/lidwoorden wordt voor dit pad ook het losstaande
+woord "Heemskerk" onvoorwaardelijk verwijderd (in tegenstelling tot de naam-normalisatie). Blijft
+daarna een landmark-trefwoord (`kasteel, kerk, molen, toren, gemaal, station, brug, huis, hof, plein,
+sluis, kapel, klooster`) direct naast minstens één hoofdletterwoord over, dan is dat de plek/gebouw-
+zoekterm (trefwoord + naam). Zonder landmark-trefwoord gelden dezelfde regels als bij personen
+(minimaal twee opeenvolgende hoofdletterwoorden). Een herkend plek/gebouw-kandidaat krijgt voorrang op
+de persoonsroute. Zonder persoonsnaam én zonder plek/gebouw-kandidaat verandert er niets: geen
+aanroep, het bestaande "Hiervoor vinden we geen betrouwbare bron"-gedrag blijft van kracht.
+
+Het startscherm toont een derde voorbeeldvraag ("Wat is Kasteel Assumburg?") en een tweede
+dekkingsbadge ("Wikidata + Wikimedia Commons — plekken, gebouwen en monumenten") naast de bestaande
+Open Archieven-badge.
+
+Een herkend plek/gebouw-kandidaat dient de vraag synchroon in bij `POST /api/place-search`
+(`candidateTerm`), zonder de sessiegebonden achtergrondjob-infrastructuur van de persoonsroute: één
+webrequest wacht een harde totale deadline van 2000 ms op Wikidata (en, indien van toepassing,
+Wikimedia Commons). Server-side: `wbsearchentities` (`language=nl`, `type=item`, `limit=5`) levert
+kandidaat-QID's, waarna per QID live `Special:EntityData` wordt opgehaald. Een kandidaat telt alleen
+mee bij P131 (ligt-in-gemeente-claim, eventueel één niveau doorverwezen) gelijk aan Q9926, of bij
+P625-coördinaten binnen een vaste, in code gedocumenteerde bounding box voor de Heemskerkse
+gemeentegrens (eigen geometrische aanname, geen officiële Wikidata-geometrie). Er wordt nooit een
+SPARQL/Query Service-aanroep gedaan.
+
+Bij precies één match binnen Heemskerk toont de app direct het antwoord, opgebouwd uit label,
+description, P571 (oprichtingsdatum), P149 (architectuurstijl), P84 (architect) en P1435
+(erfgoedstatus) indien aanwezig; de P131-gemeentekoppeling verschijnt als apart gelabelde
+"Context"-zin. Elke feitelijke zin krijgt een genummerde bronmarkering met QID, link naar
+`https://www.wikidata.org/wiki/{QID}` en `checkedAt`. Bij nul of meer dan één match construeert de
+app geen antwoord en toont "Hiervoor vinden we geen betrouwbare bron"; bij meer dan één match worden
+de gevonden kandidaatnamen (labels) als verfijningsvoorstel getoond, zonder resultaten van
+verschillende kandidaten samen te voegen.
+
+Voor het gevonden item wordt beeldmateriaal opgehaald bij Wikimedia Commons: P373 (Commons-
+categorienaam) indien aanwezig, anders P18 (afbeeldingsbestand) rechtstreeks van het item. Er worden
+maximaal 6 gededupliceerde afbeeldingen getoond (dedupliceer op bestandsnaam), elk met de directe
+bestands-URL, licentie en link naar de Commons-bestandspagina. Ontbreekt categorie/P18, of levert de
+bevraging nul resultaten op, dan toont het scherm een leeg beeldblok — nooit een placeholder- of
+verzonnen afbeelding.
+
+Bij een niet-2xx-status, time-out, ongeldige JSON of ontbrekend verplicht veld voor Wikidata toont de
+app "Wikidata is tijdelijk niet geraadpleegd" zonder enige claim. Faalt uitsluitend Commons (Wikidata
+was wel geldig), dan toont het beeldblok "Wikimedia Commons · niet uitgevoerd · afhankelijk van
+Wikidata" terwijl de rest van het Wikidata-antwoord gewoon getoond wordt; `place-outage` biedt een
+retry-actie. Elk opgehaald Wikidata-record en elke Commons-imageinfo-respons wordt uitsluitend
+kortstondig gecachet (in-memory met TTL, geen structurele database-opslag) met zichtbare `checkedAt`
+op het scherm.
+
+Gecontroleerd voorbeeld: voor "Wat is Kasteel Assumburg?" herkent de interpretatie de zoekterm
+"Kasteel Assumburg", levert Wikidata precies één match op (QID `Q1967073`), en toont het antwoord
+minimaal de gemeentekoppeling (P131) en het rijksmonumentstatus-gegeven (P1435), elk met eigen
+genummerde bronverwijzing, plus 6 gededupliceerde Commons-afbeeldingen.
+
+De drie nieuwe schermtoestanden (`place-answer`, `place-empty`, `place-outage`) zijn, samen met het
+bijgewerkte startscherm, volledig bedienbaar met Tab/Shift+Tab/Enter, tonen zichtbare
+toetsenbordfocus en statusinformatie die niet uitsluitend op kleur steunt, en zijn op 320 CSS-pixels
+breedte (desktop- én mobile-variant per toestand) volledig bruikbaar zonder horizontaal scrollen.
+
+Buiten scope van deze route: SPARQL/Query Service, sessie- of achtergrondjob-infrastructuur, en
+wijzigingen aan `frontend-admin`.
+
 ## Koppelingsdossier (backend)
 
 Een koppelingsdossier legt vast dat één HKH-record bij één extern record hoort. Het bestaat uit exact
@@ -421,6 +485,18 @@ de status-poll-, stop- en openmethodes; `person_query_page_test.dart` dekt de do
 een succesvolle indiening, de overgang naar `background-search`/`search-ready`, het hervatten van
 niet-terminale of nog niet geopende `READY`-jobs na (gesimuleerde) navigatie/herlading, en de
 niet-meer-beschikbaar-melding met opnieuw-indienen-aanbod.
+
+De plek/gebouw-vraag over Heemskerk is gedekt met Dart-interpreter-unittests (landmark-herkenning
+inclusief "Wat is Kasteel Assumburg?", voorrang op de persoonsroute, en negatieve gevallen zonder
+landmark-trefwoord) en met backend unit-, service- en controllertests (`PlaceSearchAnswerBuilderTest`,
+`PlaceSearchCacheTest`, `PlaceSearchServiceTest`, `PlaceSearchControllerTest`) tegen embedded
+HTTP-fixtures voor zowel Wikidata als Commons: 0/1/>1-matches, P131-doorverwijzing, P625-filter
+binnen/buiten de bounding box, het P373- en P18-pad, een geïsoleerde Commons-fout, een Wikidata-fout/
+ongeldige JSON en het overschrijden van het 2000ms-budget. Flutter-widgettests (`place_screens_test.dart`)
+dekken de drie nieuwe schermen (inhoud, Tab/Enter-bediening, 320px zonder overloop);
+`place_search_client_test.dart` dekt de HTTP-client, en `person_query_page_test.dart` dekt de
+routering (landmark-voorrang, `place-empty` met verfijningsvoorstellen, `place-outage` met
+retry-actie). Geen enkele test roept een echt Wikidata- of Wikimedia Commons-endpoint aan.
 
 Widgettests dekken alle statusvarianten, aantallen en labels van statusnodes, afwezigheid van
 focusacties, lees- en Tab-volgorde, focusweergave en activatie met beide toetsen. Een tester voert de

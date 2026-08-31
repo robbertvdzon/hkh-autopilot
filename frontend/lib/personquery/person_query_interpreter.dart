@@ -13,6 +13,7 @@ class PersonQueryInterpretation {
     required this.heemskerkMentioned,
     required this.heemskerkUnambiguousPlace,
     required this.heemskerkAmbiguous,
+    this.placeCandidate,
   });
 
   /// Voornaam-kandidaat: het eerste woord van de herkende opeenvolgende
@@ -48,6 +49,14 @@ class PersonQueryInterpretation {
   /// Of minstens twee opeenvolgende hoofdletterwoorden zijn overgebleven na
   /// normalisatie, d.w.z. of een persoonsnaam herkend is.
   bool get hasRecognizedName => firstName != null && lastName != null;
+
+  /// Plek/gebouw-zoekterm (trefwoord + naam, bv. "Kasteel Assumburg"), `null`
+  /// wanneer geen landmark-trefwoord direct naast een hoofdletterwoord is
+  /// herkend. Heeft voorrang op [hasRecognizedName] wanneer beide gevonden
+  /// zouden worden: de vraag gaat dan naar de plek/gebouw-route.
+  final String? placeCandidate;
+
+  bool get hasPlaceCandidate => placeCandidate != null;
 }
 
 /// Past de exacte, deterministische drie-staps verwijderregel uit de story toe
@@ -105,6 +114,25 @@ class PersonQueryInterpreter {
 
   static const _eventTypeWords = {'geboorte', 'huwelijk', 'overlijden', 'doop'};
 
+  /// Landmark-trefwoorden voor de plek/gebouw-route: direct naast minstens
+  /// één hoofdletterwoord vormen ze samen de plek/gebouw-zoekterm en krijgen
+  /// voorrang op de persoonsherkenning.
+  static const _landmarkWords = {
+    'kasteel',
+    'kerk',
+    'molen',
+    'toren',
+    'gemaal',
+    'station',
+    'brug',
+    'huis',
+    'hof',
+    'plein',
+    'sluis',
+    'kapel',
+    'klooster',
+  };
+
   static final RegExp _heemskerkWordPattern = RegExp(
     r'\bHeemskerk\b',
     caseSensitive: false,
@@ -159,6 +187,22 @@ class PersonQueryInterpreter {
     final heemskerkAmbiguous =
         heemskerkMentioned && !heemskerkUnambiguousPlace && name != null;
 
+    // Plek/gebouw-herkenning: dezelfde vraagwoorden-/functiewoorden-/vaste-
+    // lijst-verwijdering, maar met het losstaande woord "Heemskerk"
+    // onvoorwaardelijk verwijderd (in tegenstelling tot de naamherkenning
+    // hierboven, waar dat afhangt van de disambiguatie).
+    var placeWorking = rawQuery;
+    placeWorking = _stripWords(placeWorking, _questionWords);
+    placeWorking = _stripWords(placeWorking, _functionWords);
+    placeWorking = _stripWords(placeWorking, _fixedContextWords);
+    placeWorking = placeWorking.replaceAll(_heemskerkWordPattern, ' ');
+    final placeTokens = placeWorking
+        .split(RegExp(r'\s+'))
+        .map((token) => token.replaceAll(_wordTrimPattern, ''))
+        .where((token) => token.isNotEmpty)
+        .toList(growable: false);
+    final placeCandidate = _findPlaceCandidate(placeTokens);
+
     return PersonQueryInterpretation(
       firstName: name?.$1,
       lastName: name?.$2,
@@ -167,7 +211,41 @@ class PersonQueryInterpreter {
       heemskerkMentioned: heemskerkMentioned,
       heemskerkUnambiguousPlace: heemskerkUnambiguousPlace,
       heemskerkAmbiguous: heemskerkAmbiguous,
+      placeCandidate: placeCandidate,
     );
+  }
+
+  /// Zoekt een landmark-trefwoord dat direct naast minstens één
+  /// hoofdletterwoord staat en bouwt de plek/gebouw-zoekterm (trefwoord +
+  /// naam) in de oorspronkelijke tokenvolgorde, bv. "Kasteel Assumburg".
+  String? _findPlaceCandidate(List<String> tokens) {
+    for (var i = 0; i < tokens.length; i++) {
+      if (!_landmarkWords.contains(tokens[i].toLowerCase())) continue;
+
+      var leftStart = i;
+      while (leftStart > 0 && _isCapitalizedWord(tokens[leftStart - 1])) {
+        leftStart--;
+      }
+      var rightEnd = i;
+      while (rightEnd < tokens.length - 1 &&
+          _isCapitalizedWord(tokens[rightEnd + 1])) {
+        rightEnd++;
+      }
+      if (leftStart == i && rightEnd == i) continue;
+
+      final parts = [
+        ...tokens.sublist(leftStart, i),
+        _titleCase(tokens[i]),
+        ...tokens.sublist(i + 1, rightEnd + 1),
+      ];
+      return parts.join(' ');
+    }
+    return null;
+  }
+
+  String _titleCase(String token) {
+    if (token.isEmpty) return token;
+    return token[0].toUpperCase() + token.substring(1).toLowerCase();
   }
 
   (String, String)? _findRecognizedName(List<String> tokens) {
