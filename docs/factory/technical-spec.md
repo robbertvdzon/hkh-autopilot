@@ -45,6 +45,23 @@ bestaande homepage (`main.dart`, naar het patroon van de bestaande "Lees onze pr
   `hasPlaceCandidate` en krijgt in `person_query_page.dart` voorrang op de persoonsroute; zonder
   landmark-trefwoord blijft de bestaande naamherkenning (≥2 opeenvolgende hoofdletterwoorden)
   bepalend.
+- Als derde en laatste herkenningstak bepaalt `interpret` ook een onderwerp/voorwerp/gebeurtenis-
+  vangnetzoekterm, maar uitsluitend wanneer noch een naam- noch een plek/gebouw-kandidaat is
+  gevonden (`name == null && placeCandidate == null`). De helper `_findTopicSearchTerm` werkt
+  token-voor-token op de ORIGINELE, niet-genormaliseerde tekst (in plaats van op de door
+  `_stripWords` geproduceerde string, die de tekstposities niet behoudt): per whitespace-token
+  bepaalt ze of dat token verwijderd zou worden door `_questionWords`, `_functionWords`,
+  `_fixedContextWords` of de onvoorwaardelijke "Heemskerk"-verwijdering (zoals bij de plek/gebouw-
+  route). `_functionWords` is voor deze story uitgebreid met de generieke connectiewoorden "we",
+  "weten" en "over". Blijft na deze verwijdering minstens één overgebleven woord van drie letters of
+  langer over dat geen landmark-trefwoord is, dan is er een kandidaat; `topicSearchTerm` wordt dan
+  gevuld met de aaneengesloten tekstspanne uit de oorspronkelijke vraag (originele spelling/
+  hoofdlettergebruik/spatiëring) die loopt van het eerste tot het laatste overgebleven woord,
+  inclusief eventuele daartussen gelegen woorden die zelf wél verwijderd zouden zijn (zoals een
+  voorzetsel). Zonder kandidaat blijft `PersonQueryInterpretation.topicSearchTerm` `null`. Dit veld
+  is puur bedoeld als invoer voor een latere vervolgstory (Europeana-bronraadpleging); er wordt hier
+  geen enkele externe aanroep gedaan en `person_query_page.dart` leest het veld nog niet uit, dus het
+  bestaande "geen betrouwbare bron"-gedrag blijft ongewijzigd.
 - `wikidata_meaning_client.dart` bevat de vaste QID's (`WikidataMeaningIds.place` = `Q9926`,
   `WikidataMeaningIds.surname` = `Q91564725`), de injecteerbare `WikidataMeaningSource`-interface
   (zodat widgettests nooit een echte Wikidata-aanroep doen) en `WikidataMeaningClient`, die eerst
