@@ -164,4 +164,53 @@ void main() {
     expect(result.hasPlaceCandidate, isFalse);
     expect(result.hasRecognizedName, isFalse);
   });
+
+  test(
+    'herkent de autoritatieve onderwerp-vangnet-voorbeeldvraag over de '
+    'watersnood van 1916 in Heemskerk',
+    () {
+      final result = interpreter.interpret(
+        'Wat weten we over de watersnood van 1916 in Heemskerk?',
+      );
+
+      expect(result.hasRecognizedName, isFalse);
+      expect(result.hasPlaceCandidate, isFalse);
+      expect(result.topicSearchTerm, 'watersnood van 1916');
+    },
+  );
+
+  test(
+    'geen onderwerp-vangnet-herkenning wanneer al een naam gevonden is',
+    () {
+      final result = interpreter.interpret(
+        'Wie was Nicolaas Jacobus Sinnige, geboren in 1878?',
+      );
+
+      expect(result.hasRecognizedName, isTrue);
+      expect(result.topicSearchTerm, isNull);
+    },
+  );
+
+  test(
+    'geen onderwerp-vangnet-herkenning wanneer al een plek/gebouw-kandidaat '
+    'gevonden is',
+    () {
+      final result = interpreter.interpret('Wat is Kasteel Assumburg?');
+
+      expect(result.hasPlaceCandidate, isTrue);
+      expect(result.topicSearchTerm, isNull);
+    },
+  );
+
+  test(
+    'onderwerp-vangnet levert geen kandidaat op wanneer alleen een '
+    'landmark-trefwoord overblijft',
+    () {
+      final result = interpreter.interpret('Is het een kerk?');
+
+      expect(result.hasRecognizedName, isFalse);
+      expect(result.hasPlaceCandidate, isFalse);
+      expect(result.topicSearchTerm, isNull);
+    },
+  );
 }
