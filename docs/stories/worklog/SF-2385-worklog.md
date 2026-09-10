@@ -71,3 +71,45 @@ Done / rationale:
 - Volledig vangnet (`docs/factory/development.md`) uitgevoerd en groen: backend `mvn clean verify`,
   frontend `flutter analyze`/`flutter test`/`flutter build web`, frontend-admin `flutter analyze`/
   `flutter test` (frontend-admin is niet gewijzigd door deze story).
+
+## SF-2387 - Testnotities (tester)
+
+- Volledig verplicht vangnet opnieuw uitgevoerd in de sandbox, alles groen:
+  `backend: mvn -B --no-transfer-progress clean verify` → BUILD SUCCESS, 321 tests, 0
+  failures/errors (incl. de 29 nieuwe `topicsearch`-tests); `frontend: flutter analyze` → geen
+  issues; `frontend: flutter test -j 1` → 125 tests, alle geslaagd (incl.
+  `test/topicsearch/topic_screens_test.dart`, `topic_search_client_test.dart` en de nieuwe
+  routeringstests in `person_query_page_test.dart`); `frontend: flutter build web` → geslaagd;
+  `frontend-admin: flutter analyze` en `flutter test` → geen issues, 22 tests geslaagd
+  (frontend-admin ongewijzigd door deze story).
+- Geen open PR/preview-omgeving beschikbaar voor deze branch (nog niet gepusht, geen
+  `gh`-authenticatie in deze sandbox) en geen Docker-CLI beschikbaar om de volledige stack lokaal
+  te draaien (bekende sandboxbeperking, zie eerdere agent-tips); gedragsverificatie is daarom
+  gedaan op code- en live-API-niveau in plaats van via de preview-URL.
+- Live curl tegen de publieke Europeana Record/Search v2-API (met de publieke demo-key `api2demo`,
+  uitsluitend ad-hoc voor deze verificatie gebruikt, nergens opgeslagen of gecommit) bevestigt dat
+  het werkelijke response-schema exact overeenkomt met `EuropeanaItemDto`
+  (`ArchivesEuropeanaClient.kt`): top-level `title`/`dcDescription`/`dataProvider`/
+  `edmIsShownAt`/`guid`/`rights` zijn aanwezig zoals gemodelleerd, in tegenstelling tot eerdere
+  schema-mismatches die in andere routes van deze repo zijn gevonden. Een live item met
+  `rights=["http://creativecommons.org/publicdomain/mark/1.0/"]` en een ander met
+  `rights=["http://creativecommons.org/licenses/by-sa/4.0/"]` bevestigen dat
+  `deriveTopicSearchLicenseBadge` deze respectievelijk correct naar "Publiek domein" en "CC BY-SA"
+  vertaalt, exact conform de story-AC-voorbeelden.
+- Live curl van de voorbeeldvraag-query (`watersnood van 1916 AND Heemskerk`, `rows=8`,
+  `profile=rich`, `wskey=api2demo`) levert momenteel 0 Europeana-items op met de gedeelde
+  demo-key. Dit blokkeert de oplevering niet: de story markeert het aanvragen/invullen van een
+  echte, projectspecifieke `HKH_EUROPEANA_API_KEY` expliciet als operationele taak buiten de code
+  (zie Aannames), en de fail-closed afhandeling van een ontbrekende/lege key (config-fout →
+  zelfde uitkomst als storing) is wél backend-testdekkend geverifieerd. De uiteindelijke live AC
+  voor deze voorbeeldvraag kan pas na provisioning van de echte key op acceptatie/productie
+  definitief herbevestigd worden.
+- Code-inspectie bevestigt verder: startscherm bevat de nieuwe derde dekkingsbadge
+  (`coverage-badge-europeana`, tekst "Europeana — archieven, musea, kranten en beeldbanken") en de
+  bijgewerkte voorbeeldvraag; `topic_empty_screen.dart`/`topic_outage_screen.dart` gebruiken de
+  exact vereiste statusteksten; secrets-example-bestanden bevatten geen echte key en documenteren
+  het fail-closed-gedrag; `TopicSearchCache`/`TopicSearchService` cachen nooit een mislukte
+  raadpleging (`getOrPut` slaat `null` niet op), dus een tijdelijke Europeana-storing blokkeert een
+  volgende retry niet blijvend.
+- Geen bugs gevonden t.o.v. de story-AC's. Geen screenshots gemaakt (geen browser/preview-tool
+  beschikbaar in deze sandbox, zelfde beperking als eerder gedocumenteerd).
