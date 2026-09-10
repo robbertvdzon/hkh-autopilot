@@ -137,6 +137,28 @@ structural database storage. Configuration and behavior are documented in
 [factory/technical-spec.md](factory/technical-spec.md) and
 [factory/secrets-local.md](factory/secrets-local.md).
 
+`nl.vdzon.hkh.topicsearch` exposes `POST /api/topic-search`, the synchronous search-and-answer route
+for a recognized topic/object/event question (e.g. "Wat weten we over de watersnood van 1916 in
+Heemskerk?"). Like `placesearch`, it has no session-scoped background job infrastructure: a single
+request runs within a hard 2000ms total deadline (`TopicSearchService`, its own
+`topicSearchExecutor` bean plus `Future.get(timeout)`). `RestClientArchivesEuropeanaClient` calls the
+Europeana Record/Search API v2 (`query='<topicSearchTerm> AND Heemskerk'`, `rows=8`,
+`profile=rich`, `HKH_EUROPEANA_API_KEY`); a missing/blank key is treated fail-closed as a
+configuration error with the same outcome as a real outage. A result only counts as a valid record
+when it has a title or description, a `dataProvider`, and a valid source reference (`edmIsShownAt`,
+otherwise the Europeana record itself via `guid`); records missing any of these are ignored, also for
+the shown total. Each valid record's rights URL is deterministically mapped to a readable license
+badge (`TopicSearchRecordMapper`: public domain, the exact CC variant, rights-reserved, or unknown).
+`TopicSearchWikidataContextClient` builds a separate "Context" block only when exactly one
+`wbsearchentities` candidate (`language=nl`) matches; zero or more than one candidate omits the block,
+and a Wikidata failure never blocks the Europeana results. Zero valid records (Europeana reachable)
+yields `EMPTY` with refinement suggestions; any non-2xx status, timeout or invalid JSON from Europeana
+(or the missing-key configuration error) yields fail-closed `OUTAGE`, with no claim constructed.
+Validated record lists are cached in-memory only, with a 30-minute TTL (`TopicSearchCache`) — no
+structural database storage. Configuration and behavior are documented in
+[factory/technical-spec.md](factory/technical-spec.md) and
+[factory/secrets-local.md](factory/secrets-local.md).
+
 ## User frontend
 
 The user application supports Flutter web and Android. It uses `http://localhost:8080` as its
@@ -180,6 +202,16 @@ candidate is submitted synchronously (no polling) to `lib/placesearch/` (`PlaceS
 /api/place-search`), switching between the `place-answer`, `place-empty` and `place-outage` screens
 based on the response, each reusing `person_query_widgets.dart` for focus/status styling and each
 with a desktop and mobile layout.
+
+As a last-resort fallback, when neither the person nor the place/building rule yields a candidate,
+`PersonQueryInterpreter.interpret` also recognizes a topic/object/event search term
+(`topicSearchTerm`), stripping question/function words and the standalone word "Heemskerk"
+unconditionally. A recognized term is submitted synchronously to `lib/topicsearch/`
+(`TopicSearchClient`, `POST /api/topic-search`), switching between the `topic-results`, `topic-empty`
+and `topic-outage` screens based on the response, each reusing `person_query_widgets.dart` and each
+with a desktop and mobile layout. The start screen shows a fourth example question about an event and
+a third coverage badge ("Europeana — archieven, musea, kranten en beeldbanken") next to the existing
+badges.
 
 Run the frontend checks with:
 

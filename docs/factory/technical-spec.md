@@ -327,6 +327,88 @@ synchrone request/response-aanroep binnen een harde totale deadline volstaat.
   Commons — plekken, gebouwen en monumenten") naast de bestaande Open Archieven-badge (badgetekst in
   een `Flexible` om `RenderFlex`-overflow op smalle breedtes te voorkomen).
 
+## Backendmodule `topicsearch`
+
+De onderwerp/voorwerp/gebeurtenis-vraag over Heemskerk zit in de zelfstandige Spring
+Modulith-module `nl.vdzon.hkh.topicsearch` (inclusief de subpackage `topicsearch.api`), met
+`package-info.java` en `@ApplicationModule(allowedDependencies = {})` — geen afhankelijkheid op
+andere modules, dus een eigen kopie van het gzip-interceptorpatroon (`TopicSearchGzipSupport.kt`) —
+opgenomen in de moduleset van `ModulithArchitectureTest`. Net als `placesearch` gebruikt deze route
+geen sessiegebonden achtergrondjob-infrastructuur: één synchrone request/response-aanroep binnen een
+harde totale deadline volstaat.
+
+- `POST /api/topic-search` (`TopicSearchController`) neemt per verzoek precies één `topicSearchTerm`
+  in (leeg/ontbrekend geeft HTTP 400 met `fieldErrors: ["topicSearchTerm"]`) en voert de
+  Europeana-/Wikidata-zoekopdracht synchroon uit. De respons (`TopicSearchApiResponse`) bevat
+  `status` (`READY` bij >=1 geldig record, `EMPTY` bij 0 geldige records, `OUTAGE` bij een
+  Europeana-fout/timeout/budgetoverschrijding/configuratiefout), de opgegeven `topicSearchTerm` en,
+  afhankelijk van de uitkomst, `answer` (records, optioneel `context`-blok en `checkedAt`) of
+  `refinementSuggestions`.
+- `TopicSearchExecutorConfiguration` levert een eigen `topicSearchExecutor`-bean
+  (`Executors.newFixedThreadPool(2)`, `@Qualifier("topicSearchExecutor")`, naar hetzelfde patroon als
+  `placeSearchExecutor`). `TopicSearchService.search` dient de zoekopdracht in op die executor en
+  wacht met `Future.get(deadlineMillis, MILLISECONDS)` (`TOPIC_SEARCH_DEADLINE_MILLIS = 2000`) op een
+  terminale uitkomst; een timeout annuleert de future en levert fail-closed
+  `TopicSearchOutcome.EuropeanaOutage` op, net als elke andere onverwachte fout.
+- `RestClientArchivesEuropeanaClient` (`ArchivesEuropeanaClient`) doet `GET
+  /record/v2/search.json?query=<term>&rows=8&profile=rich&wskey=<apiKey>` op
+  `https://api.europeana.eu`. Een lege/blanco `apiKey` (`HKH_EUROPEANA_API_KEY`) wordt behandeld als
+  configuratiefout — geen aanroep, direct `EuropeanaSearchOutcome.Failure` — net als elke
+  niet-2xx-status of ongeldige JSON. Elk teruggekomen item gaat door
+  `buildTopicSearchRecordOrNull` (`TopicSearchRecordMapper.kt`), dat een record alleen bouwt bij
+  (`title` OF `dcDescription`) EN `dataProvider` EN een geldige bronverwijzing (`edmIsShownAt`, anders
+  `guid`); ontbreekt één van deze, dan is het record `null` en telt het nergens mee, ook niet voor het
+  totaal.
+- `deriveTopicSearchLicenseBadge` (`TopicSearchRecordMapper.kt`) is een deterministische, puur
+  functionele afleiding van de rights-URL naar `TopicSearchLicenseBadge` (tekst + link):
+  `creativecommons.org/publicdomain/mark` → "Publiek domein"; `creativecommons.org/licenses/<variant>`
+  → `"CC " + variant.uppercase()` (bv. "CC BY-SA"); `rightsstatements.org/vocab/InC` → "Rechten
+  voorbehouden"; elke andere, onbekende of ontbrekende rights-URL → "Rechten onbekend" (met de ruwe
+  URL als link waar beschikbaar).
+- `TopicSearchWikidataContextClient` (`TopicSearchWikidataContextSource`) doet `GET
+  /w/api.php?action=wbsearchentities&search=<term>&language=nl&type=item&format=json`, gevolgd door
+  `GET /wiki/Special:EntityData/{qid}.json`, naar het bestaande fail-closed patroon
+  (`PersonSearchWikidataContextClient`/`PlaceSearchWikidataClient`). Anders dan die twee clients telt
+  hier de kandidaatcardinaliteit mee: `fetchContext` bouwt een `TopicSearchContext` (label,
+  description, met een `nl`→`en`-labelfallback) alleen bij precies één `wbsearchentities`-kandidaat;
+  bij nul, meer dan één kandidaat, of elke fout levert het `null` op zonder de Europeana-resultaten te
+  blokkeren.
+- `TopicSearchService.performSearch` bouwt eerst de query (`"$topicSearchTerm AND Heemskerk"`), haalt
+  de gevalideerde records op (via de cache, zie hieronder) en levert bij een lege cache-loaduitkomst
+  `TopicSearchOutcome.EuropeanaOutage`. Bij een lege recordlijst volgt
+  `TopicSearchOutcome.Empty(checkedAt, refinementSuggestions)` met drie vaste, generieke
+  verfijningsvoorstellen. Bij minstens 1 record wordt de Wikidata-contextaanroep gedaan (binnen een
+  `try/catch` die elke fout naar `null` afvangt) en levert `TopicSearchOutcome.Ready` het volledige
+  `TopicSearchAnswer` (records, `context`, `checkedAt`) op.
+- `TopicSearchCache<K, V>` is een kleine, generieke in-memory TTL-cache (30 minuten, injecteerbare
+  `Clock`), een eigen kopie naar het patroon van `PlaceSearchCache` (deze module mag niet op
+  `placesearch` steunen). `TopicSearchService` cachet uitsluitend reeds gevalideerde recordlijsten op
+  de opgebouwde query-string; een mislukte raadpleging (`loader() == null`) wordt nooit gecachet, dus
+  een volgende aanroep probeert opnieuw. Europeana blijft altijd de bron van waarheid: de getoonde
+  `checkedAt` is nooit een verwijzing naar de cache zelf.
+- `TopicSearchClientConfiguration` volgt het beanpatroon van `PlaceSearchClientConfiguration` met
+  twee overschrijfbare basis-URI's: `hkh.topicsearch.europeana-base-url`/
+  `HKH_TOPICSEARCH_EUROPEANA_BASE_URL` (standaard `https://api.europeana.eu`) en
+  `hkh.topicsearch.wikidata-base-url`/`HKH_TOPICSEARCH_WIKIDATA_BASE_URL` (standaard
+  `https://www.wikidata.org`), uitsluitend zodat tests tegen een lokale fixture kunnen draaien. De
+  Europeana-API-key komt uitsluitend uit `HKH_EUROPEANA_API_KEY` (geen modulespecifieke prefix,
+  zodat productie/acceptatie hetzelfde secretpatroon volgen als `deploy/secrets-cluster.env`/
+  `deploy/secrets-acceptance.env`); de gedeelde testkey `api2demo` staat nergens gecommit. Elk verzoek
+  gebruikt een beschrijvende User-Agent (`hkh-autopilot-topicsearch/1.0`) en vraagt gzip aan.
+- Frontend: `frontend/lib/topicsearch/` bevat `topic_search_models.dart`, `topic_search_client.dart`
+  (`TopicSearchSource`/`TopicSearchClient`, roept `POST /api/topic-search` aan) en de drie schermen
+  `topic_results_screen.dart` (`topic-results`: onderwerptitel, `checkedAt`, aantal gevonden items,
+  raster met per-record kaartjes met titel/dataProvider/licentiebadge/link, apart gelabeld
+  "Context"-blok indien aanwezig), `topic_empty_screen.dart` (`topic-empty`: "Hiervoor vinden we geen
+  betrouwbare bron" + bronnenstatus + verfijningsvoorstellen) en `topic_outage_screen.dart`
+  (`topic-outage`: "Europeana is tijdelijk niet geraadpleegd" + bronnenstatus + retry-actie). Alle
+  drie hergebruiken `person_query_widgets.dart` voor focusrand, statussemantiek en responsive layout.
+  `person_query_page.dart` routeert een herkende `topicSearchTerm` (na de plek/gebouw-route, als
+  laatste vangnet) synchroon naar deze module via een `_LazyTopicSearchClient`; het startscherm kreeg
+  een vierde voorbeeldvraag ("Wat weten we over de watersnood van 1916 in Heemskerk?") en een derde
+  `_CoverageBadge` ("Europeana — archieven, musea, kranten en beeldbanken") naast de bestaande
+  badges.
+
 ## Backendmodule `linkdossier`
 
 De koppelingsdossiervalidatie zit in de zelfstandige Spring Modulith-module

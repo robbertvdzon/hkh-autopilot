@@ -51,7 +51,17 @@ Wanneer een feature Agent Runtime gebruikt, voer na het maken van `secrets.env` 
   `PlaceSearchAnswerBuilder` genummerde antwoordzinnen (label/description/P571/P149/P84/P1435) met
   bronverwijzing per QID, en haalt `PlaceSearchCommonsClient` via P373 (categorie) of P18-fallback
   maximaal 6 gededupliceerde Commons-afbeeldingen op. Alles kortstondig in-memory TTL-gecachet
-  (`PlaceSearchCache`), fail-closed op elke fout/timeout/budgetoverschrijding (`OUTAGE`);
+  (`PlaceSearchCache`), fail-closed op elke fout/timeout/budgetoverschrijding (`OUTAGE`); en de
+  module `topicsearch` met het `POST /api/topic-search`-endpoint voor de onderwerp/voorwerp/
+  gebeurtenis-route (Europeana + optioneel Wikidata): naar hetzelfde synchrone patroon als
+  `placesearch` (eigen `topicSearchExecutor`-bean, harde 2000ms-deadline, geen achtergrondjob).
+  `RestClientArchivesEuropeanaClient` bevraagt Europeana Record/Search v2 met `query='<term> AND
+  Heemskerk'`, `rows=8`, `profile=rich` en `HKH_EUROPEANA_API_KEY` (fail-closed configuratiefout bij
+  een lege key); records worden gevalideerd op (titel of beschrijving) + dataProvider +
+  edmIsShownAt/guid en de rights-URL wordt deterministisch naar een licentiebadge afgeleid
+  (`TopicSearchRecordMapper`). `TopicSearchWikidataContextClient` bouwt uitsluitend bij precies 1
+  `wbsearchentities`-kandidaat een Context-blok. Alles kortstondig in-memory TTL-gecachet
+  (`TopicSearchCache`, 30 min);
 - `frontend/`: Flutter-gebruikersapp; homepage en statusflows staan in `lib/main.dart`,
   broninterfaces onder `lib/backend/` en `lib/news/`, widgettests onder `test/`; de volledig
   client-side persoonsvraag-/Heemskerk-disambiguatiemodule (start-, meaning-selection- en
@@ -63,7 +73,10 @@ Wanneer een feature Agent Runtime gebruikt, voer na het maken van `secrets.env` 
   bijbehorende client (`PersonSearchClient`) staan onder `lib/personsearch/`, widget- en
   unittests onder `test/personsearch/`; de drie schermen voor de synchrone plek/gebouw-route
   (`place-answer`, `place-empty`, `place-outage`) en de bijbehorende client (`PlaceSearchClient`)
-  staan onder `lib/placesearch/`, widget- en unittests onder `test/placesearch/`;
+  staan onder `lib/placesearch/`, widget- en unittests onder `test/placesearch/`; de drie schermen
+  voor de synchrone onderwerp/voorwerp/gebeurtenis-route (`topic-results`, `topic-empty`,
+  `topic-outage`) en de bijbehorende client (`TopicSearchClient`) staan onder `lib/topicsearch/`,
+  widget- en unittests onder `test/topicsearch/`;
 - `frontend-admin/`: afzonderlijke Flutter-webbeheerapp en widgettests;
 - `deploy/`: OpenShift-, Kustomize- en ArgoCD-manifests;
 - `.factory/verification.yaml`: machine-leesbaar, revisiongebonden verificatievangnet.
