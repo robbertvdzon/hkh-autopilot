@@ -14,6 +14,7 @@ class PersonQueryInterpretation {
     required this.heemskerkUnambiguousPlace,
     required this.heemskerkAmbiguous,
     this.placeCandidate,
+    this.topicSearchTerm,
   });
 
   /// Voornaam-kandidaat: het eerste woord van de herkende opeenvolgende
@@ -57,6 +58,14 @@ class PersonQueryInterpretation {
   final String? placeCandidate;
 
   bool get hasPlaceCandidate => placeCandidate != null;
+
+  /// Onderwerp/voorwerp/gebeurtenis-vangnet-zoekterm, `null` wanneer noch een
+  /// naam noch een plek/gebouw-kandidaat gevonden is en er ook geen bruikbaar
+  /// overgebleven woord (minstens 3 letters, geen landmark-trefwoord) is.
+  /// Wordt uitsluitend gevuld als [hasRecognizedName] en [hasPlaceCandidate]
+  /// beide `false` zijn. Puur bedoeld als invoer voor een latere
+  /// Europeana-bronraadpleging; er wordt hier geen externe aanroep gedaan.
+  final String? topicSearchTerm;
 }
 
 /// Past de exacte, deterministische drie-staps verwijderregel uit de story toe
@@ -90,6 +99,13 @@ class PersonQueryInterpreter {
     'op',
     'te',
     'uit',
+    // Generieke, niet-hoofdletter-gevoelige connectiewoorden, toegevoegd
+    // voor de onderwerp/vangnet-herkenningstak (SF-2379): nodig om het
+    // autoritatieve voorbeeld "watersnood van 1916" haalbaar te maken zonder
+    // de persoons-/plek-regels te raken.
+    'we',
+    'weten',
+    'over',
   };
 
   // "Heemskerk" wordt hier bewust niet onvoorwaardelijk opgenomen: zie de
@@ -203,6 +219,14 @@ class PersonQueryInterpreter {
         .toList(growable: false);
     final placeCandidate = _findPlaceCandidate(placeTokens);
 
+    // Onderwerp/voorwerp/gebeurtenis-vangnet: uitsluitend uitgevoerd nadat is
+    // vastgesteld dat noch de naam- noch de plek/gebouw-regel een kandidaat
+    // opleveren, en nooit vóór of naast die twee regels.
+    String? topicSearchTerm;
+    if (name == null && placeCandidate == null) {
+      topicSearchTerm = _findTopicSearchTerm(rawQuery);
+    }
+
     return PersonQueryInterpretation(
       firstName: name?.$1,
       lastName: name?.$2,
@@ -212,7 +236,57 @@ class PersonQueryInterpreter {
       heemskerkUnambiguousPlace: heemskerkUnambiguousPlace,
       heemskerkAmbiguous: heemskerkAmbiguous,
       placeCandidate: placeCandidate,
+      topicSearchTerm: topicSearchTerm,
     );
+  }
+
+  static final RegExp _rawTokenPattern = RegExp(r'\S+');
+
+  /// Onderwerp/vangnet-herkenning: past dezelfde `_stripWords`-verwijdering
+  /// toe (`_questionWords`, `_functionWords`, `_fixedContextWords`) plus een
+  /// onvoorwaardelijke verwijdering van het losstaande woord "Heemskerk", en
+  /// bepaalt vervolgens het eerste en laatste overgebleven (niet-verwijderde)
+  /// woord in de OORSPRONKELIJKE vraag. Is er onder de overgebleven woorden
+  /// minstens één woord van drie letters of langer dat geen landmark-
+  /// trefwoord is, dan is er een kandidaat en wordt de aaneengesloten
+  /// tekstspanne uit de oorspronkelijke vraag (originele spelling/
+  /// hoofdlettergebruik/spatiëring) teruggegeven die van het eerste tot het
+  /// laatste overgebleven woord loopt — inclusief eventuele tussenliggende
+  /// woorden die zelf wél verwijderd zouden zijn (zoals een voorzetsel).
+  /// Werkt token-voor-token op de oorspronkelijke tekst (in plaats van op de
+  /// door `_stripWords` geproduceerde string) omdat die laatste de originele
+  /// posities niet behoudt.
+  String? _findTopicSearchTerm(String rawQuery) {
+    int? firstStart;
+    int? lastEnd;
+    var hasQualifyingWord = false;
+
+    for (final match in _rawTokenPattern.allMatches(rawQuery)) {
+      final rawToken = match.group(0)!;
+      final core = rawToken.replaceAll(_wordTrimPattern, '');
+      if (core.isEmpty) continue;
+
+      final lowerCore = core.toLowerCase();
+      final isRemoved = _questionWords.contains(lowerCore) ||
+          _functionWords.contains(lowerCore) ||
+          _fixedContextWords.contains(lowerCore) ||
+          lowerCore == 'heemskerk';
+      if (isRemoved) continue;
+
+      final coreStart = match.start + rawToken.indexOf(core);
+      final coreEnd = coreStart + core.length;
+      firstStart ??= coreStart;
+      lastEnd = coreEnd;
+
+      if (core.length >= 3 && !_landmarkWords.contains(lowerCore)) {
+        hasQualifyingWord = true;
+      }
+    }
+
+    if (!hasQualifyingWord || firstStart == null || lastEnd == null) {
+      return null;
+    }
+    return rawQuery.substring(firstStart, lastEnd);
   }
 
   /// Zoekt een landmark-trefwoord dat direct naast minstens één

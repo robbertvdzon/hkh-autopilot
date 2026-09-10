@@ -207,6 +207,28 @@ desktop- en één mobile-uitwerking, bruikbaar zonder horizontaal scrollen bij 3
 
 Buiten scope van deze route: Agent Runtime als uitvoeringsadapter.
 
+## Vangnetherkenning van een onderwerp/voorwerp/gebeurtenis-zoekterm (gebruikersfrontend)
+
+Levert de persoonsroute geen naam-kandidaat op én de plek/gebouw-route (hieronder) geen
+plek/gebouw-kandidaat, dan probeert dezelfde `PersonQueryInterpreter` als laatste vangnet een
+onderwerp/voorwerp/gebeurtenis-zoekterm te herkennen. De vraagtekst wordt genormaliseerd met
+dezelfde vraagwoorden-/functiewoorden-/vaste-contextwoordenlijsten als de andere twee routes, plus
+een onvoorwaardelijke verwijdering van het losstaande woord "Heemskerk". Blijft daarna minstens één
+woord van drie letters of langer over dat geen landmark-trefwoord is, dan wordt de onderwerp-
+zoekterm de aaneengesloten tekstspanne uit de oorspronkelijke vraag (originele spelling,
+hoofdlettergebruik en spatiëring) die loopt van het eerste tot en met het laatste overgebleven
+woord — eventuele tussenliggende woorden die zelf wél verwijderd zouden zijn (zoals een voorzetsel)
+blijven binnen die spanne behouden. Voorbeeld: "Wat weten we over de watersnood van 1916 in
+Heemskerk?" levert de onderwerp-zoekterm "watersnood van 1916" op. Blijft er niets bruikbaars over,
+dan wordt geen onderwerp-zoekterm herkend.
+
+Deze herkenning is uitsluitend een interne voorbereiding (het resultaatveld `topicSearchTerm` op
+`PersonQueryInterpretation`): er wordt geen enkele externe aanroep (Europeana, Wikidata) gedaan, er
+is geen nieuw scherm en het bestaande gedrag op het startscherm — zonder herkende naam of
+plek/gebouw toont de app "Hiervoor vinden we geen betrouwbare bron" — blijft ongewijzigd. De
+zoekterm wordt in deze story nergens getoond of verder gebruikt; dat is voorbereid voor een latere
+vervolgstory die de term inzet voor een Europeana-bronraadpleging.
+
 ## Plek/gebouw-vraag over Heemskerk (gebruikersfrontend + backend)
 
 Naast de persoonsroute herkent dezelfde client-side interpreter (`PersonQueryInterpreter`) ook een
