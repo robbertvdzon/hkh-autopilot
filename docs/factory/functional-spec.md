@@ -223,11 +223,68 @@ Heemskerk?" levert de onderwerp-zoekterm "watersnood van 1916" op. Blijft er nie
 dan wordt geen onderwerp-zoekterm herkend.
 
 Deze herkenning is uitsluitend een interne voorbereiding (het resultaatveld `topicSearchTerm` op
-`PersonQueryInterpretation`): er wordt geen enkele externe aanroep (Europeana, Wikidata) gedaan, er
-is geen nieuw scherm en het bestaande gedrag op het startscherm — zonder herkende naam of
-plek/gebouw toont de app "Hiervoor vinden we geen betrouwbare bron" — blijft ongewijzigd. De
-zoekterm wordt in deze story nergens getoond of verder gebruikt; dat is voorbereid voor een latere
-vervolgstory die de term inzet voor een Europeana-bronraadpleging.
+`PersonQueryInterpretation`): er wordt hier zelf geen enkele externe aanroep (Europeana, Wikidata)
+gedaan en er is geen nieuw scherm. Een herkende `topicSearchTerm` wordt vanaf hier doorgegeven aan de
+Europeana-/Wikidata-onderwerproute hieronder; blijft er niets bruikbaars over, dan verandert er niets
+en blijft het bestaande gedrag op het startscherm — zonder herkende naam, plek/gebouw of
+`topicSearchTerm` toont de app "Hiervoor vinden we geen betrouwbare bron" — van kracht.
+
+## Onderwerp/voorwerp/gebeurtenis-vraag over Heemskerk (gebruikersfrontend + backend)
+
+Levert de vangnetherkenning hierboven een `topicSearchTerm` op (bijvoorbeeld "watersnood van 1916"
+uit "Wat weten we over de watersnood van 1916 in Heemskerk?"), dan dient de app deze synchroon in bij
+`POST /api/topic-search`, zonder de sessiegebonden achtergrondjob-infrastructuur van de persoonsroute:
+één webrequest wacht een harde totale deadline van 2000 ms op Europeana en, uitsluitend wanneer er
+minstens één geldig record is, op Wikidata.
+
+Het startscherm toont een vierde voorbeeldvraag over een gebeurtenis ("Wat weten we over de
+watersnood van 1916 in Heemskerk?") en een derde dekkingsbadge ("Europeana — archieven, musea,
+kranten en beeldbanken") naast de bestaande Open Archieven- en Wikidata/Wikimedia Commons-badges.
+
+Server-side wordt de Europeana Record/Search API v2 bevraagd
+(`GET https://api.europeana.eu/record/v2/search.json`) met `query='<topicSearchTerm> AND Heemskerk'`,
+`rows=8`, `profile=rich` en een eigen, projectspecifieke API-key uit de omgevingsconfiguratie
+(`HKH_EUROPEANA_API_KEY`, nooit de gedeelde testkey `api2demo` in gecommitte code). Een ontbrekende of
+lege key is een configuratiefout en levert dezelfde uitkomst op als een echte storing. Een
+Europeana-resultaat telt alleen mee als geldig record wanneer het een titel of beschrijving, een
+dataProvider en een geldige bronverwijzing (`edmIsShownAt`, of anders het Europeana-record zelf via
+`guid`) bevat; records zonder deze velden worden genegeerd en niet meegeteld in het totaal.
+
+Elk geldig record verschijnt als apart kaartje met titel, dataProvider-naam, een leesbare licentie-
+of rechtenbadge (tekst, niet uitsluitend kleur) en een directe link — er wordt nooit een
+samenvattende zin uit meerdere records samengesteld. De rights-URL van een record bepaalt de
+badgetekst: `creativecommons.org/publicdomain/mark` → "Publiek domein";
+`creativecommons.org/licenses/...` → "CC" gevolgd door de exacte variant uit het pad-segment (bv.
+"CC BY-SA"); `rightsstatements.org/vocab/InC` → "Rechten voorbehouden"; elke andere, onbekende of
+ontbrekende rights-URL → "Rechten onbekend", met de ruwe URL als link waar beschikbaar.
+
+Is er precies één Wikidata `wbsearchentities`-kandidaat (`search=<topicSearchTerm>`, `language=nl`)
+die overeenkomt met de zoekterm, dan verschijnt een apart gelabeld "Context"-blok met label,
+beschrijving en bronmarkering; dit blok draagt nooit zelfstandig een bewering over Heemskerk. Bij nul
+of meer dan één kandidaat ontbreekt het Context-blok volledig, en een Wikidata-fout blokkeert nooit de
+Europeana-resultaten — het Context-blok vervalt dan stilzwijgend.
+
+Bij nul geldige Europeana-records (Europeana wel bereikbaar) toont de app exact "Hiervoor vinden we
+geen betrouwbare bron", met de raadplegingsstatus per bron en, waar mogelijk, concrete
+verfijningsvoorstellen. Bij een niet-2xx-status, time-out of ongeldige JSON van Europeana (of de
+hierboven genoemde ontbrekende/lege API-key) toont de app in plaats daarvan "Europeana is tijdelijk
+niet geraadpleegd", met status per bron en een retry-actie, zonder een bewering te construeren.
+
+Elk getoond record wordt uitsluitend kortstondig gecachet (in-memory met TTL, geen structurele
+database-opslag) met een zichtbare `checkedAt` op het scherm bij het moment van de laatste
+raadpleging; het gecachete resultaat wordt nooit zelf als bron gepresenteerd.
+
+De vier nieuwe schermtoestanden — het bijgewerkte startscherm (`topic-start`), `topic-results`
+(onderwerptitel, `checkedAt`, aantal gevonden items, raster met recordkaartjes en het losse
+Context-blok indien van toepassing), `topic-empty` (`"Hiervoor vinden we geen betrouwbare bron"`,
+status per bron, verfijningsvoorstellen) en `topic-outage` (`"Europeana is tijdelijk niet
+geraadpleegd"`, status per bron, retry-actie) — zijn, elk met een desktop- en mobile-variant, volledig
+bedienbaar met Tab/Shift+Tab/Enter, tonen zichtbare toetsenbordfocus en statusinformatie die niet
+uitsluitend op kleur steunt, en zijn op 320 CSS-pixels breedte volledig bruikbaar zonder horizontaal
+scrollen (het resultatenraster valt terug op één kolom, badges breken netjes af).
+
+Buiten scope van deze route: synthese van meerdere records tot één bewering, sessie- of
+achtergrondjob-infrastructuur, en een SPARQL/Query Service-aanroep voor de Wikidata-context.
 
 ## Plek/gebouw-vraag over Heemskerk (gebruikersfrontend + backend)
 
@@ -519,6 +576,21 @@ dekken de drie nieuwe schermen (inhoud, Tab/Enter-bediening, 320px zonder overlo
 `place_search_client_test.dart` dekt de HTTP-client, en `person_query_page_test.dart` dekt de
 routering (landmark-voorrang, `place-empty` met verfijningsvoorstellen, `place-outage` met
 retry-actie). Geen enkele test roept een echt Wikidata- of Wikimedia Commons-endpoint aan.
+
+De onderwerp/voorwerp/gebeurtenis-vraag over Heemskerk (`topicsearch`) is gedekt met backend unit-,
+service- en controllertests (`RestClientArchivesEuropeanaClientTest`,
+`TopicSearchRecordMapperTest`, `TopicSearchServiceTest`, `TopicSearchWikidataContextClientTest`,
+`TopicSearchControllerTest`) tegen embedded HTTP-fixtures voor zowel Europeana als Wikidata:
+recordvalidatie ((titel of beschrijving) + dataProvider + edmIsShownAt/guid), de deterministische
+rights-URL-naar-badge-mapping (Publiek domein / CC-variant / Rechten voorbehouden / Rechten
+onbekend), Wikidata-kandidaatcardinaliteit 0/1/>1, een ontbrekende/lege API-key als configuratiefout,
+een niet-2xx-status/time-out/ongeldige JSON van Europeana, het overschrijden van het
+2000ms-budget en de TTL-cache. Flutter-widgettests (`topic_screens_test.dart`) dekken de vier nieuwe
+schermtoestanden (recordkaartjes, Context-blok, lege status met verfijningsvoorstellen,
+outage-status met retry-actie, Tab/Shift+Tab/Enter-bediening en 320px zonder overloop);
+`topic_search_client_test.dart` dekt de HTTP-client, en `person_query_page_test.dart` dekt de
+routering naar `topic-results`/`topic-empty`/`topic-outage`. Geen enkele test roept een echt
+Europeana- of Wikidata-endpoint aan.
 
 Widgettests dekken alle statusvarianten, aantallen en labels van statusnodes, afwezigheid van
 focusacties, lees- en Tab-volgorde, focusweergave en activatie met beide toetsen. Een tester voert de

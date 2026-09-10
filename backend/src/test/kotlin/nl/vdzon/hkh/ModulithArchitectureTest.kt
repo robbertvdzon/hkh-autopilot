@@ -20,6 +20,7 @@ class ModulithArchitectureTest {
         "privacyclassification",
         "recordintake",
         "system",
+        "topicsearch",
     )
     private val sourceRoot = Path.of("src/main/kotlin/nl/vdzon/hkh")
 

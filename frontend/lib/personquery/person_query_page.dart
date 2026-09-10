@@ -17,6 +17,11 @@ import '../placesearch/place_empty_screen.dart';
 import '../placesearch/place_outage_screen.dart';
 import '../placesearch/place_search_client.dart';
 import '../placesearch/place_search_models.dart';
+import '../topicsearch/topic_empty_screen.dart';
+import '../topicsearch/topic_outage_screen.dart';
+import '../topicsearch/topic_results_screen.dart';
+import '../topicsearch/topic_search_client.dart';
+import '../topicsearch/topic_search_models.dart';
 import 'meaning_selection_screen.dart';
 import 'no_reliable_source_screen.dart';
 import 'person_query_interpreter.dart';
@@ -37,6 +42,9 @@ enum _PersonQueryScreen {
   placeAnswer,
   placeEmpty,
   placeOutage,
+  topicResults,
+  topicEmpty,
+  topicOutage,
 }
 
 /// Hoe vaak de client tijdens `background-search` de status van een job
@@ -57,16 +65,19 @@ class PersonQueryPage extends StatefulWidget {
     WikidataMeaningSource? meaningSource,
     PersonSearchSource? personSearchSource,
     PlaceSearchSource? placeSearchSource,
+    TopicSearchSource? topicSearchSource,
     super.key,
   }) : meaningSource = meaningSource ?? const _LazyWikidataMeaningClient(),
        personSearchSource =
            personSearchSource ?? const _LazyPersonSearchClient(),
-       placeSearchSource = placeSearchSource ?? const _LazyPlaceSearchClient();
+       placeSearchSource = placeSearchSource ?? const _LazyPlaceSearchClient(),
+       topicSearchSource = topicSearchSource ?? const _LazyTopicSearchClient();
 
   final PersonQueryInterpreter interpreter;
   final WikidataMeaningSource meaningSource;
   final PersonSearchSource personSearchSource;
   final PlaceSearchSource placeSearchSource;
+  final TopicSearchSource topicSearchSource;
 
   @override
   State<PersonQueryPage> createState() => _PersonQueryPageState();
@@ -138,6 +149,17 @@ class _LazyPlaceSearchClient implements PlaceSearchSource {
   }
 }
 
+class _LazyTopicSearchClient implements TopicSearchSource {
+  const _LazyTopicSearchClient();
+
+  @override
+  Future<TopicSearchResult> search({required String topicSearchTerm}) {
+    return TopicSearchClient(
+      AppConfig.apiBaseUrl,
+    ).search(topicSearchTerm: topicSearchTerm);
+  }
+}
+
 class _PersonQueryPageState extends State<PersonQueryPage> {
   final _controller = TextEditingController();
   final _fieldFocusNode = FocusNode(debugLabel: 'person-query-field');
@@ -154,6 +176,12 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
   /// `place-empty`/`place-outage`), synchroon en zonder achtergrondpolling.
   PlaceSearchResult? _placeResult;
   String? _lastPlaceCandidateTerm;
+
+  /// Laatst bekende uitkomst van de onderwerp/voorwerp/gebeurtenis-route
+  /// (`topic-results`/`topic-empty`/`topic-outage`), synchroon en zonder
+  /// achtergrondpolling.
+  TopicSearchResult? _topicResult;
+  String? _lastTopicSearchTerm;
 
   /// Laatst bekende voortgang van de job die op `background-search`/
   /// `search-ready` wordt getoond; `null` buiten die twee schermen.
@@ -209,6 +237,10 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
       if (interpretation.hasPlaceCandidate) {
         // Landmark-herkenning krijgt voorrang op de persoonsroute.
         _startPlaceSearch(interpretation.placeCandidate!);
+      } else if (interpretation.topicSearchTerm != null) {
+        // Onderwerp/voorwerp/gebeurtenis-vangnet: alleen bereikt wanneer
+        // noch de naam- noch de plek/gebouw-regel een kandidaat opleverde.
+        _startTopicSearch(interpretation.topicSearchTerm!);
       } else if (!interpretation.hasRecognizedName) {
         _screen = _PersonQueryScreen.noReliableSource;
       } else if (interpretation.heemskerkAmbiguous) {
@@ -256,6 +288,45 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
     final term = _lastPlaceCandidateTerm;
     if (term == null) return;
     setState(() => _startPlaceSearch(term));
+  }
+
+  void _startTopicSearch(String topicSearchTerm) {
+    _lastTopicSearchTerm = topicSearchTerm;
+    _topicResult = null;
+    final generation = ++_searchGeneration;
+    widget.topicSearchSource
+        .search(topicSearchTerm: topicSearchTerm)
+        .then((result) => _onTopicSearchResult(generation, result))
+        .catchError((_) => _onTopicSearchFailure(generation));
+  }
+
+  void _onTopicSearchResult(int generation, TopicSearchResult result) {
+    if (!mounted || generation != _searchGeneration) return;
+    setState(() {
+      _topicResult = result;
+      switch (result.status) {
+        case TopicSearchStatus.ready:
+          _screen = _PersonQueryScreen.topicResults;
+        case TopicSearchStatus.empty:
+          _screen = _PersonQueryScreen.topicEmpty;
+        case TopicSearchStatus.outage:
+          _screen = _PersonQueryScreen.topicOutage;
+      }
+    });
+  }
+
+  void _onTopicSearchFailure(int generation) {
+    if (!mounted || generation != _searchGeneration) return;
+    setState(() {
+      _topicResult = null;
+      _screen = _PersonQueryScreen.topicOutage;
+    });
+  }
+
+  void _retryTopicSearch() {
+    final term = _lastTopicSearchTerm;
+    if (term == null) return;
+    setState(() => _startTopicSearch(term));
   }
 
   void _pickPlaceCandidate(String label) {
@@ -604,6 +675,24 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
           onRetry: _retryPlaceSearch,
           onBackToStart: _backToStart,
         );
+      case _PersonQueryScreen.topicResults:
+        return TopicResultsScreen(
+          originalQuery: _submittedQuery,
+          answer: _topicResult!.answer!,
+          onBackToStart: _backToStart,
+        );
+      case _PersonQueryScreen.topicEmpty:
+        return TopicEmptyScreen(
+          originalQuery: _submittedQuery,
+          refinementSuggestions: _topicResult?.refinementSuggestions ?? const [],
+          onBackToStart: _backToStart,
+        );
+      case _PersonQueryScreen.topicOutage:
+        return TopicOutageScreen(
+          originalQuery: _submittedQuery,
+          onRetry: _retryTopicSearch,
+          onBackToStart: _backToStart,
+        );
     }
   }
 
@@ -710,6 +799,7 @@ class _StartScreen extends StatelessWidget {
     'Wie was Nicolaas Jacobus Sinnige, geboren in 1878?',
     'Wie waren de ouders van Trijntje Beentjes?',
     'Wat is Kasteel Assumburg?',
+    'Wat weten we over de watersnood van 1916 in Heemskerk?',
   ];
 
   final TextEditingController controller;
@@ -857,6 +947,12 @@ class _StartScreen extends StatelessWidget {
                 icon: Icons.location_city,
                 label:
                     'Wikidata + Wikimedia Commons — plekken, gebouwen en monumenten',
+              ),
+              _CoverageBadge(
+                key: Key('coverage-badge-europeana'),
+                icon: Icons.collections_bookmark,
+                label:
+                    'Europeana — archieven, musea, kranten en beeldbanken',
               ),
             ],
           ),

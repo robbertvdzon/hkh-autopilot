@@ -9,6 +9,8 @@ import 'package:hkh_app/personsearch/person_search_client.dart';
 import 'package:hkh_app/personsearch/person_search_models.dart';
 import 'package:hkh_app/placesearch/place_search_client.dart';
 import 'package:hkh_app/placesearch/place_search_models.dart';
+import 'package:hkh_app/topicsearch/topic_search_client.dart';
+import 'package:hkh_app/topicsearch/topic_search_models.dart';
 
 /// Deterministische fake voor `PersonSearchSource`, zodat widgettests nooit
 /// een echte backend-aanroep doen. Legt de meegegeven `heemskerkMeaningQid`
@@ -81,6 +83,28 @@ class _FakePlaceSearchSource implements PlaceSearchSource {
     lastCandidateTerm = candidateTerm;
     if (_error != null) {
       throw PlaceSearchSubmitException(_error);
+    }
+    return _result!;
+  }
+}
+
+/// Deterministische fake voor `TopicSearchSource`, zodat routeringstests
+/// nooit een echte backend-aanroep doen.
+class _FakeTopicSearchSource implements TopicSearchSource {
+  _FakeTopicSearchSource.result(this._result) : _error = null;
+  _FakeTopicSearchSource.failure() : _result = null, _error = 'offline';
+
+  final TopicSearchResult? _result;
+  final String? _error;
+  int calls = 0;
+  String? lastTopicSearchTerm;
+
+  @override
+  Future<TopicSearchResult> search({required String topicSearchTerm}) async {
+    calls++;
+    lastTopicSearchTerm = topicSearchTerm;
+    if (_error != null) {
+      throw TopicSearchSubmitException(_error);
     }
     return _result!;
   }
@@ -344,7 +368,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await _submit(tester, 'Wat gebeurde er hier?');
+      await _submit(tester, 'Wat is er?');
 
       expect(
         find.text('Hiervoor vinden we geen betrouwbare bron'),
@@ -673,7 +697,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await _submit(tester, 'Wat gebeurde er hier?');
+      await _submit(tester, 'Wat is er?');
 
       expect(tester.takeException(), isNull);
       expect(
@@ -1199,6 +1223,119 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(placeSource.calls, 2);
+    },
+  );
+
+  testWidgets(
+    'een gebeurtenisvraag zoals "Wat weten we over de watersnood van 1916 in Heemskerk?" gaat naar de onderwerproute',
+    (tester) async {
+      await useGenerousViewport(tester);
+      final topicSource = _FakeTopicSearchSource.result(
+        TopicSearchResult(
+          status: TopicSearchStatus.ready,
+          topicSearchTerm: 'watersnood van 1916',
+          answer: TopicSearchAnswer(
+            topicSearchTerm: 'watersnood van 1916',
+            records: const [
+              TopicSearchRecord(
+                title: 'Watersnood van 1916 bij Heemskerk',
+                dataProvider: 'Noord-Hollands Archief',
+                license: TopicSearchLicenseBadge(
+                  text: 'Publiek domein',
+                  url: 'https://creativecommons.org/publicdomain/mark/1.0/',
+                ),
+                sourceUrl: 'https://archief.example/1',
+              ),
+            ],
+            context: const TopicSearchContext(
+              label: 'Watersnood van 1916',
+              description: 'overstroming',
+            ),
+            checkedAt: DateTime.utc(2026, 9, 10, 10),
+          ),
+        ),
+      );
+      final personSource = _FakePersonSearchSource.idle();
+      final placeSource = _FakePlaceSearchSource.failure();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PersonQueryPage(
+            personSearchSource: personSource,
+            placeSearchSource: placeSource,
+            topicSearchSource: topicSource,
+          ),
+        ),
+      );
+
+      await _submit(
+        tester,
+        'Wat weten we over de watersnood van 1916 in Heemskerk?',
+      );
+
+      expect(topicSource.calls, 1);
+      expect(topicSource.lastTopicSearchTerm, 'watersnood van 1916');
+      expect(personSource.calls, 0);
+      expect(placeSource.calls, 0);
+      expect(find.text('Watersnood van 1916 bij Heemskerk'), findsOneWidget);
+      expect(find.text('Context'), findsOneWidget);
+    },
+  );
+
+  testWidgets('nul geldige Europeana-records op de onderwerproute tonen topic-empty', (
+    tester,
+  ) async {
+    await useGenerousViewport(tester);
+    final topicSource = _FakeTopicSearchSource.result(
+      const TopicSearchResult(
+        status: TopicSearchStatus.empty,
+        topicSearchTerm: 'een onbekende gebeurtenis',
+        refinementSuggestions: ['Gebruik een breder trefwoord.'],
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PersonQueryPage(
+          personSearchSource: _FakePersonSearchSource.idle(),
+          topicSearchSource: topicSource,
+        ),
+      ),
+    );
+
+    await _submit(tester, 'Wat weten we over een onbekende gebeurtenis?');
+
+    expect(
+      find.text('Hiervoor vinden we geen betrouwbare bron'),
+      findsOneWidget,
+    );
+    expect(find.text('Gebruik een breder trefwoord.'), findsOneWidget);
+  });
+
+  testWidgets(
+    'een mislukte Europeana-raadpleging op de onderwerproute toont topic-outage met een retry-actie',
+    (tester) async {
+      await useGenerousViewport(tester);
+      final topicSource = _FakeTopicSearchSource.failure();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PersonQueryPage(
+            personSearchSource: _FakePersonSearchSource.idle(),
+            topicSearchSource: topicSource,
+          ),
+        ),
+      );
+
+      await _submit(tester, 'Wat weten we over de watersnood van 1916?');
+
+      expect(
+        find.text('Europeana is tijdelijk niet geraadpleegd'),
+        findsOneWidget,
+      );
+      expect(topicSource.calls, 1);
+
+      await tester.tap(find.byKey(const Key('topic-outage-retry')));
+      await tester.pumpAndSettle();
+
+      expect(topicSource.calls, 2);
     },
   );
 }

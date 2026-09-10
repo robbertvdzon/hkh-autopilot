@@ -38,6 +38,16 @@ overschrijven waarden uit het bestand; `HKH_SECRETS_FILE` kan naar een andere lo
   aanroepen (beeldmateriaal) vanuit de `placesearch`-backendmodule, standaard
   `https://commons.wikimedia.org`; uitsluitend bedoeld om lokaal of in tests tegen een
   fixture-/mock-endpoint te draaien. Geen API-key nodig.
+- `HKH_EUROPEANA_API_KEY`: eigen, projectspecifieke API-key voor de Europeana Record/Search API v2
+  vanuit de `topicsearch`-backendmodule (onderwerp/voorwerp/gebeurtenis-route); nooit de gedeelde
+  testkey `api2demo`. Een ontbrekende/lege waarde wordt fail-closed als configuratiefout behandeld
+  (zelfde uitkomst als een echte storing van Europeana).
+- `HKH_TOPICSEARCH_EUROPEANA_BASE_URL`: optionele basis-URI voor de Europeana-aanroepen vanuit de
+  `topicsearch`-backendmodule, standaard `https://api.europeana.eu`; uitsluitend bedoeld om lokaal of
+  in tests tegen een fixture-/mock-endpoint te draaien.
+- `HKH_TOPICSEARCH_WIKIDATA_BASE_URL`: optionele basis-URI voor de Wikidata-contextaanroep vanuit de
+  `topicsearch`-backendmodule, standaard `https://www.wikidata.org`; uitsluitend bedoeld om lokaal of
+  in tests tegen een fixture-/mock-endpoint te draaien. Geen API-key nodig.
 - `HKH_AGENT_RUNTIME_URL`: basis-URL van de gedeelde Agent Runtime;
 - `HKH_AGENT_RUNTIME_TOKEN`: eigen, minimaal bevoegde HKH Autopilot-consumentcredential;
 - `HKH_AGENT_RUNTIME_PROJECT_PREFIX`: exact `HKH_AUTOPILOT`;
