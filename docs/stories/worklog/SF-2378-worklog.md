@@ -20,3 +20,18 @@ Done / rationale:
 - Volledig verplicht vangnet uit `development.md` gedraaid en groen: `backend mvn clean verify` (292 tests, 0 failures/errors), `frontend flutter analyze` (geen meldingen), `frontend flutter test` (108 tests, alles geslaagd, inclusief nieuwe en bestaande personquery-tests), `frontend flutter build web` (geslaagd), `frontend-admin flutter analyze` (geen meldingen), `frontend-admin flutter test` (22 tests, alles geslaagd).
 - `.factory/verification.yaml` gecontroleerd: dekt al exact deze zes commando's, geen wijziging nodig.
 - `person_query_page.dart` bewust niet gewijzigd (leest `topicSearchTerm` in deze story nog niet uit); bestaand "geen betrouwbare bron"-gedrag blijft ongewijzigd.
+
+## SF-2380 - Test notities
+
+Alleen `frontend/` is gewijzigd (diff: `person_query_interpreter.dart`, `person_query_interpreter_test.dart`, worklog), dus alleen de drie frontend-vangnetcommando's uit `.factory/verification.yaml` zijn relevant voor deze diff (backend en frontend-admin ongewijzigd):
+- `flutter analyze` (frontend): geen meldingen.
+- `flutter test` (frontend): 108/108 groen, inclusief alle 4 nieuwe topicSearchTerm-tests en de 16 bestaande personquery-tests (isolated run van `test/personquery/person_query_interpreter_test.dart` bevestigt 20/20 groen, geen concurrency-weergaveartefact aangetroffen deze run).
+- `flutter build web` (frontend): geslaagd (dart2wasm dry-run + web-build zonder fouten).
+
+Code-level review van `_findTopicSearchTerm`: logica correct voor het autoritatieve voorbeeld en voor de door de developer toegevoegde randgevallen (naam-voorrang, plek-voorrang, alleen-landmark-woord). Extra handmatige steekproeven uitgevoerd (niet toegevoegd aan de testset, want tester schrijft geen tests) om de spec verder te verifiëren, tijdelijk toegevoegd en weer verwijderd (`test/manual_check_test.dart`, cleanup gedaan):
+- "Wie was dat?" → topicSearchTerm = "dat" (enig overgebleven woord, 3+ letters, geen landmark) — consistent met de spec.
+- "Heemskerk?" → topicSearchTerm = null (enige woord onvoorwaardelijk verwijderd).
+- "Wat weten we over de brand van de fabriek in Heemskerk?" → topicSearchTerm = "brand van de fabriek" (tussenliggende verwijderde woorden "van"/"de" correct behouden binnen de spanne tussen de twee ankerwoorden).
+- "Wat is er?" → topicSearchTerm = null (enige overgebleven woord "er" is < 3 letters).
+
+Alle AC's uit de story zijn manueel gecontroleerd tegen de code en bevestigd. Geen bugs gevonden. Werkkopie na cleanup weer identiek aan de developer-commit (behalve deze worklog-toevoeging).
