@@ -11,6 +11,18 @@ De backendservicecontrole combineert `GET /actuator/health` en `GET /api/version
 binnen tien seconden met een geldige 200-respons slagen. Nieuws komt van `GET /api/news` en heeft
 dezelfde clienttimeout. `API_BASE_URL` is een compile-time Dart-define.
 
+De gedeelde webconfiguratie zit in `nl.vdzon.hkh.configuration`. `WebConfiguration` zet de
+CORS-patronen uit `HKH_CORS_ALLOWED_ORIGIN_PATTERNS` (komma-gescheiden, lege elementen tellen niet
+mee) en is expliciet fail-closed: zonder patronen wordt geen enkele cross-origin herkomst
+toegelaten. Omdat een browser ook bij een same-origin POST een `Origin`-header meestuurt en Spring
+sinds Framework 6 elk verzoek met zo'n header als CORS-verzoek behandelt, zou een lege of
+verouderde patroonlijst de volledige API in de browser met 403 `Invalid CORS request` blokkeren op
+omgevingen die de webapp en `/api` same-origin serveren (PR-preview en acceptatie, via de
+frontend-nginxproxy). `SameOriginRequestFilter` herkent zo'n verzoek - herkomstschema http(s),
+herkomsthost gelijk aan de host waaraan het verzoek gericht is, en geen afwijkende expliciete poort
+- en verbergt de `Origin`-header, zodat het als gewoon same-origin verzoek wordt afgehandeld.
+Cross-origin verzoeken behouden hun header en blijven aan de patronen onderworpen.
+
 Langlopende AI-opdrachten gaan asynchroon via de gedeelde Agent Runtime en nooit via een directe
 modelaanroep in de requestthread. HKH Autopilot gebruikt een eigen `APPLICATION_WORK`-tenant,
 projectprefix `HKH_AUTOPILOT` en een eigen bearercredential zonder repository-, worker- of

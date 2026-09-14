@@ -14,6 +14,10 @@ secretGenerator:
       - HKH_DATABASE_URL=jdbc:postgresql://database:5432/hkh
       - HKH_DATABASE_USER=hkh_preview
       - HKH_DATABASE_PASSWORD=hkh_preview_only
+      # Een PR-preview serveert de webapp en /api same-origin (de frontend-nginx proxyt /api naar
+      # de backend en de webbuild krijgt een lege API_BASE_URL). Er is dus geen enkele legitieme
+      # cross-origin client; de lege lijst laat er ook geen toe. Same-origin verkeer valt buiten
+      # deze patronen: SameOriginRequestFilter herkent het als niet-CORS.
       - HKH_CORS_ALLOWED_ORIGIN_PATTERNS=
       - HKH_GOOGLE_CLIENT_ID=
       - HKH_ADMIN_ALLOWED_EMAILS=

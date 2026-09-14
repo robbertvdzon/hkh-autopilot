@@ -11,6 +11,22 @@ Set `HKH_SECRETS_FILE` to use another file. The parser accepts `KEY=value`, blan
 and optional surrounding single or double quotes. Invalid lines and missing required keys fail
 without logging secret values.
 
+## CORS and same-origin requests
+
+`HKH_CORS_ALLOWED_ORIGIN_PATTERNS` (comma separated, `http://localhost:*` by default) only governs
+genuine cross-origin clients, such as a locally served frontend that calls a backend on another
+port. Blank entries are ignored; an empty list allows no cross-origin request at all.
+
+Browsers also send an `Origin` header on a *same-origin* POST, and since Spring Framework 6 every
+request carrying that header is treated as a CORS request. A deployment that serves the web app and
+`/api` from the same origin (PR previews and acceptance, through the frontend nginx proxy) would
+therefore have all of its browser POSTs checked against these patterns, and an empty or outdated
+list rejected them with 403 `Invalid CORS request` — invisible to `curl`, which sends no `Origin`.
+`SameOriginRequestFilter` (module `nl.vdzon.hkh.configuration`) recognizes those requests by
+comparing the origin host with the host the request was addressed to, and hides the `Origin` header
+so the request is handled as what it is: not a CORS request. Cross-origin requests keep their
+header and stay subject to the configured patterns.
+
 ## Backend commands
 
 ```bash

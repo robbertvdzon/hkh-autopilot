@@ -11,8 +11,24 @@ class WebConfiguration(
 ) : WebMvcConfigurer {
     override fun addCorsMappings(registry: CorsRegistry) {
         registry.addMapping("/**")
-            .allowedOriginPatterns(*allowedOriginPatterns.split(',').map(String::trim).toTypedArray())
+            // `CorsRegistry.addMapping` start met de permit-all standaard `allowedOrigins = ["*"]`.
+            // Spring wist die standaard alleen wanneer er daadwerkelijk een patroon wordt
+            // toegevoegd; bij een lege patroonlijst zou hij blijven staan en juist alle
+            // cross-origin toegang toelaten. Expliciet leegmaken houdt het gedrag fail-closed.
+            .allowedOrigins()
+            .allowedOriginPatterns(*parseAllowedOriginPatterns(allowedOriginPatterns).toTypedArray())
             .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
             .allowedHeaders("*")
+    }
+
+    companion object {
+        /**
+         * Lege elementen tellen niet mee als patroon: een lege of alleen uit scheidingstekens
+         * bestaande configuratie leverde anders het patroon `""` op, dat op geen enkele herkomst
+         * matcht maar wel elk verzoek met een `Origin`-header met 403 afwees. Zonder patronen
+         * blijft het gedrag fail-closed: cross-origin toegang wordt dan geweigerd.
+         */
+        fun parseAllowedOriginPatterns(configured: String): List<String> =
+            configured.split(',').map(String::trim).filter(String::isNotEmpty)
     }
 }

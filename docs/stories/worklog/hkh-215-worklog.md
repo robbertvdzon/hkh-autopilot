@@ -3,7 +3,8 @@
 ## Status
 
 - Rol: developer
-- Onderzochte checkout-head: `0843de2` (`ai/hkh-208`); eerdere rondes op `0c708ba`, `82405ee`
+- Onderzochte checkout-head: `e460e13` (`ai/hkh-208`); eerdere rondes op `0843de2`, `0c708ba`,
+  `82405ee`
 - Live alleen-lezende controles: 2026-09-14 13:05-13:14 UTC en hercontroles 14:08-14:09, 14:19 en
   18:08-18:10 UTC op `https://hkh-autopilot-acceptance.vdzonsoftware.nl`
 - Scope sinds de correctie van 2026-09-14 (issue comment 3967): alleen deel A van de acceptance
@@ -188,6 +189,94 @@ proxylogs terechtkomen. Dat is in strijd met AC 2.
     Testcontainers-tests overgeslagen in deze Runtime zonder Docker, `BUILD SUCCESS`;
   - frontend: `flutter analyze` zonder issues, 126 tests groen en `flutter build web` geslaagd;
   - frontend-admin: `flutter analyze` zonder issues en 22 tests groen.
+
+### Ronde na de CORS-blocker uit testverslag hkh-216 (checkout-head `e460e13`)
+
+Het testverslag wees het werk af op AC 8: op de PR-preview gaf **elke** `POST /api/*` vanuit de
+browser 403 `Invalid CORS request`, waardoor Kasteel Assumburg, de Open Archieven-regressie en de
+topicroute allemaal BRONUITVAL toonden. Dezelfde afwijzing trad op acceptatie op. Dit is de
+gedeelde oorzaak die in de eerdere rondes gemist is, en hij verklaart het storysymptoom
+"structurele OUTAGE ondanks extern bereikbare bronnen" voor Europeana én Wikidata tegelijk.
+
+**Waarom het onderzoek dit niet zag.** Alle eerdere reproductie is met `curl` gedaan. Curl stuurt
+standaard geen `Origin`-header; de CORS-toetsing wordt dan helemaal niet geraakt en alle routes
+geven `READY`. Alleen een echte browserclient lokt het gedrag uit. Dit onderscheidt de oorzaak ook
+scherp van de eerder onderzochte sporen: externe bronbereikbaarheid, de Europeana-secretketen, de
+checksum-/rolloutketen en de gedeelde HTTP-client zijn alle vier aantoonbaar in orde - de fout zit
+in de gedeelde runtime-CORS-configuratie vóór de routelogica.
+
+**Bewezen oorzaak.**
+
+- De webapp wordt op preview en acceptatie same-origin geserveerd: `API_BASE_URL` is bij die builds
+  leeg en de frontend-nginx proxyt `/api/` naar de backendservice met `Host $host`.
+- Browsers sturen bij een POST ook op een same-origin verzoek een `Origin`-header mee. Spring
+  Framework behandelt sinds versie 6 elk verzoek met zo'n header als CORS-verzoek; de same-origin
+  uitzondering bestaat daar niet meer. Same-origin verkeer werd daardoor tegen
+  `hkh.cors-allowed-origin-patterns` getoetst.
+- Een lege waarde van `HKH_CORS_ALLOWED_ORIGIN_PATTERNS` leverde na `split(',')` precies één
+  patroon `""` op. Dat matcht op geen enkele herkomst, dus elk browserverzoek werd met 403
+  afgewezen - ook al kwam het van de eigen pagina.
+- Dit is geen incident maar een terugkerende storing: dezelfde 403 is eerder tweemaal opgelost door
+  het secret opnieuw te verzegelen (`7ca31be` voor productie, `3a05fc8` voor acceptatie, met exact
+  deze diagnose in de commitmessage). Zolang same-origin verkeer van een secretwaarde afhangt,
+  breekt de webapp opnieuw zodra die waarde bij een volgende reseal afwijkt. Factory-agents kunnen
+  bovendien geen secret verzegelen, dus een derde reseal is hier geen beschikbare oplossing.
+
+**Wijzigingen.**
+
+- Nieuw: `SameOriginRequestFilter` (`nl.vdzon.hkh.configuration`). De filter herkent een
+  same-origin verzoek - herkomstschema http(s), herkomsthost exact gelijk aan de host waaraan het
+  verzoek gericht is, en geen afwijkende expliciete poort - en verbergt daarvan de `Origin`-header,
+  zodat Spring het weer als gewoon same-origin verzoek afhandelt. De publieke poort is achter de
+  OpenShift-route niet zichtbaar voor de backend, dus een herkomst zonder expliciete poort telt als
+  dezelfde poort; een herkomst mét afwijkende poort (bijvoorbeeld een lokale frontend op
+  `http://localhost:3000` tegenover poort 8080) blijft een echt cross-origin verzoek dat gewoon
+  langs de patronen gaat. Cross-site-bescherming verzwakt hierdoor niet: een pagina op een andere
+  host houdt haar `Origin` en wordt nog steeds getoetst, en een browser stuurt cookies alleen naar
+  de host waar ze bij horen.
+- `WebConfiguration` negeert lege elementen in de patroonlijst en maakt de permit-all standaard van
+  `CorsRegistry.addMapping` expliciet leeg. Zonder die laatste stap zou een lege patroonlijst juist
+  álle cross-origin toegang toelaten: Spring wist `allowedOrigins = ["*"]` alleen wanneer er
+  daadwerkelijk een patroon wordt toegevoegd. Het gedrag is nu deterministisch fail-closed - geen
+  patronen betekent geen cross-origin toegang - en identiek aan voorheen zodra er wél patronen
+  staan.
+- Bewust niet gewijzigd: de verzegelde waarde van `HKH_CORS_ALLOWED_ORIGIN_PATTERNS` in
+  `deploy/base/sealed-secret-runtime.yaml` en `deploy/overlays/acceptance/acceptance-secret.yaml`.
+  Verzegelen kan alleen buiten de factory, en productie heeft die patronen echt nodig (de
+  productiefrontend wordt met een ingebakken `API_BASE_URL` naar de aparte backend-route gebouwd en
+  is dus wél cross-origin). De overlay overschrijft de secretwaarde daarom niet; dat zou een
+  latere, correcte reseal stilzwijgend blokkeren. De preview-overlay houdt de lijst bewust leeg -
+  daar bestaat geen legitieme cross-origin client - met een toelichting waarom dat nu veilig is.
+- `deploy/README.md`, `docs/development.md` en `docs/factory/technical-spec.md` beschrijven het
+  CORS-model: waar de patronen wél over gaan, waarom same-origin verkeer er niet meer van afhangt
+  en waarom de fout met curl onzichtbaar is.
+
+**Nieuwe regressietests.** `WebConfigurationCorsTest` bouwt een echte Spring-MVC-context met de
+filter ervoor en dekt het gemelde gedrag end-to-end af: een same-origin POST met `Origin`-header
+slaagt zonder patronen én met alleen andere patronen (de gemelde 403 kan niet terugkeren); een POST
+zonder `Origin`-header blijft slagen; een onbekende cross-origin POST én preflight blijven 403; een
+geconfigureerde cross-origin POST krijgt nog steeds de `Access-Control-Allow-Origin`-header; lege
+elementen worden nooit een patroon. `SameOriginRequestFilterTest` dekt de herkenning zelf af,
+inclusief afwijkende host, afwijkende poort, hoofdletterongevoelige hostvergelijking, overige
+headers die ongemoeid blijven, en een opake of onparseerbare herkomst die fail-closed nooit als
+same-origin telt.
+
+**Verificatie in deze ronde.**
+
+- gerichte nieuwe tests: 16 tests, 0 failures/errors;
+- `./deploy/verify-runtime-secret-rollout.sh`: groen, "Runtime-secretwijziging vernieuwt de backend
+  Pod-templatechecksum";
+- `kubectl kustomize deploy/overlays/preview` en `.../acceptance` renderen ongewijzigd; de
+  gegenereerde previewsecretnaam blijft gelijk, want alleen een toelichtende opmerking is
+  toegevoegd;
+- backend `mvn -B clean verify`: 353 tests, 0 failures/errors, 19 Docker-afhankelijke
+  Testcontainers-tests overgeslagen in deze Runtime zonder Docker, `BUILD SUCCESS`;
+- frontend en frontend-admin zijn in deze ronde niet gewijzigd; `flutter analyze` en `flutter test`
+  zijn ter bevestiging opnieuw gedraaid en blijven groen.
+
+**Wat deze ronde niet kan aantonen.** De previewcontrole uit AC 8 hoort bij testsubtaak hkh-216 en
+kan pas op de gepubliceerde head worden gedaan; factory-agents rollen niet uit. Ook de live
+acceptatiecontroles (deel B) blijven buiten deze subtaak.
 
 ## Reikwijdte en grenzen van deze run
 
