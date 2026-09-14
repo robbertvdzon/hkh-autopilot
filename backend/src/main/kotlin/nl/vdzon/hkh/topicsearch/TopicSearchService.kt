@@ -22,20 +22,28 @@ private val TOPIC_SEARCH_REFINEMENT_SUGGESTIONS = listOf(
     "Controleer de spelling van de zoekterm.",
 )
 
-private val EUROPEANA_QUERY_FILLER_WORDS = setOf("de", "het", "een", "van")
+private val EUROPEANA_YEAR = Regex("^\\d{4}$")
+private val EUROPEANA_TOKEN_EDGE_PUNCTUATION = Regex("^[^\\p{L}\\p{N}]+|[^\\p{L}\\p{N}]+$")
 
 /**
- * Europeana treats Dutch filler words as required search terms. That made the canonical query
- * `watersnood van 1916 AND Heemskerk` return no records, while the meaningful terms
- * `watersnood 1916 AND Heemskerk` do return the relevant Heemskerk record. Keep the local
- * constraint, but omit only these semantically empty standalone words from the source query.
+ * Europeana treats every word as a required search term. That made the canonical query
+ * `watersnood van 1916 AND Heemskerk` return no records, while the temporal form
+ * `watersnood 1916 AND Heemskerk` does return the relevant Heemskerk record. Keep the local
+ * constraint and omit `van` only directly before a four-digit year. Broad stop-word removal is
+ * deliberately avoided because articles and `van` are meaningful parts of names and titles such
+ * as `De Stijl` and `Vincent van Gogh`.
  */
 internal fun buildEuropeanaTopicQuery(topicSearchTerm: String): String {
-    val meaningfulTerms = topicSearchTerm
+    val terms = topicSearchTerm
         .trim()
         .split(Regex("\\s+"))
-        .filterNot { it.lowercase() in EUROPEANA_QUERY_FILLER_WORDS }
-    val normalizedTopic = meaningfulTerms.joinToString(" ").ifBlank { topicSearchTerm.trim() }
+    val meaningfulTerms = terms.filterIndexed { index, term ->
+        val normalizedTerm = term.replace(EUROPEANA_TOKEN_EDGE_PUNCTUATION, "")
+        val nextTerm = terms.getOrNull(index + 1)
+            ?.replace(EUROPEANA_TOKEN_EDGE_PUNCTUATION, "")
+        !(normalizedTerm.equals("van", ignoreCase = true) && nextTerm?.matches(EUROPEANA_YEAR) == true)
+    }
+    val normalizedTopic = meaningfulTerms.joinToString(" ")
     return "$normalizedTopic AND Heemskerk"
 }
 

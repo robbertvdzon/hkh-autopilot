@@ -59,14 +59,29 @@ class TopicSearchServiceTest {
     }
 
     @Test
-    fun `europeana query omits dutch filler words but keeps the heemskerk constraint`() {
+    fun `europeana query omits van before a year but keeps the heemskerk constraint`() {
         assertEquals("watersnood 1916 AND Heemskerk", buildEuropeanaTopicQuery("watersnood van 1916"))
-        assertEquals("kaasmarkt AND Heemskerk", buildEuropeanaTopicQuery("de kaasmarkt"))
+        assertEquals("watersnood 1916? AND Heemskerk", buildEuropeanaTopicQuery("watersnood VAN 1916?"))
     }
 
     @Test
-    fun `europeana query retains the original term when it consists only of filler words`() {
+    fun `europeana query preserves meaningful articles and name particles`() {
+        assertEquals("De Stijl AND Heemskerk", buildEuropeanaTopicQuery("De Stijl"))
+        assertEquals("Vincent van Gogh AND Heemskerk", buildEuropeanaTopicQuery("Vincent van Gogh"))
         assertEquals("van de AND Heemskerk", buildEuropeanaTopicQuery("van de"))
+    }
+
+    @Test
+    fun `semantically different terms cannot share a cache key through stop word removal`() {
+        val client = FakeEuropeanaClient { EuropeanaSearchOutcome.Success(emptyList()) }
+        val service = service(client)
+
+        service.search("De Stijl")
+        service.search("Stijl")
+        service.search("Vincent van Gogh")
+        service.search("Vincent Gogh")
+
+        assertEquals(4, client.callCount)
     }
 
     @Test
