@@ -3,9 +3,8 @@
 ## Status
 
 - Rol: developer
-- Onderzochte checkout-head: `b3800d8` (`ai/hkh-208`), aangevuld met de niet-gecommitte
-  reviewerfix in deze Runtime-run
-- Live controles: 2026-09-14 13:05-13:14 UTC en hercontrole 14:08-14:09 UTC
+- Onderzochte checkout-head: `27a9fe7` (`ai/hkh-208`)
+- Live controles: 2026-09-14 13:05-13:14 UTC en hercontroles 14:08-14:09 en 14:19 UTC
 - Omgeving: `https://hkh-autopilot-acceptance.vdzonsoftware.nl`
 
 ## Oorzaakonderzoek
@@ -97,14 +96,22 @@ responsepayloads te bewaren.
   absolute HTTP(S)-bronlink. Na één afzonderlijke tijdelijke `OUTAGE` gaven vijf opeenvolgende
   plekcontroles `READY` met Assumburg `Q1967073`. Dit is bewust alleen als pre-deploybewijs
   aangemerkt en niet als bewijs dat de branchfix actief is.
+- De laatste onafhankelijke hercontrole op 2026-09-14 14:19 UTC bevestigde opnieuw release
+  `sha-e1a4994`: vijf canonieke topicvragen gaven `EMPTY`; vijf plekcontroles gaven `READY` met
+  Assumburg `Q1967073`; de Open Archieven-regressie gaf `READY` met één bron en één absolute link.
+  Ook dit is uitsluitend pre-deploybewijs.
+- Het volledige lokale verificatievangnet is op checkout-head `27a9fe7` opnieuw uitgevoerd:
+  checksum-/rolloutsimulatie groen; backend 329 tests, 0 failures/errors (19 Docker-afhankelijke
+  integratietests overgeslagen); frontend analyse groen, 125 tests groen en webbuild geslaagd;
+  frontend-admin analyse groen en 22 tests groen.
 
 ## Operationele grens van deze run
 
 De huidige checkout heeft geen bruikbare clusterroute/operatorcontext en bevat terecht geen lokale
-plaintext acceptatiesecrets. `oc get namespace hkh-autopilot-acceptance` stopt vóór netwerkcontact
-met `Missing or incomplete configuration`; `KUBECONFIG` is niet gezet en de lokale
-acceptatiesecret- en clustercertbronnen ontbreken. Daarom konden de Application, acceptance-overlay
-en backendcode niet vanuit deze run met `oc apply` worden gemuteerd. De acceptance-Application volgt
+plaintext acceptatiesecrets. `kubectl get deployment,pods -n hkh-autopilot-acceptance` valt zonder
+actieve clustercontext terug op `localhost:8080` en stopt vóór clustercontact. Daarom konden de
+Application, acceptance-overlay en backendcode niet vanuit deze run met `oc apply` worden
+gemuteerd. De acceptance-Application volgt
 `main` en kan zichzelf niet installeren: een bevoegde operator moet hem eenmaal toepassen via de
 bestaande procedure in `deploy/README.md`, nadat de Runtime-worker de wijziging heeft gepubliceerd
 en de main-build de nieuwe backendimage in de overlay heeft vastgezet.
