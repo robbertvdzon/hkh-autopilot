@@ -242,20 +242,24 @@ watersnood van 1916 in Heemskerk?") en een derde dekkingsbadge ("Europeana — a
 kranten en beeldbanken") naast de bestaande Open Archieven- en Wikidata/Wikimedia Commons-badges.
 
 Server-side wordt de Europeana Record/Search API v2 bevraagd
-(`GET https://api.europeana.eu/record/v2/search.json`) met `query='<topicSearchTerm> AND Heemskerk'`,
+(`GET https://api.europeana.eu/record/v2/search.json`) met
+`query='<betekenisvolle topictermen> AND Heemskerk'`. De zelfstandige Nederlandse vulwoorden
+`de`, `het`, `een` en `van` worden vóór de bronaanroep verwijderd, omdat Europeana ze anders als
+verplichte termen behandelt (zo wordt `watersnood van 1916` deterministisch `watersnood 1916`);
 `rows=8`, `profile=rich` en een eigen, projectspecifieke API-key uit de omgevingsconfiguratie
-(`HKH_EUROPEANA_API_KEY`, nooit de gedeelde testkey `api2demo` in gecommitte code). Een ontbrekende of
-lege key is een configuratiefout en levert dezelfde uitkomst op als een echte storing. Een
+(`HKH_EUROPEANA_API_KEY`, nooit de gedeelde testkey `api2demo`). Een ontbrekende, lege of aan
+`api2demo` gelijke key is een configuratiefout en levert dezelfde uitkomst op als een echte storing. Een
 Europeana-resultaat telt alleen mee als geldig record wanneer het een titel of beschrijving, een
-dataProvider en een geldige bronverwijzing (`edmIsShownAt`, of anders het Europeana-record zelf via
+dataProvider en een absolute HTTP(S)-bronverwijzing (`edmIsShownAt`, of anders het Europeana-record zelf via
 `guid`) bevat; records zonder deze velden worden genegeerd en niet meegeteld in het totaal.
 
 Elk geldig record verschijnt als apart kaartje met titel, dataProvider-naam, een leesbare licentie-
 of rechtenbadge (tekst, niet uitsluitend kleur) en een directe link — er wordt nooit een
 samenvattende zin uit meerdere records samengesteld. De rights-URL van een record bepaalt de
-badgetekst: `creativecommons.org/publicdomain/mark` → "Publiek domein";
+badgetekst: `creativecommons.org/publicdomain/mark` en `creativecommons.org/publicdomain/zero` → "Publiek domein";
 `creativecommons.org/licenses/...` → "CC" gevolgd door de exacte variant uit het pad-segment (bv.
-"CC BY-SA"); `rightsstatements.org/vocab/InC` → "Rechten voorbehouden"; elke andere, onbekende of
+"CC BY-SA"); `rightsstatements.org/vocab/InC` en legacy `europeana.eu/rights/rr-*` →
+"Rechten voorbehouden"; elke andere, onbekende of
 ontbrekende rights-URL → "Rechten onbekend", met de ruwe URL als link waar beschikbaar.
 
 Is er precies één Wikidata `wbsearchentities`-kandidaat (`search=<topicSearchTerm>`, `language=nl`)

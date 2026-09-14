@@ -1,5 +1,7 @@
 package nl.vdzon.hkh.topicsearch
 
+import java.net.URI
+
 /**
  * Deterministische, puur functionele afleiding van de rights-URL naar een leesbare
  * licentie-/rechtenbadge (tekst, niet uitsluitend kleur). De exacte CC-licentievariant-tekst wordt
@@ -7,12 +9,14 @@ package nl.vdzon.hkh.topicsearch
  */
 fun deriveTopicSearchLicenseBadge(rightsUrl: String?): TopicSearchLicenseBadge {
     if (rightsUrl.isNullOrBlank()) return TopicSearchLicenseBadge("Rechten onbekend", null)
+    val normalizedUrl = rightsUrl.lowercase()
     return when {
-        rightsUrl.contains("creativecommons.org/publicdomain/mark") ->
+        normalizedUrl.contains("creativecommons.org/publicdomain/mark") ||
+            normalizedUrl.contains("creativecommons.org/publicdomain/zero") ->
             TopicSearchLicenseBadge("Publiek domein", rightsUrl)
 
-        rightsUrl.contains("creativecommons.org/licenses/") -> {
-            val variant = rightsUrl.substringAfter("creativecommons.org/licenses/").substringBefore("/")
+        normalizedUrl.contains("creativecommons.org/licenses/") -> {
+            val variant = normalizedUrl.substringAfter("creativecommons.org/licenses/").substringBefore("/")
             val text = if (variant.isBlank()) {
                 "Rechten onbekend"
             } else {
@@ -21,11 +25,20 @@ fun deriveTopicSearchLicenseBadge(rightsUrl: String?): TopicSearchLicenseBadge {
             TopicSearchLicenseBadge(text, rightsUrl)
         }
 
-        rightsUrl.contains("rightsstatements.org/vocab/InC") ->
+        normalizedUrl.contains("rightsstatements.org/vocab/inc") ||
+            normalizedUrl.contains("europeana.eu/rights/rr-") ->
             TopicSearchLicenseBadge("Rechten voorbehouden", rightsUrl)
 
         else -> TopicSearchLicenseBadge("Rechten onbekend", rightsUrl)
     }
+}
+
+private fun String.isAbsoluteHttpUrl(): Boolean = try {
+    val uri = URI(this)
+    uri.isAbsolute && (uri.scheme.equals("http", ignoreCase = true) || uri.scheme.equals("https", ignoreCase = true)) &&
+        !uri.host.isNullOrBlank()
+} catch (_: Exception) {
+    false
 }
 
 /**
@@ -44,7 +57,9 @@ fun buildTopicSearchRecordOrNull(
 ): TopicSearchRecord? {
     val title = titles?.firstOrNull { it.isNotBlank() } ?: descriptions?.firstOrNull { it.isNotBlank() } ?: return null
     val provider = dataProviders?.firstOrNull { it.isNotBlank() } ?: return null
-    val sourceUrl = edmIsShownAt?.firstOrNull { it.isNotBlank() } ?: guid?.takeIf { it.isNotBlank() } ?: return null
+    val sourceUrl = edmIsShownAt?.firstOrNull { it.isAbsoluteHttpUrl() }
+        ?: guid?.takeIf { it.isAbsoluteHttpUrl() }
+        ?: return null
     val rightsUrl = rights?.firstOrNull { it.isNotBlank() }
     return TopicSearchRecord(
         title = title,

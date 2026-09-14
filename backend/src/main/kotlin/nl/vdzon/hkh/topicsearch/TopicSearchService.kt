@@ -22,6 +22,23 @@ private val TOPIC_SEARCH_REFINEMENT_SUGGESTIONS = listOf(
     "Controleer de spelling van de zoekterm.",
 )
 
+private val EUROPEANA_QUERY_FILLER_WORDS = setOf("de", "het", "een", "van")
+
+/**
+ * Europeana treats Dutch filler words as required search terms. That made the canonical query
+ * `watersnood van 1916 AND Heemskerk` return no records, while the meaningful terms
+ * `watersnood 1916 AND Heemskerk` do return the relevant Heemskerk record. Keep the local
+ * constraint, but omit only these semantically empty standalone words from the source query.
+ */
+internal fun buildEuropeanaTopicQuery(topicSearchTerm: String): String {
+    val meaningfulTerms = topicSearchTerm
+        .trim()
+        .split(Regex("\\s+"))
+        .filterNot { it.lowercase() in EUROPEANA_QUERY_FILLER_WORDS }
+    val normalizedTopic = meaningfulTerms.joinToString(" ").ifBlank { topicSearchTerm.trim() }
+    return "$normalizedTopic AND Heemskerk"
+}
+
 @Configuration
 class TopicSearchExecutorConfiguration {
     /** Losse, kleine executor: deze route is synchroon en kent geen achtergrondtaken. */
@@ -59,7 +76,7 @@ open class TopicSearchService(
     }
 
     private fun performSearch(topicSearchTerm: String): TopicSearchOutcome {
-        val query = "$topicSearchTerm AND Heemskerk"
+        val query = buildEuropeanaTopicQuery(topicSearchTerm)
         val validRecords = recordsCache.getOrPut(query) {
             when (val outcome = europeanaClient.search(query)) {
                 is EuropeanaSearchOutcome.Success -> outcome.validRecords

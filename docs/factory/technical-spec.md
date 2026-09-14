@@ -352,17 +352,18 @@ harde totale deadline volstaat.
   `TopicSearchOutcome.EuropeanaOutage` op, net als elke andere onverwachte fout.
 - `RestClientArchivesEuropeanaClient` (`ArchivesEuropeanaClient`) doet `GET
   /record/v2/search.json?query=<term>&rows=8&profile=rich&wskey=<apiKey>` op
-  `https://api.europeana.eu`. Een lege/blanco `apiKey` (`HKH_EUROPEANA_API_KEY`) wordt behandeld als
+  `https://api.europeana.eu`. Een lege/blanco `apiKey` (`HKH_EUROPEANA_API_KEY`) of `api2demo` wordt behandeld als
   configuratiefout — geen aanroep, direct `EuropeanaSearchOutcome.Failure` — net als elke
   niet-2xx-status of ongeldige JSON. Elk teruggekomen item gaat door
   `buildTopicSearchRecordOrNull` (`TopicSearchRecordMapper.kt`), dat een record alleen bouwt bij
-  (`title` OF `dcDescription`) EN `dataProvider` EN een geldige bronverwijzing (`edmIsShownAt`, anders
+  (`title` OF `dcDescription`) EN `dataProvider` EN een absolute HTTP(S)-bronverwijzing (`edmIsShownAt`, anders
   `guid`); ontbreekt één van deze, dan is het record `null` en telt het nergens mee, ook niet voor het
   totaal.
 - `deriveTopicSearchLicenseBadge` (`TopicSearchRecordMapper.kt`) is een deterministische, puur
   functionele afleiding van de rights-URL naar `TopicSearchLicenseBadge` (tekst + link):
-  `creativecommons.org/publicdomain/mark` → "Publiek domein"; `creativecommons.org/licenses/<variant>`
-  → `"CC " + variant.uppercase()` (bv. "CC BY-SA"); `rightsstatements.org/vocab/InC` → "Rechten
+  `creativecommons.org/publicdomain/mark` of `/publicdomain/zero` → "Publiek domein";
+  `creativecommons.org/licenses/<variant>` → `"CC " + variant.uppercase()` (bv. "CC BY-SA");
+  `rightsstatements.org/vocab/InC` en `europeana.eu/rights/rr-*` → "Rechten
   voorbehouden"; elke andere, onbekende of ontbrekende rights-URL → "Rechten onbekend" (met de ruwe
   URL als link waar beschikbaar).
 - `TopicSearchWikidataContextClient` (`TopicSearchWikidataContextSource`) doet `GET
@@ -393,7 +394,9 @@ harde totale deadline volstaat.
   `https://www.wikidata.org`), uitsluitend zodat tests tegen een lokale fixture kunnen draaien. De
   Europeana-API-key komt uitsluitend uit `HKH_EUROPEANA_API_KEY` (geen modulespecifieke prefix,
   zodat productie/acceptatie hetzelfde secretpatroon volgen als `deploy/secrets-cluster.env`/
-  `deploy/secrets-acceptance.env`); de gedeelde testkey `api2demo` staat nergens gecommit. Elk verzoek
+  `deploy/secrets-acceptance.env`); een lege key of de gedeelde testkey `api2demo` wordt vóór een
+  bronaanroep fail-closed geweigerd. De query verwijdert alleen de zelfstandige Nederlandse
+  vulwoorden `de`, `het`, `een` en `van`, en behoudt de vaste `AND Heemskerk`-beperking. Elk verzoek
   gebruikt een beschrijvende User-Agent (`hkh-autopilot-topicsearch/1.0`) en vraagt gzip aan.
 - Frontend: `frontend/lib/topicsearch/` bevat `topic_search_models.dart`, `topic_search_client.dart`
   (`TopicSearchSource`/`TopicSearchClient`, roept `POST /api/topic-search` aan) en de drie schermen

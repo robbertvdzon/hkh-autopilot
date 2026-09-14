@@ -42,7 +42,9 @@ class RestClientArchivesEuropeanaClient(
 ) : ArchivesEuropeanaClient {
 
     override fun search(query: String): EuropeanaSearchOutcome {
-        if (apiKey.isBlank()) return EuropeanaSearchOutcome.Failure
+        if (apiKey.isBlank() || apiKey.trim().equals("api2demo", ignoreCase = true)) {
+            return EuropeanaSearchOutcome.Failure
+        }
 
         return try {
             val entity = restClient.get()

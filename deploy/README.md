@@ -43,5 +43,21 @@ oc get application hkh-autopilot -n argocd
 oc get pods,routes -n hkh-autopilot
 ```
 
+De standing acceptatieomgeving heeft een afzonderlijke Application die dezelfde `main`-revisie
+volgt, maar uitsluitend de acceptance-overlay toepast. Installeer of herstel die declaratief en
+controleer daarna de automatische synchronisatie en backend-rollout:
+
+```bash
+kubectl kustomize deploy/overlays/acceptance
+oc apply -f deploy/argocd/application-acceptance.yaml
+oc get application hkh-autopilot-acceptance -n argocd
+oc get deployment,pods -n hkh-autopilot-acceptance
+```
+
+`./deploy/update-runtime-secret-checksums.sh` wordt bij een main-build aangeroepen en houdt de
+Pod-templatechecksum gelijk aan de SHA-256 van elk versleuteld secretmanifest. Met
+`./deploy/verify-runtime-secret-rollout.sh` is dit lokaal te controleren en wordt een geïsoleerde
+secret-only wijziging gesimuleerd zonder secretwaarden uit te lezen of te tonen.
+
 Een push op `main` bouwt alleen de gewijzigde componentimages. Daarna zet de workflow de SHA-tags
 in de OpenShift-overlay; ArgoCD rolt alleen die gewijzigde deployments uit.

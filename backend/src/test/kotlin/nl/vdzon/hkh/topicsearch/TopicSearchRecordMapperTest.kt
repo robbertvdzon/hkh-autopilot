@@ -14,6 +14,13 @@ class TopicSearchRecordMapperTest {
     }
 
     @Test
+    fun `a creative commons zero rights url maps to publiek domein`() {
+        val badge = deriveTopicSearchLicenseBadge("https://creativecommons.org/publicdomain/zero/1.0/")
+
+        assertEquals("Publiek domein", badge.text)
+    }
+
+    @Test
     fun `a creativecommons licenses url derives the literal variant from the path segment`() {
         assertEquals("CC BY-SA", deriveTopicSearchLicenseBadge("http://creativecommons.org/licenses/by-sa/4.0/").text)
         assertEquals("CC BY", deriveTopicSearchLicenseBadge("http://creativecommons.org/licenses/by/4.0/").text)
@@ -23,6 +30,13 @@ class TopicSearchRecordMapperTest {
     @Test
     fun `an InC rightsstatements url maps to rechten voorbehouden`() {
         val badge = deriveTopicSearchLicenseBadge("http://rightsstatements.org/vocab/InC/1.0/")
+
+        assertEquals("Rechten voorbehouden", badge.text)
+    }
+
+    @Test
+    fun `a legacy europeana rights reserved url maps to rechten voorbehouden`() {
+        val badge = deriveTopicSearchLicenseBadge("http://www.europeana.eu/rights/rr-f/")
 
         assertEquals("Rechten voorbehouden", badge.text)
     }
@@ -110,6 +124,34 @@ class TopicSearchRecordMapperTest {
             dataProviders = listOf("Noord-Hollands Archief"),
             edmIsShownAt = null,
             guid = null,
+            rights = null,
+        )
+
+        assertNull(record)
+    }
+
+    @Test
+    fun `a relative shown-at link falls back to an absolute europeana guid`() {
+        val record = buildTopicSearchRecordOrNull(
+            titles = listOf("Watersnood van 1916"),
+            descriptions = null,
+            dataProviders = listOf("Noord-Hollands Archief"),
+            edmIsShownAt = listOf("/relative/record/1"),
+            guid = "https://www.europeana.eu/item/1",
+            rights = null,
+        )
+
+        assertEquals("https://www.europeana.eu/item/1", record?.sourceUrl)
+    }
+
+    @Test
+    fun `a record without any absolute source link is invalid`() {
+        val record = buildTopicSearchRecordOrNull(
+            titles = listOf("Watersnood van 1916"),
+            descriptions = null,
+            dataProviders = listOf("Noord-Hollands Archief"),
+            edmIsShownAt = listOf("/relative/record/1"),
+            guid = "not-a-url",
             rights = null,
         )
 

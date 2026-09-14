@@ -108,6 +108,7 @@ is. Dit is dezelfde commandoset als `.factory/verification.yaml`; elk commando m
 exitcode 0, 0 failures en 0 errors.
 
 ```bash
+./deploy/verify-runtime-secret-rollout.sh
 (cd backend && mvn -B --no-transfer-progress clean verify)
 (cd frontend && flutter analyze)
 (cd frontend && flutter test)

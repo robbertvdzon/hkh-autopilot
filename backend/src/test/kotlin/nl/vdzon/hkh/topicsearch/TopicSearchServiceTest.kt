@@ -59,6 +59,17 @@ class TopicSearchServiceTest {
     }
 
     @Test
+    fun `europeana query omits dutch filler words but keeps the heemskerk constraint`() {
+        assertEquals("watersnood 1916 AND Heemskerk", buildEuropeanaTopicQuery("watersnood van 1916"))
+        assertEquals("kaasmarkt AND Heemskerk", buildEuropeanaTopicQuery("de kaasmarkt"))
+    }
+
+    @Test
+    fun `europeana query retains the original term when it consists only of filler words`() {
+        assertEquals("van de AND Heemskerk", buildEuropeanaTopicQuery("van de"))
+    }
+
+    @Test
     fun `at least one valid record yields a ready outcome with the context when applicable`() {
         val client = FakeEuropeanaClient { EuropeanaSearchOutcome.Success(listOf(record)) }
         val context = TopicSearchContext("Watersnood van 1916", "overstroming")

@@ -87,6 +87,18 @@ class RestClientArchivesEuropeanaClientTest {
     }
 
     @Test
+    fun `the shared demo key never calls europeana and is a failure`() {
+        var called = false
+        val restClient = startServer { exchange -> called = true; respondJson(exchange, 200, """{"items": []}""") }
+        val client = RestClientArchivesEuropeanaClient(restClient, "api2demo")
+
+        val outcome = client.search("watersnood 1916 AND Heemskerk")
+
+        assertEquals(EuropeanaSearchOutcome.Failure, outcome)
+        assertTrue(!called)
+    }
+
+    @Test
     fun `only items with title, dataProvider and a source reference count as valid records`() {
         val restClient = startServer { exchange ->
             respondJson(
