@@ -3,8 +3,9 @@
 ## Status
 
 - Rol: developer
-- Onderzochte checkout-head: `27a9fe7` (`ai/hkh-208`)
-- Live controles: 2026-09-14 13:05-13:14 UTC en hercontroles 14:08-14:09 en 14:19 UTC
+- Onderzochte checkout-head: `82405ee` (`ai/hkh-208`)
+- Live controles: 2026-09-14 13:05-13:14 UTC en hercontroles 14:08-14:09, 14:19 en
+  18:08-18:10 UTC
 - Omgeving: `https://hkh-autopilot-acceptance.vdzonsoftware.nl`
 
 ## Oorzaakonderzoek
@@ -100,7 +101,22 @@ responsepayloads te bewaren.
   `sha-e1a4994`: vijf canonieke topicvragen gaven `EMPTY`; vijf plekcontroles gaven `READY` met
   Assumburg `Q1967073`; de Open Archieven-regressie gaf `READY` met één bron en één absolute link.
   Ook dit is uitsluitend pre-deploybewijs.
-- Het volledige lokale verificatievangnet is op checkout-head `27a9fe7` opnieuw uitgevoerd:
+- De hercontrole op 2026-09-14 18:08-18:10 UTC, na reviewercomment 3951, bevestigde nogmaals
+  release `sha-e1a4994` en actuatorstatus `UP`. Vijf canonieke topicvragen gaven `EMPTY`; vijf
+  verzoeken met de genormaliseerde term `watersnood 1916` gaven ieder `READY` met precies één
+  record dat een niet-lege titel, niet-lege provider en absolute HTTP(S)-bronlink had. Vijf
+  plekcontroles gaven `READY` met Assumburg `Q1967073`; de Open Archieven-regressie gaf `READY`
+  met één bron en een absolute link. Een rechtstreekse ongeauthenticeerde Europeana-controle gaf
+  `401`, dezelfde controle met de publiek bekende gedeelde testkey gaf `200`, en Wikidata gaf
+  `200`. De actieve acceptance-key kan hierdoor zonder Pod-/secretmetadata niet veilig van de
+  gedeelde testkey worden onderscheiden; een geslaagde aanroep op de oude release is daarvoor geen
+  bewijs.
+- De publieke repositorymetadata bevestigde tijdens dezelfde controle dat `main` nog op
+  `78da801` staat en pull request 62 de storybranch-head `82405ee` aanbiedt. De PR-preview draait
+  aantoonbaar backendversie `sha-82405ee`, maar heeft niet de acceptatiespecifieke secretketen en
+  levert daarom fail-closed `OUTAGE` voor de topicroute; die preview kan de ontbrekende
+  acceptance-key- en rolloutverificatie niet vervangen.
+- Het volledige lokale verificatievangnet is op checkout-head `82405ee` opnieuw uitgevoerd:
   checksum-/rolloutsimulatie groen; backend 329 tests, 0 failures/errors (19 Docker-afhankelijke
   integratietests overgeslagen); frontend analyse groen, 125 tests groen en webbuild geslaagd;
   frontend-admin analyse groen en 22 tests groen.
@@ -116,8 +132,17 @@ gemuteerd. De acceptance-Application volgt
 bestaande procedure in `deploy/README.md`, nadat de Runtime-worker de wijziging heeft gepubliceerd
 en de main-build de nieuwe backendimage in de overlay heeft vastgezet.
 
-Acceptatie draait bij afsluiting aantoonbaar nog `sha-e1a4994`; daarom is een geslaagde aanroep op
-die omgeving geen bewijs voor de nieuwe `api2demo`-weigering. Ook de gecontroleerde live
+Daarnaast volgt de nieuwe acceptance-Application expliciet `main`, terwijl de bewezen codefix nog
+alleen in pull request 62 staat en `main` nog `78da801` is. Een automatische Argo CD-sync kan de
+onvermelde branchwijziging dus principieel nog niet uitrollen. Voltooiing binnen deze
+development-subtaak vereist daarom óf een tijdelijke, bevoegde branch-image-uitrol buiten Argo CD
+óf dat publicatie/merge vóór de live acceptance-verificatie wordt geplaatst; geen van beide is
+vanuit deze Runtime geautoriseerd of technisch bereikbaar.
+
+Acceptatie draait bij de laatste controle aantoonbaar nog `sha-e1a4994`; daarom is een geslaagde
+aanroep op die omgeving geen bewijs voor de nieuwe `api2demo`-weigering. De publiek bekende
+gedeelde testkey beantwoordt een rechtstreekse bronaanroep momenteel zelf ook met HTTP 200, zodat
+alleen responsegedrag de actieve key evenmin onderscheidt. Ook de gecontroleerde live
 invalid-key- en timeoutproeven zijn zonder clusterconfiguratie niet veilig uitvoerbaar: de geldige
 configuratie zou vanuit deze Runtime niet aantoonbaar direct kunnen worden hersteld. Deze drie live
 punten zijn dus expliciet niet als voltooid aangemerkt. De lokale fouttests en checksum-simulatie
