@@ -243,9 +243,11 @@ kranten en beeldbanken") naast de bestaande Open Archieven- en Wikidata/Wikimedi
 
 Server-side wordt de Europeana Record/Search API v2 bevraagd
 (`GET https://api.europeana.eu/record/v2/search.json`) met
-`query='<betekenisvolle topictermen> AND Heemskerk'`. De zelfstandige Nederlandse vulwoorden
-`de`, `het`, `een` en `van` worden vóór de bronaanroep verwijderd, omdat Europeana ze anders als
-verplichte termen behandelt (zo wordt `watersnood van 1916` deterministisch `watersnood 1916`);
+`query='<genormaliseerde topicterm> AND Heemskerk'`. Europeana behandelt elk woord als verplichte
+zoekterm; daarom vervalt uitsluitend het woord `van` wanneer het direct vóór een viercijferig
+jaartal staat (zo wordt `watersnood van 1916` deterministisch `watersnood 1916`). Andere lidwoorden
+en naamdelen blijven bewust staan, omdat ze betekenisdragend zijn in namen en titels zoals
+`De Stijl` en `Vincent van Gogh`;
 `rows=8`, `profile=rich` en een eigen, projectspecifieke API-key uit de omgevingsconfiguratie
 (`HKH_EUROPEANA_API_KEY`, nooit de gedeelde testkey `api2demo`). Een ontbrekende, lege of aan
 `api2demo` gelijke key is een configuratiefout en levert dezelfde uitkomst op als een echte storing. Een
@@ -263,8 +265,10 @@ badgetekst: `creativecommons.org/publicdomain/mark` en `creativecommons.org/publ
 ontbrekende rights-URL → "Rechten onbekend", met de ruwe URL als link waar beschikbaar.
 
 Is er precies één Wikidata `wbsearchentities`-kandidaat (`search=<topicSearchTerm>`, `language=nl`)
-die overeenkomt met de zoekterm, dan verschijnt een apart gelabeld "Context"-blok met label,
-beschrijving en bronmarkering; dit blok draagt nooit zelfstandig een bewering over Heemskerk. Bij nul
+die overeenkomt met de zoekterm, dan verschijnt een apart blok "Context (Wikidata)" met label,
+beschrijving en een expliciete bronmarkering ("Bron: Wikidata · alleen ter duiding; geen
+archiefbewijs specifiek voor Heemskerk"); dit blok draagt nooit zelfstandig een bewering over
+Heemskerk. Bij nul
 of meer dan één kandidaat ontbreekt het Context-blok volledig, en een Wikidata-fout blokkeert nooit de
 Europeana-resultaten — het Context-blok vervalt dan stilzwijgend.
 

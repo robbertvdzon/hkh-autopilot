@@ -3,10 +3,13 @@
 ## Status
 
 - Rol: developer
-- Onderzochte checkout-head: `82405ee` (`ai/hkh-208`)
-- Live controles: 2026-09-14 13:05-13:14 UTC en hercontroles 14:08-14:09, 14:19 en
-  18:08-18:10 UTC
-- Omgeving: `https://hkh-autopilot-acceptance.vdzonsoftware.nl`
+- Onderzochte checkout-head: `0c708ba` (`ai/hkh-208`)
+- Live alleen-lezende controles: 2026-09-14 13:05-13:14 UTC en hercontroles 14:08-14:09, 14:19 en
+  18:08-18:10 UTC op `https://hkh-autopilot-acceptance.vdzonsoftware.nl`
+- Scope sinds de correctie van 2026-09-14 (issue comment 3967): alleen deel A van de acceptance
+  criteria hoort bij deze subtaak. Uitrol naar acceptatie en de live controles daarna (deel B)
+  gebeuren na de merge- en deploy-subtaak via CI en de bestaande Argo CD Application
+  `hkh-autopilot-acceptance` uit `robberts-infrastructure`.
 
 ## Oorzaakonderzoek
 
@@ -35,10 +38,14 @@ responsepayloads te bewaren.
   Europeana leverde voor `watersnood van 1916 AND Heemskerk` nul records, maar voor
   `watersnood 1916 AND Heemskerk` live één geldig record (`Watersnood 1916`). Het Nederlandse
   vulwoord `van` werd door de bron als verplichte zoekterm behandeld en maakte de query te strikt.
-- De repository had alleen een Argo CD Application voor productie. De acceptance-overlay werd dus
-  wel door de buildworkflow bijgewerkt, maar nergens in deze repository declaratief automatisch
-  toegepast. Dat verklaart waarom een repositorywijziging alleen geen betrouwbare
-  acceptance-rollout vormde.
+- Het rolloutmechanisme is afzonderlijk nagetrokken. De acceptance-overlay wordt door de
+  buildworkflow bijgewerkt en door de bestaande Argo CD Application `hkh-autopilot-acceptance`
+  (beheerd in `robberts-infrastructure`, volgt `main` en synchroniseert
+  `deploy/overlays/acceptance`) automatisch toegepast. Deze repository heeft daarvoor dus geen eigen
+  Application-manifest nodig; het in een eerdere ronde toegevoegde
+  `deploy/argocd/application-acceptance.yaml` was overbodig en is weer verwijderd. De ontbrekende
+  rollout op het moment van onderzoek verklaart zich uit het nog niet gemergede storybranch-werk,
+  niet uit een ontbrekende Application.
 
 ## Wijzigingen
 
@@ -59,8 +66,17 @@ responsepayloads te bewaren.
   CC BY-SA-versies als `CC BY-SA`, RightsStatements In Copyright en legacy Europeana
   rights-reserved-URL's als `Rechten voorbehouden`, en onbekend/ontbrekend als
   `Rechten onbekend`.
-- `deploy/argocd/application-acceptance.yaml` maakt de acceptance-overlay declaratief
-  self-healing vanaf `main`.
+- `deploy/argocd/application-acceptance.yaml` is verwijderd en `deploy/README.md` verwijst nu naar
+  de bestaande, extern beheerde Application `hkh-autopilot-acceptance` met alleen-lezende
+  controlecommando's.
+- Het Context-blok op `topic-results` heet nu `Context (Wikidata)` en draagt een expliciete
+  bronmarkering ("Bron: Wikidata · alleen ter duiding; geen archiefbewijs specifiek voor
+  Heemskerk"), conform de normatieve storytekst en de richtinggevende UX-afbeelding. Zonder die
+  markering kon het blok als bewijs voor een relatie met Heemskerk worden gelezen.
+- Een cachehit presenteerde zichzelf als actuele raadpleging: `checkedAt` werd bij elk antwoord op
+  "nu" gezet, ook wanneer het antwoord uit de TTL-cache kwam. De cache bewaart nu het moment van de
+  geslaagde Europeana-raadpleging zelf (`EuropeanaConsultation`), zodat een gecachet antwoord nooit
+  als nieuw geraadpleegd wordt getoond.
 - De checksumlogica staat centraal in `deploy/update-runtime-secret-checksums.sh`; de buildworkflow
   gebruikt dit script. `deploy/verify-runtime-secret-rollout.sh` controleert de actuele checksums,
   rendert de acceptance-overlay en simuleert geïsoleerd dat een secret-only wijziging de
@@ -121,29 +137,36 @@ responsepayloads te bewaren.
   integratietests overgeslagen); frontend analyse groen, 125 tests groen en webbuild geslaagd;
   frontend-admin analyse groen en 22 tests groen.
 
-## Operationele grens van deze run
+### Ronde na de scopecorrectie (checkout-head `0c708ba`)
 
-De huidige checkout heeft geen bruikbare clusterroute/operatorcontext en bevat terecht geen lokale
-plaintext acceptatiesecrets. `kubectl get deployment,pods -n hkh-autopilot-acceptance` valt zonder
-actieve clustercontext terug op `localhost:8080` en stopt vóór clustercontact. Daarom konden de
-Application, acceptance-overlay en backendcode niet vanuit deze run met `oc apply` worden
-gemuteerd. De acceptance-Application volgt
-`main` en kan zichzelf niet installeren: een bevoegde operator moet hem eenmaal toepassen via de
-bestaande procedure in `deploy/README.md`, nadat de Runtime-worker de wijziging heeft gepubliceerd
-en de main-build de nieuwe backendimage in de overlay heeft vastgezet.
+- Gerichte backend-topicsearchtests na de Context-, cache- en badgewijzigingen: 39 tests,
+  0 failures/errors.
+- Volledig verificatievangnet opnieuw uitgevoerd en groen:
+  - `./deploy/verify-runtime-secret-rollout.sh`: checksums actueel en de secret-only simulatie
+    levert een andere, exact overeenkomende Pod-templatechecksum op;
+  - backend `mvn clean verify`: 331 tests, 0 failures/errors, 19 Docker-afhankelijke
+    Testcontainers-tests overgeslagen in deze Runtime zonder Docker, `BUILD SUCCESS`;
+  - frontend: `flutter analyze` zonder issues, 126 tests groen (inclusief de nieuwe Shift+Tab- en
+    Context-bronmarkeringstests) en `flutter build web` geslaagd;
+  - frontend-admin: `flutter analyze` zonder issues en 22 tests groen.
+- Nieuwe of aangescherpte regressietests in deze ronde: elke CC BY-SA-versiesuffix (1.0, 2.0/nl,
+  3.0, 4.0) levert exact `CC BY-SA`; een cachehit behoudt het oorspronkelijke raadplegingsmoment;
+  het `Context (Wikidata)`-blok toont label, beschrijving en bronmarkering en ontbreekt volledig
+  zonder context; Shift+Tab keert op het outagescherm terug naar de retry-knop en Enter activeert
+  die.
 
-Daarnaast volgt de nieuwe acceptance-Application expliciet `main`, terwijl de bewezen codefix nog
-alleen in pull request 62 staat en `main` nog `78da801` is. Een automatische Argo CD-sync kan de
-onvermelde branchwijziging dus principieel nog niet uitrollen. Voltooiing binnen deze
-development-subtaak vereist daarom óf een tijdelijke, bevoegde branch-image-uitrol buiten Argo CD
-óf dat publicatie/merge vóór de live acceptance-verificatie wordt geplaatst; geen van beide is
-vanuit deze Runtime geautoriseerd of technisch bereikbaar.
+## Reikwijdte en grenzen van deze run
 
-Acceptatie draait bij de laatste controle aantoonbaar nog `sha-e1a4994`; daarom is een geslaagde
-aanroep op die omgeving geen bewijs voor de nieuwe `api2demo`-weigering. De publiek bekende
-gedeelde testkey beantwoordt een rechtstreekse bronaanroep momenteel zelf ook met HTTP 200, zodat
-alleen responsegedrag de actieve key evenmin onderscheidt. Ook de gecontroleerde live
-invalid-key- en timeoutproeven zijn zonder clusterconfiguratie niet veilig uitvoerbaar: de geldige
-configuratie zou vanuit deze Runtime niet aantoonbaar direct kunnen worden hersteld. Deze drie live
-punten zijn dus expliciet niet als voltooid aangemerkt. De lokale fouttests en checksum-simulatie
-blijven groen, maar vervangen dit vereiste post-deploybewijs niet.
+Deel B van de acceptance criteria (uitrol en live controle op acceptatie) hoort blijkens de
+scopecorrectie van 2026-09-14 niet bij deze subtaak. Factory-agents hebben geen clustertoegang en
+geen plaintext secrets, en de storybranch komt pas na de merge-subtaak via CI en de bestaande
+Argo CD Application `hkh-autopilot-acceptance` op acceptatie. De eerdere blockers "acceptatie
+draait nog `sha-e1a4994`", "acceptatie-uitrol ontbreekt" en "live key-/time-outproeven niet
+uitgevoerd" zijn daarmee vervallen; ze worden na de deploy-subtaak door de operator of een
+vervolgstory vastgelegd.
+
+De live invalid-key- en time-outproeven blijven bewust achterwege: ze zouden een clustermutatie
+vereisen die vanuit de Runtime niet veilig terug te draaien is. Beide paden zijn in plaats daarvan
+met geautomatiseerde tests afgedekt (een lege key en `api2demo` worden vóór de HTTP-call geweigerd;
+een trage bron boven het tweesecondenbudget levert `OUTAGE`), en de PR-preview toont de topicroute
+bewust fail-closed omdat daar geen Europeana-key staat.

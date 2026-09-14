@@ -69,7 +69,14 @@ open class TopicSearchService(
     private val clock: Clock = Clock.systemUTC(),
     private val deadlineMillis: Long = TOPIC_SEARCH_DEADLINE_MILLIS,
 ) {
-    private val recordsCache = TopicSearchCache<String, List<TopicSearchRecord>>(TOPIC_SEARCH_CACHE_TTL, clock)
+    /**
+     * Wat Europeana bij één geslaagde raadpleging opleverde, samen met het moment van die
+     * raadpleging. Het moment hoort bij het gecachete antwoord: een cachehit mag nooit als een
+     * nieuwe, actuele raadpleging worden gepresenteerd.
+     */
+    private data class EuropeanaConsultation(val validRecords: List<TopicSearchRecord>, val checkedAt: Instant)
+
+    private val recordsCache = TopicSearchCache<String, EuropeanaConsultation>(TOPIC_SEARCH_CACHE_TTL, clock)
 
     open fun search(topicSearchTerm: String): TopicSearchOutcome {
         val future = executor.submit(Callable { performSearch(topicSearchTerm) })
@@ -85,14 +92,17 @@ open class TopicSearchService(
 
     private fun performSearch(topicSearchTerm: String): TopicSearchOutcome {
         val query = buildEuropeanaTopicQuery(topicSearchTerm)
-        val validRecords = recordsCache.getOrPut(query) {
+        val consultation = recordsCache.getOrPut(query) {
             when (val outcome = europeanaClient.search(query)) {
-                is EuropeanaSearchOutcome.Success -> outcome.validRecords
+                is EuropeanaSearchOutcome.Success ->
+                    EuropeanaConsultation(outcome.validRecords, Instant.now(clock))
+
                 EuropeanaSearchOutcome.Failure -> null
             }
         } ?: return TopicSearchOutcome.EuropeanaOutage
 
-        val checkedAt = Instant.now(clock)
+        val validRecords = consultation.validRecords
+        val checkedAt = consultation.checkedAt
         if (validRecords.isEmpty()) {
             return TopicSearchOutcome.Empty(checkedAt, TOPIC_SEARCH_REFINEMENT_SUGGESTIONS)
         }

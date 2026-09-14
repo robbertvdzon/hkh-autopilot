@@ -2,6 +2,7 @@ package nl.vdzon.hkh.topicsearch
 
 import java.time.Clock
 import java.time.Instant
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -15,6 +16,13 @@ class TopicSearchServiceTest {
 
     private val executors = mutableListOf<ExecutorService>()
     private val fixedClock: Clock = Clock.fixed(Instant.parse("2026-09-10T10:00:00Z"), ZoneOffset.UTC)
+
+    /** Verzetbare klok, zodat een cachehit op een later moment toetsbaar is. */
+    private class MutableTopicSearchClock(var instant: Instant) : Clock() {
+        override fun getZone(): ZoneId = ZoneOffset.UTC
+        override fun withZone(zone: ZoneId): Clock = this
+        override fun instant(): Instant = instant
+    }
 
     @AfterTest
     fun tearDown() {
@@ -145,5 +153,27 @@ class TopicSearchServiceTest {
         service.search("watersnood van 1916")
 
         assertEquals(1, client.callCount)
+    }
+
+    @Test
+    fun `a cache hit keeps the original consultation moment instead of presenting itself as current`() {
+        val clock = MutableTopicSearchClock(Instant.parse("2026-09-10T10:00:00Z"))
+        val client = FakeEuropeanaClient { EuropeanaSearchOutcome.Success(listOf(record)) }
+        val executor = Executors.newFixedThreadPool(2).also { executors += it }
+        val service = TopicSearchService(
+            europeanaClient = client,
+            wikidataContextClient = TopicSearchWikidataContextSource { null },
+            executor = executor,
+            clock = clock,
+            deadlineMillis = TOPIC_SEARCH_DEADLINE_MILLIS,
+        )
+
+        val first = service.search("watersnood van 1916") as TopicSearchOutcome.Ready
+        clock.instant = Instant.parse("2026-09-10T10:20:00Z")
+        val second = service.search("watersnood van 1916") as TopicSearchOutcome.Ready
+
+        assertEquals(1, client.callCount)
+        assertEquals(Instant.parse("2026-09-10T10:00:00Z"), first.answer.checkedAt)
+        assertEquals(first.answer.checkedAt, second.answer.checkedAt)
     }
 }

@@ -144,13 +144,19 @@ class _ContextSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Context', style: textTheme.titleMedium),
+          Text('Context (Wikidata)', style: textTheme.titleMedium),
           const SizedBox(height: 8),
           Text(context_.label, style: textTheme.titleSmall),
           if (context_.description != null) ...[
             const SizedBox(height: 4),
             Text(context_.description!),
           ],
+          const SizedBox(height: 8),
+          Text(
+            'Bron: Wikidata · alleen ter duiding; geen archiefbewijs '
+            'specifiek voor Heemskerk.',
+            style: textTheme.bodySmall,
+          ),
         ],
       ),
     );

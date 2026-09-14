@@ -43,13 +43,14 @@ oc get application hkh-autopilot -n argocd
 oc get pods,routes -n hkh-autopilot
 ```
 
-De standing acceptatieomgeving heeft een afzonderlijke Application die dezelfde `main`-revisie
-volgt, maar uitsluitend de acceptance-overlay toepast. Installeer of herstel die declaratief en
-controleer daarna de automatische synchronisatie en backend-rollout:
+De standing acceptatieomgeving wordt beheerd door de bestaande Argo CD Application
+`hkh-autopilot-acceptance` uit de sibling-repository `robberts-infrastructure`. Die Application
+volgt `main` en synchroniseert `deploy/overlays/acceptance` automatisch; deze repository bevat er
+daarom bewust geen eigen Application-manifest voor. Lokaal rendert de overlay met `kubectl`, en na
+een merge is de synchronisatie en backend-rollout op het cluster te controleren:
 
 ```bash
 kubectl kustomize deploy/overlays/acceptance
-oc apply -f deploy/argocd/application-acceptance.yaml
 oc get application hkh-autopilot-acceptance -n argocd
 oc get deployment,pods -n hkh-autopilot-acceptance
 ```

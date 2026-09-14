@@ -28,6 +28,18 @@ class TopicSearchRecordMapperTest {
     }
 
     @Test
+    fun `every cc by-sa version suffix maps to the same CC BY-SA badge`() {
+        listOf(
+            "http://creativecommons.org/licenses/by-sa/1.0/",
+            "https://creativecommons.org/licenses/by-sa/2.0/nl/",
+            "http://creativecommons.org/licenses/by-sa/3.0/",
+            "https://creativecommons.org/licenses/by-sa/4.0",
+        ).forEach { rightsUrl ->
+            assertEquals("CC BY-SA", deriveTopicSearchLicenseBadge(rightsUrl).text, rightsUrl)
+        }
+    }
+
+    @Test
     fun `an InC rightsstatements url maps to rechten voorbehouden`() {
         val badge = deriveTopicSearchLicenseBadge("http://rightsstatements.org/vocab/InC/1.0/")
 

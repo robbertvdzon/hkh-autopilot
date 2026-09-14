@@ -383,10 +383,12 @@ harde totale deadline volstaat.
   `TopicSearchAnswer` (records, `context`, `checkedAt`) op.
 - `TopicSearchCache<K, V>` is een kleine, generieke in-memory TTL-cache (30 minuten, injecteerbare
   `Clock`), een eigen kopie naar het patroon van `PlaceSearchCache` (deze module mag niet op
-  `placesearch` steunen). `TopicSearchService` cachet uitsluitend reeds gevalideerde recordlijsten op
-  de opgebouwde query-string; een mislukte raadpleging (`loader() == null`) wordt nooit gecachet, dus
-  een volgende aanroep probeert opnieuw. Europeana blijft altijd de bron van waarheid: de getoonde
-  `checkedAt` is nooit een verwijzing naar de cache zelf.
+  `placesearch` steunen). `TopicSearchService` cachet uitsluitend reeds gevalideerde recordlijsten
+  samen met het moment van de geslaagde raadpleging (`EuropeanaConsultation`) op de opgebouwde
+  query-string; een mislukte raadpleging (`loader() == null`) wordt nooit gecachet, dus een volgende
+  aanroep probeert opnieuw. Europeana blijft altijd de bron van waarheid: een cachehit toont het
+  oorspronkelijke raadplegingsmoment als `checkedAt` en wordt dus nooit als een nieuwe, actuele
+  raadpleging gepresenteerd.
 - `TopicSearchClientConfiguration` volgt het beanpatroon van `PlaceSearchClientConfiguration` met
   twee overschrijfbare basis-URI's: `hkh.topicsearch.europeana-base-url`/
   `HKH_TOPICSEARCH_EUROPEANA_BASE_URL` (standaard `https://api.europeana.eu`) en
@@ -395,15 +397,19 @@ harde totale deadline volstaat.
   Europeana-API-key komt uitsluitend uit `HKH_EUROPEANA_API_KEY` (geen modulespecifieke prefix,
   zodat productie/acceptatie hetzelfde secretpatroon volgen als `deploy/secrets-cluster.env`/
   `deploy/secrets-acceptance.env`); een lege key of de gedeelde testkey `api2demo` wordt vóór een
-  bronaanroep fail-closed geweigerd. De query verwijdert alleen de zelfstandige Nederlandse
-  vulwoorden `de`, `het`, `een` en `van`, en behoudt de vaste `AND Heemskerk`-beperking. Elk verzoek
+  bronaanroep fail-closed geweigerd. `buildEuropeanaTopicQuery` (`TopicSearchService.kt`) laat
+  uitsluitend het woord `van` weg dat direct vóór een viercijferig jaartal staat en behoudt de vaste
+  `AND Heemskerk`-beperking; brede stopwoordverwijdering is bewust achterwege gelaten omdat
+  lidwoorden en naamdelen betekenisdragend zijn (`De Stijl`, `Vincent van Gogh`) en anders
+  cachekeys zouden botsen. Elk verzoek
   gebruikt een beschrijvende User-Agent (`hkh-autopilot-topicsearch/1.0`) en vraagt gzip aan.
 - Frontend: `frontend/lib/topicsearch/` bevat `topic_search_models.dart`, `topic_search_client.dart`
   (`TopicSearchSource`/`TopicSearchClient`, roept `POST /api/topic-search` aan) en de drie schermen
   `topic_results_screen.dart` (`topic-results`: onderwerptitel, `checkedAt`, aantal gevonden items,
   raster met per-record kaartjes met titel/dataProvider/licentiebadge/link, apart gelabeld
-  "Context"-blok indien aanwezig), `topic_empty_screen.dart` (`topic-empty`: "Hiervoor vinden we geen
-  betrouwbare bron" + bronnenstatus + verfijningsvoorstellen) en `topic_outage_screen.dart`
+  "Context (Wikidata)"-blok met bronmarkering indien aanwezig), `topic_empty_screen.dart`
+  (`topic-empty`: "Hiervoor vinden we geen betrouwbare bron" + bronnenstatus +
+  verfijningsvoorstellen) en `topic_outage_screen.dart`
   (`topic-outage`: "Europeana is tijdelijk niet geraadpleegd" + bronnenstatus + retry-actie). Alle
   drie hergebruiken `person_query_widgets.dart` voor focusrand, statussemantiek en responsive layout.
   `person_query_page.dart` routeert een herkende `topicSearchTerm` (na de plek/gebouw-route, als
