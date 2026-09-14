@@ -147,7 +147,9 @@ Europeana Record/Search API v2 (`query='<topicSearchTerm> AND Heemskerk'`, `rows
 configuration error with the same outcome as a real outage. A result only counts as a valid record
 when it has a title or description, a `dataProvider`, and a valid source reference (`edmIsShownAt`,
 otherwise the Europeana record itself via `guid`); records missing any of these are ignored, also for
-the shown total. Each valid record's rights URL is deterministically mapped to a readable license
+the shown total. The `guid` fallback is published without its query string and fragment, because
+Europeana echoes the API key used for the call back in the guid's `utm_campaign` tracking parameter
+and that link is returned by the public API and rendered in the browser. Each valid record's rights URL is deterministically mapped to a readable license
 badge (`TopicSearchRecordMapper`: public domain, the exact CC variant, rights-reserved, or unknown).
 `TopicSearchWikidataContextClient` builds a separate "Context" block only when exactly one
 `wbsearchentities` candidate (`language=nl`) matches; zero or more than one candidate omits the block,

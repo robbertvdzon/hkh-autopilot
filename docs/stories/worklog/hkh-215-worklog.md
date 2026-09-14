@@ -3,7 +3,7 @@
 ## Status
 
 - Rol: developer
-- Onderzochte checkout-head: `0c708ba` (`ai/hkh-208`)
+- Onderzochte checkout-head: `0843de2` (`ai/hkh-208`); eerdere rondes op `0c708ba`, `82405ee`
 - Live alleen-lezende controles: 2026-09-14 13:05-13:14 UTC en hercontroles 14:08-14:09, 14:19 en
   18:08-18:10 UTC op `https://hkh-autopilot-acceptance.vdzonsoftware.nl`
 - Scope sinds de correctie van 2026-09-14 (issue comment 3967): alleen deel A van de acceptance
@@ -154,6 +154,40 @@ responsepayloads te bewaren.
   het `Context (Wikidata)`-blok toont label, beschrijving en bronmarkering en ontbreekt volledig
   zonder context; Shift+Tab keert op het outagescherm terug naar de retry-knop en Enter activeert
   die.
+
+### Ronde na de key-in-guid-blocker (checkout-head `0843de2`)
+
+Reviewercommentaar 3972 stelde vast dat de Europeana-`guid` de gebruikte API-key als
+`utm_campaign`-parameter meedraagt. Omdat de guid de bronlink-fallback is voor precies het
+canonieke `watersnood 1916`-record, zou die key na uitrol met de eigen acceptatiesleutel in elke
+publieke `POST /api/topic-search`-respons, in de DOM, in de browserhistorie en in referrer-/
+proxylogs terechtkomen. Dat is in strijd met AC 2.
+
+- `buildTopicSearchRecordOrNull` gebruikt bij de `guid`-fallback voortaan uitsluitend het
+  sleutelvrije deel van de URL: querystring en fragment worden verwijderd voordat de waarde
+  `sourceUrl` wordt. Het Europeana-item blijft zo gewoon bereikbaar op zijn canonieke pad. Een
+  `edmIsShownAt` van de instelling zelf wordt niet aangepast; die queryparameters zijn functioneel
+  en bevatten geen keymateriaal.
+- Een guid die na het strippen geen absolute HTTP(S)-URL meer overhoudt, telt niet langer als
+  geldige bronverwijzing en maakt het record ongeldig — hetzelfde fail-closed gedrag als voorheen.
+- Nieuwe regressietests: een guid met `utm_source`/`utm_medium`/`utm_campaign=<key>` levert een
+  `sourceUrl` zonder de key, zonder `utm_`-parameter en zonder querystring; een guid met fragment
+  wordt eveneens geschoond; een guid die alleen uit een querystring bestaat is ongeldig; een
+  absolute `edmIsShownAt` behoudt wel zijn eigen queryparameters. Dezelfde eigenschap is
+  end-to-end getoetst in `RestClientArchivesEuropeanaClientTest` via een mock-Europeana-respons.
+  Alle testwaarden zijn verzonnen tekenreeksen; er is geen echte key gebruikt of gelogd.
+- Opgevolgde suggestie uit hetzelfde commentaar: de rechtenmapping herkent In Copyright nu op elke
+  `rightsstatements.org`-URL met `InC` (dus ook `rightsstatements.org/page/InC/...`) in plaats van
+  alleen `/vocab/inc`, met regressietest.
+- `docs/development.md` en `docs/factory/technical-spec.md` beschrijven de geschoonde
+  guid-fallback en de verbrede In Copyright-herkenning.
+- Volledig verificatievangnet op deze head opnieuw uitgevoerd en groen:
+  - `./deploy/verify-runtime-secret-rollout.sh`: checksums actueel en de secret-only simulatie
+    levert een andere, exact overeenkomende Pod-templatechecksum op;
+  - backend `mvn clean verify`: 337 tests, 0 failures/errors, 19 Docker-afhankelijke
+    Testcontainers-tests overgeslagen in deze Runtime zonder Docker, `BUILD SUCCESS`;
+  - frontend: `flutter analyze` zonder issues, 126 tests groen en `flutter build web` geslaagd;
+  - frontend-admin: `flutter analyze` zonder issues en 22 tests groen.
 
 ## Reikwijdte en grenzen van deze run
 

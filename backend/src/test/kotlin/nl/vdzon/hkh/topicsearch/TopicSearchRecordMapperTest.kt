@@ -2,6 +2,7 @@ package nl.vdzon.hkh.topicsearch
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 
 class TopicSearchRecordMapperTest {
@@ -44,6 +45,18 @@ class TopicSearchRecordMapperTest {
         val badge = deriveTopicSearchLicenseBadge("http://rightsstatements.org/vocab/InC/1.0/")
 
         assertEquals("Rechten voorbehouden", badge.text)
+    }
+
+    @Test
+    fun `an InC rightsstatements page url also maps to rechten voorbehouden`() {
+        assertEquals(
+            "Rechten voorbehouden",
+            deriveTopicSearchLicenseBadge("https://rightsstatements.org/page/InC/1.0/?language=nl").text,
+        )
+        assertEquals(
+            "Rechten voorbehouden",
+            deriveTopicSearchLicenseBadge("http://rightsstatements.org/vocab/InC-EDU/1.0/").text,
+        )
     }
 
     @Test
@@ -154,6 +167,67 @@ class TopicSearchRecordMapperTest {
         )
 
         assertEquals("https://www.europeana.eu/item/1", record?.sourceUrl)
+    }
+
+    @Test
+    fun `the guid fallback drops the tracking querystring that carries the api key`() {
+        val apiKey = "not-a-real-key-0123456789"
+        val record = buildTopicSearchRecordOrNull(
+            titles = listOf("Watersnood 1916"),
+            descriptions = null,
+            dataProviders = listOf("Noord-Hollands Archief"),
+            edmIsShownAt = null,
+            guid = "https://www.europeana.eu/item/2021631/afbeelding_fed0984a" +
+                "?utm_source=api&utm_medium=api&utm_campaign=$apiKey",
+            rights = null,
+        )
+
+        assertEquals("https://www.europeana.eu/item/2021631/afbeelding_fed0984a", record?.sourceUrl)
+        assertFalse(record?.sourceUrl.orEmpty().contains(apiKey))
+        assertFalse(record?.sourceUrl.orEmpty().contains("utm_"))
+        assertFalse(record?.sourceUrl.orEmpty().contains("?"))
+    }
+
+    @Test
+    fun `the guid fallback also drops a fragment`() {
+        val record = buildTopicSearchRecordOrNull(
+            titles = listOf("Watersnood 1916"),
+            descriptions = null,
+            dataProviders = listOf("Noord-Hollands Archief"),
+            edmIsShownAt = listOf("/relative/record/1"),
+            guid = "https://www.europeana.eu/item/2021631/afbeelding_fed0984a#utm_campaign=key",
+            rights = null,
+        )
+
+        assertEquals("https://www.europeana.eu/item/2021631/afbeelding_fed0984a", record?.sourceUrl)
+    }
+
+    @Test
+    fun `a guid that is nothing but a querystring is invalid`() {
+        val record = buildTopicSearchRecordOrNull(
+            titles = listOf("Watersnood 1916"),
+            descriptions = null,
+            dataProviders = listOf("Noord-Hollands Archief"),
+            edmIsShownAt = null,
+            guid = "?utm_campaign=not-a-real-key",
+            rights = null,
+        )
+
+        assertNull(record)
+    }
+
+    @Test
+    fun `an absolute shown-at link keeps its own query parameters`() {
+        val record = buildTopicSearchRecordOrNull(
+            titles = listOf("Watersnood 1916"),
+            descriptions = null,
+            dataProviders = listOf("Noord-Hollands Archief"),
+            edmIsShownAt = listOf("https://archief.example/detail?id=42&page=2"),
+            guid = "https://www.europeana.eu/item/1?utm_campaign=not-a-real-key",
+            rights = null,
+        )
+
+        assertEquals("https://archief.example/detail?id=42&page=2", record?.sourceUrl)
     }
 
     @Test

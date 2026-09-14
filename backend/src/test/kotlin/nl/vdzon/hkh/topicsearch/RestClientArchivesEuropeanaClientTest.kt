@@ -124,6 +124,32 @@ class RestClientArchivesEuropeanaClientTest {
     }
 
     @Test
+    fun `a guid fallback never exposes the api key from the europeana tracking parameters`() {
+        val apiKey = "own-project-key-0123456789"
+        val restClient = startServer { exchange ->
+            respondJson(
+                exchange,
+                200,
+                """
+                {"items": [
+                    {"title": ["Watersnood 1916"], "dataProvider": ["Noord-Hollands Archief"],
+                     "edmIsShownAt": null,
+                     "guid": "https://www.europeana.eu/item/2021631/afbeelding_fed0984a?utm_source=api&utm_medium=api&utm_campaign=$apiKey"}
+                ]}
+                """.trimIndent(),
+            )
+        }
+        val client = RestClientArchivesEuropeanaClient(restClient, apiKey)
+
+        val outcome = client.search("watersnood 1916 AND Heemskerk") as EuropeanaSearchOutcome.Success
+
+        val sourceUrl = outcome.validRecords.single().sourceUrl
+        assertEquals("https://www.europeana.eu/item/2021631/afbeelding_fed0984a", sourceUrl)
+        assertTrue(!sourceUrl.contains(apiKey))
+        assertTrue(!sourceUrl.contains("utm_"))
+    }
+
+    @Test
     fun `a non-2xx status is a failure`() {
         val restClient = startServer { exchange -> respondJson(exchange, 500, """{"error": "boom"}""") }
         val client = RestClientArchivesEuropeanaClient(restClient, "own-project-key")

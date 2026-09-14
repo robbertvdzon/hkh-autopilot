@@ -358,13 +358,16 @@ harde totale deadline volstaat.
   `buildTopicSearchRecordOrNull` (`TopicSearchRecordMapper.kt`), dat een record alleen bouwt bij
   (`title` OF `dcDescription`) EN `dataProvider` EN een absolute HTTP(S)-bronverwijzing (`edmIsShownAt`, anders
   `guid`); ontbreekt één van deze, dan is het record `null` en telt het nergens mee, ook niet voor het
-  totaal.
+  totaal. Bij de `guid`-fallback worden de querystring en het fragment verwijderd: Europeana zet de
+  gebruikte API-key als `utm_campaign` in de guid, en die link gaat als `sourceUrl` naar de publieke
+  respons, de DOM, browserhistorie en referrer-/proxylogs. Een `edmIsShownAt` van de instelling zelf
+  behoudt wel zijn eigen queryparameters.
 - `deriveTopicSearchLicenseBadge` (`TopicSearchRecordMapper.kt`) is een deterministische, puur
   functionele afleiding van de rights-URL naar `TopicSearchLicenseBadge` (tekst + link):
   `creativecommons.org/publicdomain/mark` of `/publicdomain/zero` → "Publiek domein";
   `creativecommons.org/licenses/<variant>` → `"CC " + variant.uppercase()` (bv. "CC BY-SA");
-  `rightsstatements.org/vocab/InC` en `europeana.eu/rights/rr-*` → "Rechten
-  voorbehouden"; elke andere, onbekende of ontbrekende rights-URL → "Rechten onbekend" (met de ruwe
+  een `rightsstatements.org`-URL met `InC` (zowel `/vocab/InC…` als `/page/InC…`) en
+  `europeana.eu/rights/rr-*` → "Rechten voorbehouden"; elke andere, onbekende of ontbrekende rights-URL → "Rechten onbekend" (met de ruwe
   URL als link waar beschikbaar).
 - `TopicSearchWikidataContextClient` (`TopicSearchWikidataContextSource`) doet `GET
   /w/api.php?action=wbsearchentities&search=<term>&language=nl&type=item&format=json`, gevolgd door

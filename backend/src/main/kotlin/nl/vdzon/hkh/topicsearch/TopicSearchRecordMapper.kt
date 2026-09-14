@@ -25,13 +25,23 @@ fun deriveTopicSearchLicenseBadge(rightsUrl: String?): TopicSearchLicenseBadge {
             TopicSearchLicenseBadge(text, rightsUrl)
         }
 
-        normalizedUrl.contains("rightsstatements.org/vocab/inc") ||
-            normalizedUrl.contains("europeana.eu/rights/rr-") ->
+        normalizedUrl.contains("rightsstatements.org/") && normalizedUrl.contains("inc") ->
+            TopicSearchLicenseBadge("Rechten voorbehouden", rightsUrl)
+
+        normalizedUrl.contains("europeana.eu/rights/rr-") ->
             TopicSearchLicenseBadge("Rechten voorbehouden", rightsUrl)
 
         else -> TopicSearchLicenseBadge("Rechten onbekend", rightsUrl)
     }
 }
+
+/**
+ * Europeana zet in de `guid` van een record tracking-parameters, waaronder de gebruikte API-key als
+ * `utm_campaign`. Die guid gaat als bronlink naar de publieke API-respons, de DOM, browserhistorie
+ * en referrer-/proxylogs. De fallback gebruikt daarom uitsluitend het sleutelvrije deel van de URL:
+ * schema, host en pad, zonder querystring en zonder fragment.
+ */
+private fun String.withoutQueryAndFragment(): String = substringBefore('#').substringBefore('?')
 
 private fun String.isAbsoluteHttpUrl(): Boolean = try {
     val uri = URI(this)
@@ -44,8 +54,8 @@ private fun String.isAbsoluteHttpUrl(): Boolean = try {
 /**
  * Toetst en bouwt een geldig record uit ruwe Europeana-velden: (titel OF beschrijving) EN
  * dataProvider EN een geldige bronverwijzing (`edmIsShownAt`, anders het Europeana-record zelf via
- * `guid`). Ontbreekt één van deze, dan is het record ongeldig (`null`) en telt het niet mee, ook
- * niet voor het getoonde totaal.
+ * `guid` zonder diens tracking-querystring, zie [withoutQueryAndFragment]). Ontbreekt één van deze,
+ * dan is het record ongeldig (`null`) en telt het niet mee, ook niet voor het getoonde totaal.
  */
 fun buildTopicSearchRecordOrNull(
     titles: List<String>?,
@@ -58,7 +68,7 @@ fun buildTopicSearchRecordOrNull(
     val title = titles?.firstOrNull { it.isNotBlank() } ?: descriptions?.firstOrNull { it.isNotBlank() } ?: return null
     val provider = dataProviders?.firstOrNull { it.isNotBlank() } ?: return null
     val sourceUrl = edmIsShownAt?.firstOrNull { it.isAbsoluteHttpUrl() }
-        ?: guid?.takeIf { it.isAbsoluteHttpUrl() }
+        ?: guid?.withoutQueryAndFragment()?.takeIf { it.isAbsoluteHttpUrl() }
         ?: return null
     val rightsUrl = rights?.firstOrNull { it.isNotBlank() }
     return TopicSearchRecord(
