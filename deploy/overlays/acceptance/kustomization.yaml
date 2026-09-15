@@ -4,12 +4,7 @@ namespace: hkh-autopilot-acceptance
 resources:
 - ../../base
 - acceptance-secret.yaml
-  # De acceptatieomgeving is standing, maar heeft geen productieverkeer; 1Gi is ruim voldoende voor de
-  # geseede demodata. Zelfde aanpak als deploy/overlays/preview/kustomization.yaml.
-  # De frontend proxit same-origin naar de backend; een losse externe Route voor de backend is niet
-  # nodig (zelfde als preview).
-  # Vaste hostnamen voor de standing acceptatieomgeving (geen ArgoCD-templating nodig, er is maar één
-  # instantie).
+- sealed-secret-ai-access.yaml
 patches:
 - patch: |-
     - op: replace
@@ -77,13 +72,14 @@ patches:
     kind: Deployment
     name: backend
     version: v1
+- path: agent-access-patch.yaml
 images:
 - name: admin-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-admin
   newTag: sha-fac1946-acceptance
 - name: backend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-backend
-  newTag: sha-e1a4994
+  newTag: sha-9ce1bad
 - name: frontend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-frontend
   newTag: sha-e1a4994-acceptance

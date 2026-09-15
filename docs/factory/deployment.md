@@ -20,3 +20,15 @@ seeddata. Zie `deploy/README.md` voor clustercontrole, back-upbeleid en seedingv
 
 Platte clustersecrets worden nooit gecommit. `deploy/seal-secrets.sh` zet een lokale,
 gitignored env-file om naar de versleutelde sealed-secretmanifesten.
+
+## Europeana testen
+
+Een PR-preview gebruikt de echte HTTP-client tegen een lokale fixture, met uitsluitend synthetische
+resultaten. De standaard zoekvraag levert een zichtbaar als testrecord gemarkeerd resultaat op.
+Gebruik `test-leeg`, `test-storing`, `test-timeout` en `test-ongeldige-json` in een onderwerpzoekvraag
+voor de andere schermtoestanden. Wikidata levert in previews bewust geen aanvullende context.
+De fixture weigert te starten buiten een door de backend geverifieerde PR-preview.
+
+Acceptatie en productie blijven de echte Europeana-koppeling gebruiken. De eigen API-key hoort in
+het runtime-secret van elke omgeving; deze wordt nooit aan de tester doorgegeven. Controleer op
+acceptatie naast de previewtests ook dat een echte API-aanroep en bronverwijzing werken.

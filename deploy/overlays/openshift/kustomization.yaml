@@ -4,6 +4,7 @@ namespace: hkh-autopilot
 resources:
 - ../../base
 - postgres-backup.yaml
+- sealed-secret-ai-access.yaml
 patches:
 - patch: |-
     - op: replace
@@ -14,13 +15,14 @@ patches:
     kind: Deployment
     name: backend
     version: v1
+- path: agent-access-patch.yaml
 images:
 - name: admin-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-admin
   newTag: sha-fac1946
 - name: backend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-backend
-  newTag: sha-e1a4994
+  newTag: sha-9ce1bad
 - name: frontend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-frontend
   newTag: sha-e1a4994
