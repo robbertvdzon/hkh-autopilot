@@ -11,8 +11,10 @@ class AdminAuthenticator(
     private val config: AdminAuthConfig,
     private val tokenVerifier: GoogleIdTokenVerifier,
     private val preview: PreviewRuntimeConfig,
+    private val agentSessions: AgentAdminSessions = AgentAdminSessions(config),
 ) {
     fun authenticate(authorization: String?, previewHeader: String?): AuthenticatedAdmin {
+        agentSessions.resolve(authorization)?.let { return it }
         if (preview.accepts(previewHeader)) return AuthenticatedAdmin(PreviewRuntimeConfig.ADMIN_EMAIL)
         if (!config.enabled) throw ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Admin login is not configured")
         val idToken = authorization

@@ -1,56 +1,45 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - ../../base
-# hkh-runtime wordt hieronder als secretGenerator (met kustomize's ingebouwde content-hash-suffix)
-# aangemaakt i.p.v. als los manifest (preview-secret.yaml): zodra de literals wijzigen, verandert
-# de gegenereerde Secret-naam en herschrijft kustomize automatisch de envFrom.secretRef.name van de
-# backend-Deployment daarnaar, wat een echte Pod-rollout afdwingt. Een los Secret-manifest zonder
-# generator laat de bestaande Pod, net als bij de sealed secrets in productie/acceptatie, ongemoeid
-# bij een inhoudelijke wijziging.
+- ../../base
+- sealed-secret-ai-access.yaml
 secretGenerator:
-  - name: hkh-runtime
-    literals:
-      - HKH_DATABASE_URL=jdbc:postgresql://database:5432/hkh
-      - HKH_DATABASE_USER=hkh_preview
-      - HKH_DATABASE_PASSWORD=hkh_preview_only
-      - HKH_CORS_ALLOWED_ORIGIN_PATTERNS=
-      - HKH_GOOGLE_CLIENT_ID=
-      - HKH_ADMIN_ALLOWED_EMAILS=
-      - HKH_PREVIEW_ENABLED=true
-      - HKH_PREVIEW_MARKER=hkh-autopilot-pr-preview
-      - HKH_PERSON_SEARCH_PAYLOAD_KEY=w++k4hdkPjjHMxZhpdW03g4aP+mZvG5WZm6Sftt+1eA=
-    options:
-      labels:
-        preview.vdzonsoftware.nl/data-class: disposable
+- name: hkh-runtime
+  literals:
+  - HKH_DATABASE_URL=jdbc:postgresql://database:5432/hkh
+  - HKH_DATABASE_USER=hkh_preview
+  - HKH_DATABASE_PASSWORD=hkh_preview_only
+  - HKH_CORS_ALLOWED_ORIGIN_PATTERNS=
+  - HKH_GOOGLE_CLIENT_ID=
+  - HKH_ADMIN_ALLOWED_EMAILS=
+  - HKH_TOPICSEARCH_PREVIEW_FIXTURES=true
+  - HKH_EUROPEANA_API_KEY=preview-fixture-only
+  - HKH_TOPICSEARCH_EUROPEANA_BASE_URL=http://localhost:8080/test-fixtures/europeana
+  - HKH_TOPICSEARCH_WIKIDATA_BASE_URL=http://localhost:8080/test-fixtures/wikidata
+  - HKH_PREVIEW_ENABLED=true
+  - HKH_PREVIEW_MARKER=hkh-autopilot-pr-preview
+  - HKH_PERSON_SEARCH_PAYLOAD_KEY=w++k4hdkPjjHMxZhpdW03g4aP+mZvG5WZm6Sftt+1eA=
+  options:
+    labels:
+      preview.vdzonsoftware.nl/data-class: disposable
 patches:
-  - target:
-      version: v1
-      kind: PersistentVolumeClaim
-      name: database-data
-    patch: |-
-      - op: replace
-        path: /spec/resources/requests/storage
-        value: 1Gi
-  - target:
-      group: bitnami.com
-      version: v1alpha1
-      kind: SealedSecret
-      name: hkh-runtime
-    patch: |-
-      $patch: delete
-      apiVersion: bitnami.com/v1alpha1
-      kind: SealedSecret
-      metadata:
-        name: hkh-runtime
-  - target:
-      group: route.openshift.io
-      version: v1
-      kind: Route
-      name: backend
-    patch: |-
-      $patch: delete
-      apiVersion: route.openshift.io/v1
-      kind: Route
-      metadata:
-        name: backend
+- target:
+    version: v1
+    kind: PersistentVolumeClaim
+    name: database-data
+  patch: "- op: replace\n  path: /spec/resources/requests/storage\n  value: 1Gi"
+- target:
+    group: bitnami.com
+    version: v1alpha1
+    kind: SealedSecret
+    name: hkh-runtime
+  patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n\
+    \  name: hkh-runtime"
+- target:
+    group: route.openshift.io
+    version: v1
+    kind: Route
+    name: backend
+  patch: "$patch: delete\napiVersion: route.openshift.io/v1\nkind: Route\nmetadata:\n\
+    \  name: backend"
+- path: agent-access-patch.yaml
