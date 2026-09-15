@@ -9,6 +9,12 @@ secretGenerator:
   - HKH_DATABASE_URL=jdbc:postgresql://database:5432/hkh
   - HKH_DATABASE_USER=hkh_preview
   - HKH_DATABASE_PASSWORD=hkh_preview_only
+  # Een PR-preview serveert de webapp en /api same-origin (de frontend-nginx proxyt /api naar
+  # de backend en de webbuild krijgt een lege API_BASE_URL). Same-origin verkeer valt buiten
+  # deze patronen: SameOriginRequestFilter herkent het als niet-CORS, dus een lege lijst is
+  # hier veilig en laat geen enkele cross-origin client toe. agent-access-patch.yaml zet
+  # dezelfde variabele daarnaast als expliciete env-waarde op de backendcontainer voor de
+  # losse beheerapp; die waarde wint van deze gegenereerde secretwaarde (env gaat voor envFrom).
   - HKH_CORS_ALLOWED_ORIGIN_PATTERNS=
   - HKH_GOOGLE_CLIENT_ID=
   - HKH_ADMIN_ALLOWED_EMAILS=

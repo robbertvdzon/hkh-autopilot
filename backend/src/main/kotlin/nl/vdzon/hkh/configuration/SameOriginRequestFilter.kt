@@ -32,11 +32,26 @@ import org.springframework.web.filter.OncePerRequestFilter
  * frontend op `http://localhost:3000` tegenover een backend op poort 8080 een echt cross-origin
  * verzoek dat gewoon langs de CORS-patronen gaat.
  *
+ * Het herkomstschema wordt bewust niet met dat van het verzoek vergeleken, hoewel het schema deel
+ * uitmaakt van de origin-definitie. Achter de OpenShift-route termineert de edge TLS, dus de
+ * backend ziet elk verzoek als plain HTTP terwijl de browserherkomst `https` is; een directe
+ * vergelijking zou same-origin verkeer daardoor altijd afwijzen en precies de storing terugbrengen
+ * die deze filter oplost. `X-Forwarded-Proto` is hier geen betrouwbare vervanging, omdat de
+ * tussenliggende frontend-nginx die header met `$scheme` overschrijft. De versoepeling blijft
+ * beperkt tot dezelfde hostnaam: hooguit telt een pagina op `http://<host>` als same-origin voor
+ * een verzoek aan `https://<host>`.
+ *
  * Dit verzwakt de cross-site-bescherming niet. De filter grijpt uitsluitend in wanneer de herkomst
  * van de pagina gelijk is aan de host waaraan het verzoek is gericht; een pagina op een andere
  * host houdt haar eigen `Origin` en wordt dus nog steeds tegen de patronen getoetst. Een browser
  * stuurt cookies alleen naar de host waar ze bij horen, dus een aanvallerspagina kan met deze
  * filter geen sessie van een andere host meeliften.
+ *
+ * Het verbergen geldt voor de volledige filterketen, dus ook voor applicatiecode die de header zelf
+ * leest. Die code mag de herkomst niet verliezen: de agenttoegangscontrole toetst de herkomst van
+ * een aanmelding tegen een eigen allowlist en zou anders stilzwijgend worden overgeslagen. De
+ * oorspronkelijke waarde blijft daarom beschikbaar als requestattribuut
+ * [ORIGINAL_ORIGIN_ATTRIBUTE].
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
@@ -48,6 +63,7 @@ class SameOriginRequestFilter : OncePerRequestFilter() {
     ) {
         val origin = request.getHeader(HttpHeaders.ORIGIN)
         if (origin != null && isSameOrigin(origin, request)) {
+            request.setAttribute(ORIGINAL_ORIGIN_ATTRIBUTE, origin)
             filterChain.doFilter(OriginHiddenHttpServletRequest(request), response)
         } else {
             filterChain.doFilter(request, response)
@@ -55,6 +71,18 @@ class SameOriginRequestFilter : OncePerRequestFilter() {
     }
 
     companion object {
+        /**
+         * Requestattribuut met de `Origin`-header die voor de CORS-toetsing is verborgen. Alleen
+         * gezet wanneer de filter daadwerkelijk ingrijpt; bij een cross-origin verzoek blijft de
+         * header zelf staan. Applicatiecode die de herkomst nodig heeft leest dit attribuut met de
+         * header als terugval, zodat een eigen herkomstcontrole niet van deze filter afhangt.
+         * Modulegrenzen verbieden een directe verwijzing vanuit andere modules, dus de naam staat
+         * daar als letterlijke constante; `AgentAccessOriginAllowlistTest` toetst dat beide
+         * gelijk blijven.
+         */
+        const val ORIGINAL_ORIGIN_ATTRIBUTE: String =
+            "nl.vdzon.hkh.configuration.SameOriginRequestFilter.ORIGINAL_ORIGIN"
+
         fun isSameOrigin(origin: String, request: HttpServletRequest): Boolean {
             val uri = runCatching { URI(origin) }.getOrNull() ?: return false
             val scheme = uri.scheme?.lowercase() ?: return false

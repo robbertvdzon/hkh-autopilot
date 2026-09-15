@@ -21,7 +21,11 @@ omgevingen die de webapp en `/api` same-origin serveren (PR-preview en acceptati
 frontend-nginxproxy). `SameOriginRequestFilter` herkent zo'n verzoek - herkomstschema http(s),
 herkomsthost gelijk aan de host waaraan het verzoek gericht is, en geen afwijkende expliciete poort
 - en verbergt de `Origin`-header, zodat het als gewoon same-origin verzoek wordt afgehandeld.
-Cross-origin verzoeken behouden hun header en blijven aan de patronen onderworpen.
+Cross-origin verzoeken behouden hun header en blijven aan de patronen onderworpen. Omdat het
+verbergen voor de volledige filterketen geldt, bewaart de filter de oorspronkelijke herkomst in het
+requestattribuut `SameOriginRequestFilter.ORIGINAL_ORIGIN_ATTRIBUTE`; `AgentAccessController` leest
+dat attribuut met de header als terugval, zodat de `AI_ACCESS_ALLOWED_ORIGINS`-allowlist ook bij een
+same-origin aanmelding blijft gelden.
 
 Langlopende AI-opdrachten gaan asynchroon via de gedeelde Agent Runtime en nooit via een directe
 modelaanroep in de requestthread. HKH Autopilot gebruikt een eigen `APPLICATION_WORK`-tenant,

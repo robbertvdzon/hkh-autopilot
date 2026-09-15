@@ -34,8 +34,11 @@ certificaat van de huidige cluster als die repository niet beschikbaar is.
 
 `HKH_CORS_ALLOWED_ORIGIN_PATTERNS` gaat uitsluitend over echte cross-origin clients. Productie
 bouwt de webapp met een ingebakken `API_BASE_URL` naar de aparte backend-route en heeft die
-patronen dus nodig; preview en acceptatie serveren de webapp en `/api` same-origin via de
-frontend-nginx en hebben er niets aan.
+patronen dus nodig. Preview en acceptatie serveren de webapp en `/api` same-origin via de
+frontend-nginx, dus hun eigen verkeer hangt niet van deze lijst af; ze zetten de patronen in
+`deploy/overlays/{preview,acceptance}/agent-access-patch.yaml` toch expliciet voor de losse
+beheerapp op haar eigen host. Die expliciete `env`-waarde wint op de backendcontainer van de
+gegenereerde of verzegelde secretwaarde (`env` gaat voor `envFrom`); ruim ze dus niet op.
 
 Een browser stuurt bij een POST ook op een same-origin verzoek een `Origin`-header mee, en Spring
 beschouwt sinds Framework 6 elk verzoek met zo'n header als CORS-verzoek. Een lege of verouderde
@@ -44,6 +47,11 @@ tweemaal eerder opgelost door het secret opnieuw te verzegelen (`7ca31be`, `3a05
 lost dit nu structureel op: `SameOriginRequestFilter` herkent same-origin verzoeken en laat ze
 buiten de CORS-toetsing, zodat de webapp nooit meer van deze secretwaarde afhangt. Cross-origin
 verzoeken blijven fail-closed: zonder patronen wijst de backend ze af.
+
+De herkomst van een same-origin verzoek gaat niet verloren: de filter bewaart de verborgen
+`Origin`-header als requestattribuut. `AI_ACCESS_ALLOWED_ORIGINS` blijft daardoor gewoon gelden bij
+`POST /api/auth/agent-session`, ook wanneer de aanmeldpagina via de frontendproxy op dezelfde
+origin wordt geopend.
 
 Google-login blijft bewust uitgeschakeld zolang zowel `HKH_GOOGLE_CLIENT_ID` als
 `HKH_ADMIN_ALLOWED_EMAILS` leeg zijn. Voor echte login moeten dezelfde Google web-client-ID in

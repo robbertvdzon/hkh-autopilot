@@ -7,6 +7,9 @@ De response bevat een normale applicatiesessie; rechten blijven door de applicat
 Per omgeving configureer je `AI_ACCESS_TOKEN` (minimaal 32 willekeurige tekens), `AI_ACCESS_EMAILS`
 (expliciete bestaande/toegestane identiteiten) en `AI_ACCESS_ALLOWED_ORIGINS` (exacte frontendorigins; voor PR-hostnamen uitsluitend `{pr}` als numeriek gedeelte).
 Zonder token staat de ingang uit. Er worden bij aanmelden geen accounts of rollen aangemaakt.
+De herkomstcontrole geldt ook wanneer de aanmeldpagina via de frontendproxy op dezelfde origin
+wordt geopend: `SameOriginRequestFilter` verbergt de `Origin`-header alleen voor de CORS-toetsing
+en bewaart de waarde als requestattribuut, dat de aanmeldroute uitleest.
 Gebruik op test/acceptatie aparte accounts en tokens. Alleen de testtoken mag als bijvoorbeeld
 `HKH_AUTOPILOT__ACCEPTANCE_AGENT_TOKEN` in Agent Runtime komen.
 Productietokens, databasecredentials en signing secrets blijven buiten de runtime. Productie-login

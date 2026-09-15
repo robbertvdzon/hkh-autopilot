@@ -27,6 +27,12 @@ comparing the origin host with the host the request was addressed to, and hides 
 so the request is handled as what it is: not a CORS request. Cross-origin requests keep their
 header and stay subject to the configured patterns.
 
+Hiding the header covers the whole filter chain, so application code that reads `Origin` itself
+would lose it. The filter therefore keeps the original value in the request attribute
+`SameOriginRequestFilter.ORIGINAL_ORIGIN_ATTRIBUTE`. `AgentAccessController` reads that attribute
+with the header as a fallback, so the `AI_ACCESS_ALLOWED_ORIGINS` allowlist keeps applying to a
+same-origin agent login instead of being silently skipped.
+
 ## Backend commands
 
 ```bash

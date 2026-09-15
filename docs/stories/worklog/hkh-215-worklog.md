@@ -3,8 +3,8 @@
 ## Status
 
 - Rol: developer
-- Onderzochte checkout-head: `e460e13` (`ai/hkh-208`); eerdere rondes op `0843de2`, `0c708ba`,
-  `82405ee`
+- Onderzochte checkout-head: `d7356f2` (`ai/hkh-208`, merge van `origin/main` in de storybranch);
+  eerdere rondes op `fc9b40d`, `e460e13`, `0843de2`, `0c708ba`, `82405ee`
 - Live alleen-lezende controles: 2026-09-14 13:05-13:14 UTC en hercontroles 14:08-14:09, 14:19 en
   18:08-18:10 UTC op `https://hkh-autopilot-acceptance.vdzonsoftware.nl`
 - Scope sinds de correctie van 2026-09-14 (issue comment 3967): alleen deel A van de acceptance
@@ -277,6 +277,79 @@ same-origin telt.
 **Wat deze ronde niet kan aantonen.** De previewcontrole uit AC 8 hoort bij testsubtaak hkh-216 en
 kan pas op de gepubliceerde head worden gedaan; factory-agents rollen niet uit. Ook de live
 acceptatiecontroles (deel B) blijven buiten deze subtaak.
+
+### Ronde na de reviewblocker over de agenttoegangs-allowlist (checkout-head `d7356f2`)
+
+De vervolgreview (issue comment 3996) keurde de CORS-oplossing zelf goed, maar vond een regressie
+die pas door de merge met `main` ontstond. `main`-commit `a65b75a` heeft de herkomstcontrole bij
+`POST /api/auth/agent-session` juist bedoeld werkend gemaakt, terwijl `SameOriginRequestFilter` uit
+deze story de `Origin`-header van een same-origin verzoek voor de **volledige** filterketen
+verbergt - dus ook voor `AgentAccessController`, die de header met `@RequestHeader("Origin")` zelf
+uitleest.
+
+**Bevestigde oorzaak.** De aanmeldpagina (`GET /api/auth/agent-login`) wordt op dezelfde origin als
+de frontend geopend en doet een relatieve `fetch` naar `/api/auth/agent-session`; de frontend-nginx
+proxyt `/api/` met `Host $host`, dus de backend ziet dezelfde host als de browser en de filter
+grijpt in. `AgentAccessVerifier.verify` toetst de allowlist alleen wanneer `origin != null`, dus met
+een verborgen header werd `AI_ACCESS_ALLOWED_ORIGINS` op dat pad stilzwijgend overgeslagen. Erger
+dan overslaan: bij een lege of verouderde allowlist wees `main` zo'n browseraanmelding af, terwijl de
+storybranch hem juist accepteerde - het gedrag klapte van fail-closed naar fail-open, in preview,
+acceptatie en productie tegelijk. Geen bestaande test merkte dat, omdat `AgentAccessVerifierTest` de
+verifier los van de filterketen toetst. Er is buiten deze controller geen andere plek in de backend
+die de `Origin`-header zelf leest (Spring Security staat niet op het klassenpad), dus dit was de
+enige geraakte consument.
+
+**Wijziging.** De filter bewaart de verborgen waarde nu als requestattribuut
+(`SameOriginRequestFilter.ORIGINAL_ORIGIN_ATTRIBUTE`), en `AgentAccessController` leest dat
+attribuut met de `Origin`-header als terugval. Daarmee blijft de CORS-oplossing ongewijzigd (Spring
+ziet nog steeds geen CORS-verzoek) terwijl de herkomstcontrole exact het gedrag van `main`
+terugkrijgt: een same-origin aanmelding wordt weer tegen de allowlist getoetst, een aanroep zonder
+`Origin`-header (curl) gedraagt zich onveranderd, en de verzegelde `AI_ACCESS_ALLOWED_ORIGINS` in
+`deploy/overlays/{preview,acceptance,openshift}` is geen dode configuratie meer. De modulegrenzen
+(`allowedDependencies = {}` op beide modules) staan geen directe verwijzing toe, dus de
+attribuutnaam staat in `auth` als eigen constante; de nieuwe test bewaakt dat beide gelijk blijven.
+
+**Nieuwe regressietest.** `AgentAccessOriginAllowlistTest` (6 tests) haalt een same-origin POST naar
+`/api/auth/agent-session` door de echte filterketen heen: een niet-toegestane eigen origin geeft
+401, een lege allowlist geeft 401 (fail-closed, precies het omgeklapte geval), een toegestane origin
+geeft 200 met de verwachte identiteit, een cross-origin aanmelding blijft 401, een aanroep zonder
+`Origin` behoudt haar bestaande gedrag, en beide attribuutconstanten moeten gelijk zijn. Met de
+oude controllercode faalt deze test aantoonbaar op twee van die gevallen (beide 200 in plaats van
+401); dat is vóór het herstel gecontroleerd.
+
+**Opgevolgde suggesties uit hetzelfde commentaar.**
+
+- `deploy/README.md` sprak de gemergede overlays tegen ("preview en acceptatie hebben niets aan de
+  patronen"). De tekst beschrijft nu dat beide overlays de patronen sinds `a65b75a` expliciet zetten
+  voor de losse beheerapp, dat die `env`-waarde van de gegenereerde/verzegelde waarde wint en dat ze
+  dus niet opgeruimd moeten worden. Ook staat er nu dat de herkomstcontrole bij agentaanmelding
+  gewoon blijft gelden.
+- De bij de merge weggevallen toelichting in `deploy/overlays/preview/kustomization.yaml` is
+  teruggezet en bijgewerkt met de precedentie tussen `env` en `envFrom`. De rendering blijft
+  byte-identiek: `kubectl kustomize deploy/overlays/preview` vóór en na deze wijziging levert exact
+  hetzelfde manifest, inclusief dezelfde gegenereerde secretnaam.
+- De bewuste keuze om het herkomstschema niet te vergelijken staat nu expliciet in de KDoc van
+  `isSameOrigin`, met de reden: achter de OpenShift-route ziet de backend altijd plain HTTP terwijl
+  de browserherkomst `https` is, en `X-Forwarded-Proto` wordt door de tussenliggende nginx met
+  `$scheme` overschreven. De versoepeling blijft beperkt tot dezelfde hostnaam.
+- De onderzochte head in dit worklog is bijgewerkt naar `d7356f2`.
+
+**Verificatie in deze ronde.**
+
+- gerichte nieuwe test: `AgentAccessOriginAllowlistTest` 6 tests, 0 failures/errors, en aantoonbaar
+  rood zonder het herstel;
+- `kubectl kustomize deploy/overlays/{preview,acceptance,openshift}`: alle drie renderen, preview
+  byte-identiek aan de rendering vóór deze ronde;
+- `./deploy/verify-runtime-secret-rollout.sh`: exitcode 0, "Runtime-secretwijziging vernieuwt de
+  backend Pod-templatechecksum";
+- backend `mvn -B --no-transfer-progress clean verify`: 364 tests, 0 failures/errors, 19
+  Docker-afhankelijke Testcontainers-tests overgeslagen in deze Runtime zonder Docker,
+  `BUILD SUCCESS`;
+- frontend: `flutter analyze` zonder issues, `flutter test -j 1` 126 tests groen, `flutter build
+  web` geslaagd;
+- frontend-admin: `flutter analyze` zonder issues en `flutter test -j 1` 22 tests groen;
+- frontend en frontend-admin zijn in deze ronde niet gewijzigd; de controles zijn ter bevestiging
+  gedraaid.
 
 ## Reikwijdte en grenzen van deze run
 
