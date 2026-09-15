@@ -3,8 +3,9 @@
 ## Status
 
 - Rol: developer
-- Onderzochte checkout-head: `d7356f2` (`ai/hkh-208`, merge van `origin/main` in de storybranch);
-  eerdere rondes op `fc9b40d`, `e460e13`, `0843de2`, `0c708ba`, `82405ee`
+- Onderzochte checkout-head: `e565a8b` (`ai/hkh-208`, het herstel van de agenttoegangs-allowlist
+  achter de CORS-filter); eerdere rondes op `d7356f2`, `fc9b40d`, `e460e13`, `0843de2`, `0c708ba`,
+  `82405ee`
 - Live alleen-lezende controles: 2026-09-14 13:05-13:14 UTC en hercontroles 14:08-14:09, 14:19 en
   18:08-18:10 UTC op `https://hkh-autopilot-acceptance.vdzonsoftware.nl`
 - Scope sinds de correctie van 2026-09-14 (issue comment 3967): alleen deel A van de acceptance
@@ -350,6 +351,38 @@ oude controllercode faalt deze test aantoonbaar op twee van die gevallen (beide 
 - frontend-admin: `flutter analyze` zonder issues en `flutter test -j 1` 22 tests groen;
 - frontend en frontend-admin zijn in deze ronde niet gewijzigd; de controles zijn ter bevestiging
   gedraaid.
+
+### Hercontroleronde op de gepubliceerde head (`e565a8b`)
+
+Deze ronde bevat geen nieuwe functionele wijziging: er stond geen openstaande review- of
+testbevinding meer open. De blocker uit issue comment 3996 (de allowlist voor agentsessies die
+achter `SameOriginRequestFilter` werd overgeslagen) en alle drie de suggesties uit datzelfde
+commentaar zijn in `e565a8b` opgeleverd en hier opnieuw nagelopen:
+
+- de filter bewaart de verborgen `Origin` als requestattribuut en `AgentAccessController` leest dat
+  attribuut met de header als terugval; `AgentAccessOriginAllowlistTest` haalt een same-origin POST
+  naar `/api/auth/agent-session` door de echte filterketen heen en dekt zowel het toegestane als het
+  fail-closed geval af;
+- `backend/src/main` kent buiten `AgentAccessController` geen andere plek die de `Origin`-header
+  zelf leest (gecontroleerd met een gerichte zoekactie), dus er is geen tweede geraakte consument;
+- `deploy/README.md`, de toelichting in `deploy/overlays/preview/kustomization.yaml`, de KDoc over
+  het niet-vergelijken van het herkomstschema en de head-verwijzing bovenaan dit worklog zijn
+  bijgewerkt. De README-bewering over de precedentie is opnieuw tegen de gerenderde overlays
+  gecontroleerd: zowel preview als acceptatie zetten `HKH_CORS_ALLOWED_ORIGIN_PATTERNS` als
+  expliciete `env`-waarde op de backendcontainer (preview de PR-wildcardorigins, acceptatie de eigen
+  app- en beheerorigin), die conform Kubernetes-precedentie van de `envFrom`-secretwaarde wint.
+
+**Verificatievangnet opnieuw volledig groen op deze head.**
+
+| Controle | Resultaat |
+|---|---|
+| `./deploy/verify-runtime-secret-rollout.sh` | exitcode 0, "Runtime-secretwijziging vernieuwt de backend Pod-templatechecksum" |
+| `kubectl kustomize deploy/overlays/{preview,acceptance,openshift}` | alle drie renderen |
+| backend `mvn -B --no-transfer-progress clean verify` | `BUILD SUCCESS`, 364 tests, 0 failures, 0 errors, 19 overgeslagen (Docker-afhankelijke Testcontainers; geen Docker in deze Runtime) |
+| frontend `flutter analyze` / `flutter test -j 1` / `flutter build web` | geen issues, 126 tests groen, `Built build/web` |
+| frontend-admin `flutter analyze` / `flutter test -j 1` | geen issues, 22 tests groen |
+
+De enige wijziging in de werkboom van deze ronde is dit worklog zelf.
 
 ## Reikwijdte en grenzen van deze run
 
