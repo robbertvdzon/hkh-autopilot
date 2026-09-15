@@ -1,3 +1,4 @@
+import '../external_source_link.dart';
 import 'package:flutter/material.dart';
 
 import '../personquery/person_query_widgets.dart';
@@ -259,25 +260,7 @@ class _ContextSection extends StatelessWidget {
   }
 }
 
-/// Actielink die een externe bron beschrijft als een nieuw tabblad openend.
-class Link extends StatelessWidget {
-  const Link({required this.label, required this.url, super.key});
-
-  final String label;
-  final String url;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      link: true,
-      label: '$label (opent Open Archieven in een nieuw tabblad)',
-      child: Text(
-        label,
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.primary,
-          decoration: TextDecoration.underline,
-        ),
-      ),
-    );
-  }
+/// External archive source with browser and keyboard support.
+class Link extends ExternalSourceLink {
+  const Link({required super.label, required super.url, super.key});
 }

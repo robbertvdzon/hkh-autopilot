@@ -40,12 +40,19 @@ private data class LabelValue(@param:JsonProperty("value") val value: String? = 
  */
 class TopicSearchWikidataContextClient(private val restClient: RestClient) : TopicSearchWikidataContextSource {
 
+    // Dutch sitelink and label for the same event: https://www.wikidata.org/wiki/Q2372799.
+    // Only this reviewed alias is normalized; ambiguous live matches still fail closed.
+    private fun canonicalTerm(term: String): String = when (term.trim().lowercase()) {
+        "watersnood van 1916" -> "stormvloed van 1916"
+        else -> term
+    }
+
     override fun fetchContext(term: String): TopicSearchContext? = try {
         val searchResponse = restClient.get()
             .uri { uriBuilder ->
                 uriBuilder.path("/w/api.php")
                     .queryParam("action", "wbsearchentities")
-                    .queryParam("search", term)
+                    .queryParam("search", canonicalTerm(term))
                     .queryParam("language", "nl")
                     .queryParam("type", "item")
                     .queryParam("format", "json")

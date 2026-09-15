@@ -35,7 +35,7 @@ class TopicSearchClientConfiguration(
     private fun buildRestClient(baseUrl: String): RestClient {
         val requestFactory = SimpleClientHttpRequestFactory().apply {
             setConnectTimeout(500)
-            setReadTimeout(1200)
+            setReadTimeout(1500)
         }
         return RestClient.builder()
             .baseUrl(baseUrl)

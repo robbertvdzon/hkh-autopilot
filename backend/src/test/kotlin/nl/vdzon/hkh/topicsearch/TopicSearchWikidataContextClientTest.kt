@@ -60,6 +60,17 @@ class TopicSearchWikidataContextClientTest {
     }
 
     @Test
+    fun `reviewed flood alias searches the Dutch canonical title and still rejects ambiguity`() {
+        var query = ""
+        val client = startServer { exchange ->
+            query = java.net.URLDecoder.decode(exchange.requestURI.rawQuery, Charsets.UTF_8)
+            handle(exchange, listOf("Q2372799", "Q2"), emptyMap())
+        }
+        assertNull(client.fetchContext("watersnood van 1916"))
+        kotlin.test.assertContains(query, "search=stormvloed van 1916")
+    }
+
+    @Test
     fun `exactly one candidate builds a context block`() {
         val entity = """{"entities": {"Q1": {"labels": {"nl": {"value": "Watersnood van 1916"}}, "descriptions": {"nl": {"value": "overstroming"}}}}}"""
         val client = startServer { exchange -> handle(exchange, listOf("Q1"), mapOf("Q1" to entity)) }

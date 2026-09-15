@@ -1,3 +1,4 @@
+import '../external_source_link.dart';
 import 'package:flutter/material.dart';
 
 import '../personquery/person_query_widgets.dart';
@@ -99,7 +100,8 @@ class TopicResultsScreen extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         PersonQueryStatusMessage(
-          label: '${answer.topicSearchTerm}: ${answer.records.length} resultaten gevonden',
+          label:
+              '${answer.topicSearchTerm}: ${answer.records.length} resultaten gevonden',
           child: Text(answer.topicSearchTerm, style: textTheme.headlineSmall),
         ),
         const SizedBox(height: 4),
@@ -245,24 +247,15 @@ class _RecordCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                border: Border.all(color: Theme.of(context).colorScheme.outline),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(record.license.text, style: textTheme.bodySmall),
             ),
             const SizedBox(height: 8),
-            Semantics(
-              link: true,
-              label:
-                  'Bekijk bron op Europeana (opent Europeana in een nieuw tabblad)',
-              child: Text(
-                'Bekijk bron',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.primary,
-                  decoration: TextDecoration.underline,
-                ),
-              ),
-            ),
+            ExternalSourceLink(label: 'Bekijk bron', url: record.sourceUrl),
           ],
         ),
       ),

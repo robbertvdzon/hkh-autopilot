@@ -684,7 +684,8 @@ class _PersonQueryPageState extends State<PersonQueryPage> {
       case _PersonQueryScreen.topicEmpty:
         return TopicEmptyScreen(
           originalQuery: _submittedQuery,
-          refinementSuggestions: _topicResult?.refinementSuggestions ?? const [],
+          refinementSuggestions:
+              _topicResult?.refinementSuggestions ?? const [],
           onBackToStart: _backToStart,
         );
       case _PersonQueryScreen.topicOutage:
@@ -891,13 +892,15 @@ class _StartScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     for (final example in exampleQuestions)
-                      ActionChip(
-                        label: Text(example),
+                      OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          alignment: Alignment.centerLeft,
+                        ),
+                        child: Text(example, softWrap: true),
                         onPressed: () {
                           controller.text = example;
                           controller.selection = TextSelection.collapsed(
@@ -951,8 +954,7 @@ class _StartScreen extends StatelessWidget {
               _CoverageBadge(
                 key: Key('coverage-badge-europeana'),
                 icon: Icons.collections_bookmark,
-                label:
-                    'Europeana — archieven, musea, kranten en beeldbanken',
+                label: 'Europeana — archieven, musea, kranten en beeldbanken',
               ),
             ],
           ),

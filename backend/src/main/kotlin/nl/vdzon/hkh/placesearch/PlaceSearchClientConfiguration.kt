@@ -31,7 +31,7 @@ class PlaceSearchClientConfiguration(
     private fun buildRestClient(baseUrl: String): RestClient {
         val requestFactory = SimpleClientHttpRequestFactory().apply {
             setConnectTimeout(500)
-            setReadTimeout(800)
+            setReadTimeout(1500)
         }
         return RestClient.builder()
             .baseUrl(baseUrl)

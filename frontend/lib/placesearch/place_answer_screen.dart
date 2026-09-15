@@ -1,3 +1,4 @@
+import '../external_source_link.dart';
 import 'package:flutter/material.dart';
 
 import '../personquery/person_query_widgets.dart';
@@ -174,17 +175,9 @@ class PlaceAnswerScreen extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(source.qid),
                   const SizedBox(height: 8),
-                  Semantics(
-                    link: true,
-                    label:
-                        'Bekijk op Wikidata (opent Wikidata in een nieuw tabblad)',
-                    child: Text(
-                      'Bekijk op Wikidata',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.primary,
-                        decoration: TextDecoration.underline,
-                      ),
-                    ),
+                  ExternalSourceLink(
+                    label: 'Bekijk op Wikidata',
+                    url: 'https://www.wikidata.org/wiki/${source.qid}',
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -312,18 +305,9 @@ class _ImageTile extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Semantics(
-            link: true,
-            label:
-                'Bekijk bestandspagina op Commons (opent Wikimedia Commons in een nieuw tabblad)',
-            child: Text(
-              'Bekijk bestandspagina',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.primary,
-                decoration: TextDecoration.underline,
-                fontSize: 12,
-              ),
-            ),
+          ExternalSourceLink(
+            label: 'Bekijk bestandspagina',
+            url: image.filePageUrl,
           ),
         ],
       ),
