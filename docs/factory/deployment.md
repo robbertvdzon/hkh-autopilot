@@ -23,8 +23,10 @@ gitignored env-file om naar de versleutelde sealed-secretmanifesten.
 
 ## Europeana testen
 
-Een PR-preview gebruikt de echte HTTP-client tegen een lokale fixture, met uitsluitend synthetische
-resultaten. De standaard zoekvraag levert een zichtbaar als testrecord gemarkeerd resultaat op.
+Een PR-preview gebruikt de echte HTTP-client tegen een lokale fixture
+(`HKH_TOPICSEARCH_PREVIEW_FIXTURES=true`, met de Europeana- en Wikidata-basis-URI's naar
+`/test-fixtures/...` op de backend zelf), met uitsluitend synthetische resultaten. De standaard
+zoekvraag levert een zichtbaar als testrecord gemarkeerd resultaat op.
 Gebruik `test-leeg`, `test-storing`, `test-timeout` en `test-ongeldige-json` in een onderwerpzoekvraag
 voor de andere schermtoestanden. Wikidata levert in previews bewust geen aanvullende context.
 De fixture weigert te starten buiten een door de backend geverifieerde PR-preview.

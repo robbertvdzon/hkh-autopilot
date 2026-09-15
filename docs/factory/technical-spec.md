@@ -27,6 +27,19 @@ requestattribuut `SameOriginRequestFilter.ORIGINAL_ORIGIN_ATTRIBUTE`; `AgentAcce
 dat attribuut met de header als terugval, zodat de `AI_ACCESS_ALLOWED_ORIGINS`-allowlist ook bij een
 same-origin aanmelding blijft gelden.
 
+De agentingang zelf zit in `nl.vdzon.hkh.auth`: `POST /api/auth/agent-session` (header
+`X-AI-Access-Token`, body `{"email":...}`) en de losse aanmeldpagina `GET /api/auth/agent-login`
+(`no-store`, `no-referrer`, `X-Frame-Options: DENY`). `AgentAccessVerifier` toetst fail-closed op
+`AI_ACCESS_TOKEN` (leeg = ingang uit; minimaal 32 tekens; tijdconstante vergelijking),
+`AI_ACCESS_ALLOWED_ORIGINS` (exacte origins, met `{pr}` als enige, numerieke jokertekst voor
+previewhostnamen) en `AI_ACCESS_EMAILS`; elke afwijzing geeft dezelfde HTTP 401.
+`AgentAdminSessions` geeft daarna een gewone in-memory beheersessie uit (`ai_`-prefix, 1 uur
+geldig, maximaal 1000 gelijktijdige sessies) en alleen voor een identiteit die ook de bestaande
+beheerallowlist (`AdminAuthConfig`/`HKH_ADMIN_ALLOWED_EMAILS`) toestaat; er worden geen accounts of rollen
+aangemaakt. Per omgeving staan deze waarden in een eigen SealedSecret (`ai-access`, in previews
+`ai-access-preview`) met een bijbehorende `agent-access-patch.yaml`. Werkafspraken staan in
+[`../agent-access.md`](../agent-access.md).
+
 Langlopende AI-opdrachten gaan asynchroon via de gedeelde Agent Runtime en nooit via een directe
 modelaanroep in de requestthread. HKH Autopilot gebruikt een eigen `APPLICATION_WORK`-tenant,
 projectprefix `HKH_AUTOPILOT` en een eigen bearercredential zonder repository-, worker- of
@@ -139,9 +152,11 @@ andere modules, ook niet op `auth` — opgenomen in de moduleset van `ModulithAr
   2000ms op een terminale, gevalideerde uitkomst, zonder de achtergrondtaak te annuleren. Vóór elke
   uitgaande Open Archieven-/Wikidata-aanroep (ook halverwege de Show-lus, via een non-lokale
   `return` in de inline `map`-lambda) controleert `submit` `jobStore.isCancelled(jobId)`. Een
-  uitkomst wordt zowel in `whenComplete` als — als vangnet wanneer die dependent stage nog niet is
-  afgerond zodra `future.get()` al terugkomt — direct na een succesvolle synchrone afronding
-  gepersisteerd (`persistOutcome`, idempotent op een reeds terminale job).
+  uitkomst wordt uitsluitend in de `whenComplete`-stage gepersisteerd (`persistOutcome`, idempotent
+  op een reeds terminale job); `submit` wacht daarom met `get(deadline)` op die dependent stage en
+  niet op de leverende future zelf. `CompletableFuture` mag wachters op de leverende future namelijk
+  al vrijgeven voordat `whenComplete` heeft gedraaid, waardoor een synchroon `READY`-antwoord en een
+  direct daarop volgende status-/sessie-aanroep verschillende jobstatussen konden zien.
 - `PersonSearchJobStore` (in-memory, geen aparte databasetabel) bewaart de oorspronkelijke vraag en
   de antwoordpayload uitsluitend versleuteld (`encryptedOriginalQuery`/`encryptedOutcome`, via
   `PersonSearchPayloadCipher`) en houdt per job `updatedAt`, per-bron consultatiestatus en
@@ -436,6 +451,17 @@ harde totale deadline volstaat.
   een vierde voorbeeldvraag ("Wat weten we over de watersnood van 1916 in Heemskerk?") en een derde
   `_CoverageBadge` ("Europeana — archieven, musea, kranten en beeldbanken") naast de bestaande
   badges.
+- `PreviewTopicSearchFixtures` (`nl.vdzon.hkh.previewdata`) is een synthetische HTTP-upstream voor
+  PR-previews: `GET /test-fixtures/europeana/record/v2/search.json` en
+  `GET /test-fixtures/wikidata/w/api.php`. De bean bestaat alleen bij
+  `HKH_TOPICSEARCH_PREVIEW_FIXTURES=true` (`@ConditionalOnProperty`) en weigert in zijn `init` te
+  starten buiten een door de backend geverifieerde PR-preview (`PreviewRuntimeConfig.enabled` plus
+  een `prNumber`). De previewoverlay wijst `HKH_TOPICSEARCH_EUROPEANA_BASE_URL` en
+  `HKH_TOPICSEARCH_WIKIDATA_BASE_URL` naar die paden, zodat de echte client, mapper, service en UI
+  worden doorlopen zonder Europeana-key en zonder echte bron. De standaardvraag levert één als
+  testrecord gemarkeerd item; `test-leeg`, `test-storing`, `test-timeout` en `test-ongeldige-json`
+  in de zoekterm sturen respectievelijk het lege, storings-, timeout- en ongeldige-JSON-pad. Het
+  Wikidata-fixture-endpoint geeft nul kandidaten, dus previews tonen bewust geen Context-blok.
 
 ## Backendmodule `linkdossier`
 
@@ -701,8 +727,12 @@ afzonderlijk aan hun veld gekoppeld en focusbaar blijven.
 
 `.factory/verification.yaml` gebruikt schema 1. Iedere opdracht heeft een stabiele id, een directe
 `argv` zonder shell, een bestaande relatieve working directory en een begrensde timeout. Het vangnet
-bestaat uit Maven `clean verify`, analyze en tests voor beide Flutter-apps en een release-webbuild
-van de gebruikersfrontend. De factory voert dit na de agentrun opnieuw uit en koppelt resultaten aan
+bestaat uit `deploy/verify-runtime-secret-rollout.sh` (alleen bij wijzigingen onder `deploy/`, in
+`.factory/verification.yaml` of in `.github/workflows/build-images.yml`), Maven `clean verify`,
+analyze en tests voor beide Flutter-apps en een release-webbuild van de gebruikersfrontend. Die
+deploycontrole leest geen secretwaarden uit: hij controleert dat de Pod-templatechecksum hoort bij
+het versleutelde secretmanifest en simuleert in een kopie dat een secret-only wijziging een
+backend-rollout afdwingt. De factory voert dit na de agentrun opnieuw uit en koppelt resultaten aan
 HEAD plus de worktree-tree.
 
 Bekende valkuil: een expressiecallback als `setState(() => future = load())` retourneert de toegewezen

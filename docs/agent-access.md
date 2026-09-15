@@ -6,7 +6,11 @@ De response bevat een normale applicatiesessie; rechten blijven door de applicat
 
 Per omgeving configureer je `AI_ACCESS_TOKEN` (minimaal 32 willekeurige tekens), `AI_ACCESS_EMAILS`
 (expliciete bestaande/toegestane identiteiten) en `AI_ACCESS_ALLOWED_ORIGINS` (exacte frontendorigins; voor PR-hostnamen uitsluitend `{pr}` als numeriek gedeelte).
-Zonder token staat de ingang uit. Er worden bij aanmelden geen accounts of rollen aangemaakt.
+Zonder token staat de ingang uit. Er worden bij aanmelden geen accounts of rollen aangemaakt: het
+opgegeven adres moet ook in de bestaande beheerallowlist `HKH_ADMIN_ALLOWED_EMAILS` staan, anders
+wordt de sessie geweigerd. Een geslaagde aanmelding levert een gewone beheersessie van een uur;
+elke afwijzing (onbekend token, niet-toegestane herkomst of onbekende identiteit) geeft dezelfde
+HTTP 401 zonder nadere reden.
 De herkomstcontrole geldt ook wanneer de aanmeldpagina via de frontendproxy op dezelfde origin
 wordt geopend: `SameOriginRequestFilter` verbergt de `Origin`-header alleen voor de CORS-toetsing
 en bewaart de waarde als requestattribuut, dat de aanmeldroute uitleest.
