@@ -6,39 +6,58 @@ resources:
 - acceptance-secret.yaml
 - sealed-secret-ai-access.yaml
 patches:
-- patch: "- op: replace\n  path: /spec/resources/requests/storage\n  value: 1Gi"
+- patch: |-
+    - op: replace
+      path: /spec/resources/requests/storage
+      value: 1Gi
   target:
     kind: PersistentVolumeClaim
     name: database-data
     version: v1
-- patch: "$patch: delete\napiVersion: bitnami.com/v1alpha1\nkind: SealedSecret\nmetadata:\n\
-    \  name: hkh-runtime"
+- patch: |-
+    $patch: delete
+    apiVersion: bitnami.com/v1alpha1
+    kind: SealedSecret
+    metadata:
+      name: hkh-runtime
   target:
     group: bitnami.com
     kind: SealedSecret
     name: hkh-runtime
     version: v1alpha1
-- patch: "- op: replace\n  path: /spec/template/spec/containers/0/envFrom/0/secretRef/name\n\
-    \  value: hkh-runtime-acceptance"
+- patch: |-
+    - op: replace
+      path: /spec/template/spec/containers/0/envFrom/0/secretRef/name
+      value: hkh-runtime-acceptance
   target:
     group: apps
     kind: Deployment
     name: backend
     version: v1
-- patch: "$patch: delete\napiVersion: route.openshift.io/v1\nkind: Route\nmetadata:\n\
-    \  name: backend"
+- patch: |-
+    $patch: delete
+    apiVersion: route.openshift.io/v1
+    kind: Route
+    metadata:
+      name: backend
   target:
     group: route.openshift.io
     kind: Route
     name: backend
     version: v1
-- patch: "- op: replace\n  path: /spec/host\n  value: hkh-autopilot-acceptance.vdzonsoftware.nl"
+- patch: |-
+    - op: replace
+      path: /spec/host
+      value: hkh-autopilot-acceptance.vdzonsoftware.nl
   target:
     group: route.openshift.io
     kind: Route
     name: frontend
     version: v1
-- patch: "- op: replace\n  path: /spec/host\n  value: hkh-autopilot-admin-acceptance.vdzonsoftware.nl"
+- patch: |-
+    - op: replace
+      path: /spec/host
+      value: hkh-autopilot-admin-acceptance.vdzonsoftware.nl
   target:
     group: route.openshift.io
     kind: Route
@@ -60,7 +79,7 @@ images:
   newTag: sha-fac1946-acceptance
 - name: backend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-backend
-  newTag: sha-e1a4994
+  newTag: sha-b5383f3
 - name: frontend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-frontend
   newTag: sha-e1a4994-acceptance
