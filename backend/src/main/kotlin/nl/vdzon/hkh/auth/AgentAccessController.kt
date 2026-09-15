@@ -5,14 +5,28 @@ import org.springframework.web.bind.annotation.*
 
 data class AgentSessionRequest(val email: String = "")
 
+/**
+ * Naam van het requestattribuut waarin `nl.vdzon.hkh.configuration.SameOriginRequestFilter` de voor
+ * de CORS-toetsing verborgen `Origin`-header bewaart.
+ *
+ * De aanmeldpagina wordt op dezelfde origin geserveerd als de frontend, dus haar `fetch` naar
+ * `/api/auth/agent-session` is een same-origin verzoek waarvan die filter de header verbergt.
+ * Zonder dit attribuut zou [AgentAccessVerifier] hier altijd `null` zien en zijn herkomst-allowlist
+ * stilzwijgend overslaan. De modulegrenzen staan geen verwijzing naar de `configuration`-module toe,
+ * daarom staat de naam hier letterlijk; `AgentAccessOriginAllowlistTest` bewaakt dat beide constanten
+ * gelijk blijven.
+ */
+const val HIDDEN_ORIGIN_ATTRIBUTE: String = "nl.vdzon.hkh.configuration.SameOriginRequestFilter.ORIGINAL_ORIGIN"
+
 @RestController
 class AgentAccessController(private val access: AgentAccessVerifier, private val sessions: AgentAdminSessions) {
     @PostMapping("/api/auth/agent-session")
     fun login(@RequestHeader("X-AI-Access-Token", required = false) token: String?,
-              @RequestHeader("Origin", required = false) origin: String?,
+              @RequestHeader("Origin", required = false) originHeader: String?,
+              @RequestAttribute(name = HIDDEN_ORIGIN_ATTRIBUTE, required = false) hiddenOrigin: String?,
               @RequestBody body: AgentSessionRequest, response: HttpServletResponse): Map<String, Any> {
         response.setHeader("Cache-Control", "no-store")
-        val email = access.verify(token, body.email, origin)
+        val email = access.verify(token, body.email, hiddenOrigin ?: originHeader)
         return sessions.create(email)
     }
 

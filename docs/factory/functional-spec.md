@@ -242,25 +242,33 @@ watersnood van 1916 in Heemskerk?") en een derde dekkingsbadge ("Europeana — a
 kranten en beeldbanken") naast de bestaande Open Archieven- en Wikidata/Wikimedia Commons-badges.
 
 Server-side wordt de Europeana Record/Search API v2 bevraagd
-(`GET https://api.europeana.eu/record/v2/search.json`) met `query='<topicSearchTerm> AND Heemskerk'`,
+(`GET https://api.europeana.eu/record/v2/search.json`) met
+`query='<genormaliseerde topicterm> AND Heemskerk'`. Europeana behandelt elk woord als verplichte
+zoekterm; daarom vervalt uitsluitend het woord `van` wanneer het direct vóór een viercijferig
+jaartal staat (zo wordt `watersnood van 1916` deterministisch `watersnood 1916`). Andere lidwoorden
+en naamdelen blijven bewust staan, omdat ze betekenisdragend zijn in namen en titels zoals
+`De Stijl` en `Vincent van Gogh`;
 `rows=8`, `profile=rich` en een eigen, projectspecifieke API-key uit de omgevingsconfiguratie
-(`HKH_EUROPEANA_API_KEY`, nooit de gedeelde testkey `api2demo` in gecommitte code). Een ontbrekende of
-lege key is een configuratiefout en levert dezelfde uitkomst op als een echte storing. Een
+(`HKH_EUROPEANA_API_KEY`, nooit de gedeelde testkey `api2demo`). Een ontbrekende, lege of aan
+`api2demo` gelijke key is een configuratiefout en levert dezelfde uitkomst op als een echte storing. Een
 Europeana-resultaat telt alleen mee als geldig record wanneer het een titel of beschrijving, een
-dataProvider en een geldige bronverwijzing (`edmIsShownAt`, of anders het Europeana-record zelf via
+dataProvider en een absolute HTTP(S)-bronverwijzing (`edmIsShownAt`, of anders het Europeana-record zelf via
 `guid`) bevat; records zonder deze velden worden genegeerd en niet meegeteld in het totaal.
 
 Elk geldig record verschijnt als apart kaartje met titel, dataProvider-naam, een leesbare licentie-
 of rechtenbadge (tekst, niet uitsluitend kleur) en een directe link — er wordt nooit een
 samenvattende zin uit meerdere records samengesteld. De rights-URL van een record bepaalt de
-badgetekst: `creativecommons.org/publicdomain/mark` → "Publiek domein";
+badgetekst: `creativecommons.org/publicdomain/mark` en `creativecommons.org/publicdomain/zero` → "Publiek domein";
 `creativecommons.org/licenses/...` → "CC" gevolgd door de exacte variant uit het pad-segment (bv.
-"CC BY-SA"); `rightsstatements.org/vocab/InC` → "Rechten voorbehouden"; elke andere, onbekende of
+"CC BY-SA"); `rightsstatements.org/vocab/InC` en legacy `europeana.eu/rights/rr-*` →
+"Rechten voorbehouden"; elke andere, onbekende of
 ontbrekende rights-URL → "Rechten onbekend", met de ruwe URL als link waar beschikbaar.
 
 Is er precies één Wikidata `wbsearchentities`-kandidaat (`search=<topicSearchTerm>`, `language=nl`)
-die overeenkomt met de zoekterm, dan verschijnt een apart gelabeld "Context"-blok met label,
-beschrijving en bronmarkering; dit blok draagt nooit zelfstandig een bewering over Heemskerk. Bij nul
+die overeenkomt met de zoekterm, dan verschijnt een apart blok "Context (Wikidata)" met label,
+beschrijving en een expliciete bronmarkering ("Bron: Wikidata · alleen ter duiding; geen
+archiefbewijs specifiek voor Heemskerk"); dit blok draagt nooit zelfstandig een bewering over
+Heemskerk. Bij nul
 of meer dan één kandidaat ontbreekt het Context-blok volledig, en een Wikidata-fout blokkeert nooit de
 Europeana-resultaten — het Context-blok vervalt dan stilzwijgend.
 

@@ -75,22 +75,21 @@ class PersonSearchService(
         }
 
         val future = CompletableFuture.supplyAsync({ runSearch(job.id, request) }, executor)
-        future.whenComplete { outcome, throwable ->
+        val persistedFuture = future.whenComplete { outcome, throwable ->
             if (throwable != null || outcome == null) return@whenComplete
             persistOutcome(job.id, outcome)
         }
 
         return try {
-            val outcome = future.get(deadlineMillis, TimeUnit.MILLISECONDS)
+            // Wait on the dependent stage, not on the supplier itself. CompletableFuture may
+            // unblock waiters on `future` before its whenComplete stage has persisted the result.
+            // Waiting on `persistedFuture` guarantees that a synchronous READY response and an
+            // immediately following session/open request observe the same terminal job state.
+            val outcome = persistedFuture.get(deadlineMillis, TimeUnit.MILLISECONDS)
             if (outcome == null) {
                 val current = jobStore.findByIdForSession(job.id, job.sessionId) ?: job
                 PersonSearchSubmitResult(current.id, current.status, null)
             } else {
-                // Persisted here too (not only in whenComplete above): whenComplete's dependent
-                // stage is not guaranteed to have run yet by the time future.get() returns, so a
-                // caller that immediately polls status/session-indicator must already see the
-                // terminal state that this very call is about to report.
-                persistOutcome(job.id, outcome)
                 PersonSearchSubmitResult(job.id, outcome.toStatus(), outcome.toStoredPayload())
             }
         } catch (_: TimeoutException) {

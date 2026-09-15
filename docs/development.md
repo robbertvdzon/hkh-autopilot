@@ -11,6 +11,29 @@ Set `HKH_SECRETS_FILE` to use another file. The parser accepts `KEY=value`, blan
 and optional surrounding single or double quotes. Invalid lines and missing required keys fail
 without logging secret values.
 
+## CORS and same-origin requests
+
+`HKH_CORS_ALLOWED_ORIGIN_PATTERNS` (comma separated, `http://localhost:*` by default) only governs
+genuine cross-origin clients, such as a locally served frontend that calls a backend on another
+port. Blank entries are ignored; an empty list allows no cross-origin request at all.
+
+Browsers also send an `Origin` header on a *same-origin* POST, and since Spring Framework 6 every
+request carrying that header is treated as a CORS request. A deployment that serves the web app and
+`/api` from the same origin (PR previews and acceptance, through the frontend nginx proxy) would
+therefore have all of its browser POSTs checked against these patterns, and an empty or outdated
+list rejected them with 403 `Invalid CORS request` — invisible to `curl`, which sends no `Origin`.
+`SameOriginRequestFilter` (module `nl.vdzon.hkh.configuration`) recognizes those requests by
+comparing the origin host with the host the request was addressed to, and hides the `Origin` header
+so the request is handled as what it is: not a CORS request. Cross-origin requests keep their
+header and stay subject to the configured patterns.
+
+Hiding the header covers the whole filter chain, so application code that reads `Origin` itself
+would lose it. The filter therefore keeps the original value in the request attribute
+`SameOriginRequestFilter.ORIGINAL_ORIGIN_ATTRIBUTE`. `AgentAccessController` reads that attribute
+with the header as a fallback, so the `AI_ACCESS_ALLOWED_ORIGINS` allowlist keeps applying to a
+same-origin agent login instead of being silently skipped. That separate, per-environment agent
+entrance is described in [agent-access.md](agent-access.md).
+
 ## Backend commands
 
 ```bash
@@ -142,20 +165,43 @@ for a recognized topic/object/event question (e.g. "Wat weten we over de watersn
 Heemskerk?"). Like `placesearch`, it has no session-scoped background job infrastructure: a single
 request runs within a hard 2000ms total deadline (`TopicSearchService`, its own
 `topicSearchExecutor` bean plus `Future.get(timeout)`). `RestClientArchivesEuropeanaClient` calls the
-Europeana Record/Search API v2 (`query='<topicSearchTerm> AND Heemskerk'`, `rows=8`,
-`profile=rich`, `HKH_EUROPEANA_API_KEY`); a missing/blank key is treated fail-closed as a
-configuration error with the same outcome as a real outage. A result only counts as a valid record
-when it has a title or description, a `dataProvider`, and a valid source reference (`edmIsShownAt`,
-otherwise the Europeana record itself via `guid`); records missing any of these are ignored, also for
-the shown total. Each valid record's rights URL is deterministically mapped to a readable license
-badge (`TopicSearchRecordMapper`: public domain, the exact CC variant, rights-reserved, or unknown).
-`TopicSearchWikidataContextClient` builds a separate "Context" block only when exactly one
-`wbsearchentities` candidate (`language=nl`) matches; zero or more than one candidate omits the block,
-and a Wikidata failure never blocks the Europeana results. Zero valid records (Europeana reachable)
-yields `EMPTY` with refinement suggestions; any non-2xx status, timeout or invalid JSON from Europeana
-(or the missing-key configuration error) yields fail-closed `OUTAGE`, with no claim constructed.
-Validated record lists are cached in-memory only, with a 30-minute TTL (`TopicSearchCache`) — no
-structural database storage. Configuration and behavior are documented in
+Europeana Record/Search API v2 (`query='<normalized term> AND Heemskerk'`, `rows=8`,
+`profile=rich`, `HKH_EUROPEANA_API_KEY`); a missing/blank key, or the shared demo key `api2demo`,
+is rejected before the HTTP call and treated fail-closed as a configuration error with the same
+outcome as a real outage. Europeana treats every word as a required term, so
+`buildEuropeanaTopicQuery` (`TopicSearchService`) drops exactly one word: `van` directly in front of
+a four-digit year (`watersnood van 1916` becomes `watersnood 1916`, which does return records). No
+broader stop-word removal: articles and name particles carry meaning (`De Stijl`,
+`Vincent van Gogh`) and removing them would also make semantically different terms share a cache
+key. A result only counts as a valid record when it has a title or description, a `dataProvider`,
+and a valid source reference (`edmIsShownAt`, otherwise the Europeana record itself via `guid`);
+records missing any of these are ignored, also for the shown total. The `guid` fallback is published
+without its query string and fragment, because Europeana echoes the API key used for the call back
+in the guid's `utm_campaign` tracking parameter and that link is returned by the public API and
+rendered in the browser. Each valid record's rights URL is deterministically mapped to a readable
+license badge (`TopicSearchRecordMapper`: public domain, the exact CC variant, rights-reserved, or
+unknown).
+`TopicSearchWikidataContextClient` builds a separate "Context (Wikidata)" block — shown with an
+explicit source marking that it is context only, not archive evidence about Heemskerk — only when
+exactly one `wbsearchentities` candidate (`language=nl`) matches; zero or more than one candidate
+omits the block, and a Wikidata failure never blocks the Europeana results. Zero valid records
+(Europeana reachable) yields `EMPTY` with refinement suggestions; any non-2xx status, timeout or
+invalid JSON from Europeana (or the missing-key configuration error) yields fail-closed `OUTAGE`,
+with no claim constructed. Validated record lists are cached in-memory only, with a 30-minute TTL (`TopicSearchCache`) — no
+structural database storage. A cache hit reports the consultation moment of the original successful
+call as `checkedAt`, so a cached list is never presented as a fresh consultation.
+
+PR previews run this whole chain — real client, mapper, service and UI — against a synthetic HTTP
+upstream instead of Europeana. `PreviewTopicSearchFixtures` (`nl.vdzon.hkh.previewdata`) is only
+created when `HKH_TOPICSEARCH_PREVIEW_FIXTURES=true`, and its constructor refuses to start outside a
+backend-verified PR preview (`PreviewRuntimeConfig`). The preview overlay points
+`HKH_TOPICSEARCH_EUROPEANA_BASE_URL` and `HKH_TOPICSEARCH_WIKIDATA_BASE_URL` at
+`/test-fixtures/europeana` and `/test-fixtures/wikidata` on the backend itself. The default topic
+question returns one clearly marked synthetic test record; the terms `test-leeg`, `test-storing`,
+`test-timeout` and `test-ongeldige-json` in a topic question drive the empty, outage, timeout and
+invalid-JSON paths. The fixture Wikidata endpoint returns no candidates, so previews deliberately
+show no Context block. Acceptance and production keep calling the real Europeana API with their own
+key. Configuration and behavior are documented in
 [factory/technical-spec.md](factory/technical-spec.md) and
 [factory/secrets-local.md](factory/secrets-local.md).
 

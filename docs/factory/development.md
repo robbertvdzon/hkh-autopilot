@@ -55,13 +55,24 @@ Wanneer een feature Agent Runtime gebruikt, voer na het maken van `secrets.env` 
   module `topicsearch` met het `POST /api/topic-search`-endpoint voor de onderwerp/voorwerp/
   gebeurtenis-route (Europeana + optioneel Wikidata): naar hetzelfde synchrone patroon als
   `placesearch` (eigen `topicSearchExecutor`-bean, harde 2000ms-deadline, geen achtergrondjob).
-  `RestClientArchivesEuropeanaClient` bevraagt Europeana Record/Search v2 met `query='<term> AND
-  Heemskerk'`, `rows=8`, `profile=rich` en `HKH_EUROPEANA_API_KEY` (fail-closed configuratiefout bij
-  een lege key); records worden gevalideerd op (titel of beschrijving) + dataProvider +
-  edmIsShownAt/guid en de rights-URL wordt deterministisch naar een licentiebadge afgeleid
-  (`TopicSearchRecordMapper`). `TopicSearchWikidataContextClient` bouwt uitsluitend bij precies 1
-  `wbsearchentities`-kandidaat een Context-blok. Alles kortstondig in-memory TTL-gecachet
-  (`TopicSearchCache`, 30 min);
+  `RestClientArchivesEuropeanaClient` bevraagt Europeana Record/Search v2 met
+  `query='<genormaliseerde term> AND Heemskerk'`, `rows=8`, `profile=rich` en
+  `HKH_EUROPEANA_API_KEY` (fail-closed configuratiefout bij een lege key of bij de gedeelde testkey
+  `api2demo`); `buildEuropeanaTopicQuery` laat uitsluitend het woord `van` vóór een viercijferig
+  jaartal weg en behoudt verder alle betekenisdragende woorden. Records worden gevalideerd op (titel
+  of beschrijving) + dataProvider + een absolute bronlink (`edmIsShownAt`, anders de `guid` zonder
+  querystring en fragment, omdat Europeana daarin de gebruikte API-key als `utm_campaign` echoot) en
+  de rights-URL wordt deterministisch naar een licentiebadge afgeleid (`TopicSearchRecordMapper`).
+  `TopicSearchWikidataContextClient` bouwt uitsluitend bij precies 1
+  `wbsearchentities`-kandidaat een "Context (Wikidata)"-blok met bronmarkering. Alles kortstondig
+  in-memory TTL-gecachet (`TopicSearchCache`, 30 min, met behoud van het oorspronkelijke
+  raadplegingsmoment). In een
+  PR-preview draait deze keten tegen `PreviewTopicSearchFixtures` (module `previewdata`,
+  `HKH_TOPICSEARCH_PREVIEW_FIXTURES=true`) in plaats van tegen Europeana. De gedeelde
+  webconfiguratie staat in de module `configuration` (`WebConfiguration` plus
+  `SameOriginRequestFilter`, die same-origin verzoeken buiten de CORS-toetsing houdt) en de per
+  omgeving configureerbare agentingang (`POST /api/auth/agent-session`,
+  `GET /api/auth/agent-login`) in de module `auth`;
 - `frontend/`: Flutter-gebruikersapp; homepage en statusflows staan in `lib/main.dart`,
   broninterfaces onder `lib/backend/` en `lib/news/`, widgettests onder `test/`; de volledig
   client-side persoonsvraag-/Heemskerk-disambiguatiemodule (start-, meaning-selection- en
@@ -78,7 +89,11 @@ Wanneer een feature Agent Runtime gebruikt, voer na het maken van `secrets.env` 
   `topic-outage`) en de bijbehorende client (`TopicSearchClient`) staan onder `lib/topicsearch/`,
   widget- en unittests onder `test/topicsearch/`;
 - `frontend-admin/`: afzonderlijke Flutter-webbeheerapp en widgettests;
-- `deploy/`: OpenShift-, Kustomize- en ArgoCD-manifests;
+- `deploy/`: OpenShift-, Kustomize- en ArgoCD-manifests, plus
+  `update-runtime-secret-checksums.sh` (zet de Pod-templatechecksumannotatie gelijk aan de SHA-256
+  van het versleutelde secretmanifest, aangeroepen door de main-build) en
+  `verify-runtime-secret-rollout.sh` (controleert dat lokaal en simuleert een secret-only
+  wijziging);
 - `.factory/verification.yaml`: machine-leesbaar, revisiongebonden verificatievangnet.
 
 De gebruikersfrontend krijgt de backendbasis tijdens compilatie via
@@ -108,6 +123,7 @@ is. Dit is dezelfde commandoset als `.factory/verification.yaml`; elk commando m
 exitcode 0, 0 failures en 0 errors.
 
 ```bash
+./deploy/verify-runtime-secret-rollout.sh
 (cd backend && mvn -B --no-transfer-progress clean verify)
 (cd frontend && flutter analyze)
 (cd frontend && flutter test)

@@ -16,6 +16,20 @@ voldoet daar niet aan.
 
 Runtimewaarden komen uit de SealedSecret `hkh-runtime`. Alleen de gitignored bronfile
 `deploy/secrets-cluster.env` bevat plaintext; zie `deploy/README.md` voor generatie en installatie.
+De aparte agentingang heeft een eigen SealedSecret (`ai-access`, in previews
+`ai-access-preview`) met een bijbehorende `agent-access-patch.yaml` per overlay; zie
+`docs/agent-access.md`.
+
+Omdat een gewijzigd secret op zichzelf geen nieuwe Pod-template oplevert, draagt het
+backend-Deployment de annotatie `hkh.vdzonsoftware.nl/runtime-secret-checksum`. Een main-build roept
+`deploy/update-runtime-secret-checksums.sh` aan, dat die annotatie gelijkzet aan de SHA-256 van het
+versleutelde secretmanifest; een secret-only wijziging dwingt zo een backend-rollout af.
+`deploy/verify-runtime-secret-rollout.sh` controleert dat lokaal zonder secretwaarden te lezen.
+
+Naast productie draait er een standing acceptatieomgeving uit `deploy/overlays/acceptance` in
+namespace `hkh-autopilot-acceptance`. Die wordt gesynchroniseerd door de bestaande Argo CD
+Application `hkh-autopilot-acceptance` uit `robberts-infrastructure`, die `main` volgt; deze
+repository bevat er bewust geen eigen Application-manifest voor.
 
 Image-tags beginnen op `main`. Na iedere componentbuild vervangt GitHub Actions uitsluitend de
 bijbehorende tag door `sha-<commit>`, commit die manifestwijziging en laat ArgoCD de rollout doen.

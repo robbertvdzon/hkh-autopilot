@@ -1,5 +1,7 @@
 package nl.vdzon.hkh.topicsearch
 
+import java.net.URI
+
 /**
  * Deterministische, puur functionele afleiding van de rights-URL naar een leesbare
  * licentie-/rechtenbadge (tekst, niet uitsluitend kleur). De exacte CC-licentievariant-tekst wordt
@@ -7,12 +9,14 @@ package nl.vdzon.hkh.topicsearch
  */
 fun deriveTopicSearchLicenseBadge(rightsUrl: String?): TopicSearchLicenseBadge {
     if (rightsUrl.isNullOrBlank()) return TopicSearchLicenseBadge("Rechten onbekend", null)
+    val normalizedUrl = rightsUrl.lowercase()
     return when {
-        rightsUrl.contains("creativecommons.org/publicdomain/mark") ->
+        normalizedUrl.contains("creativecommons.org/publicdomain/mark") ||
+            normalizedUrl.contains("creativecommons.org/publicdomain/zero") ->
             TopicSearchLicenseBadge("Publiek domein", rightsUrl)
 
-        rightsUrl.contains("creativecommons.org/licenses/") -> {
-            val variant = rightsUrl.substringAfter("creativecommons.org/licenses/").substringBefore("/")
+        normalizedUrl.contains("creativecommons.org/licenses/") -> {
+            val variant = normalizedUrl.substringAfter("creativecommons.org/licenses/").substringBefore("/")
             val text = if (variant.isBlank()) {
                 "Rechten onbekend"
             } else {
@@ -21,7 +25,10 @@ fun deriveTopicSearchLicenseBadge(rightsUrl: String?): TopicSearchLicenseBadge {
             TopicSearchLicenseBadge(text, rightsUrl)
         }
 
-        rightsUrl.contains("rightsstatements.org/vocab/InC") ->
+        normalizedUrl.contains("rightsstatements.org/") && normalizedUrl.contains("inc") ->
+            TopicSearchLicenseBadge("Rechten voorbehouden", rightsUrl)
+
+        normalizedUrl.contains("europeana.eu/rights/rr-") ->
             TopicSearchLicenseBadge("Rechten voorbehouden", rightsUrl)
 
         else -> TopicSearchLicenseBadge("Rechten onbekend", rightsUrl)
@@ -29,10 +36,26 @@ fun deriveTopicSearchLicenseBadge(rightsUrl: String?): TopicSearchLicenseBadge {
 }
 
 /**
+ * Europeana zet in de `guid` van een record tracking-parameters, waaronder de gebruikte API-key als
+ * `utm_campaign`. Die guid gaat als bronlink naar de publieke API-respons, de DOM, browserhistorie
+ * en referrer-/proxylogs. De fallback gebruikt daarom uitsluitend het sleutelvrije deel van de URL:
+ * schema, host en pad, zonder querystring en zonder fragment.
+ */
+private fun String.withoutQueryAndFragment(): String = substringBefore('#').substringBefore('?')
+
+private fun String.isAbsoluteHttpUrl(): Boolean = try {
+    val uri = URI(this)
+    uri.isAbsolute && (uri.scheme.equals("http", ignoreCase = true) || uri.scheme.equals("https", ignoreCase = true)) &&
+        !uri.host.isNullOrBlank()
+} catch (_: Exception) {
+    false
+}
+
+/**
  * Toetst en bouwt een geldig record uit ruwe Europeana-velden: (titel OF beschrijving) EN
  * dataProvider EN een geldige bronverwijzing (`edmIsShownAt`, anders het Europeana-record zelf via
- * `guid`). Ontbreekt één van deze, dan is het record ongeldig (`null`) en telt het niet mee, ook
- * niet voor het getoonde totaal.
+ * `guid` zonder diens tracking-querystring, zie [withoutQueryAndFragment]). Ontbreekt één van deze,
+ * dan is het record ongeldig (`null`) en telt het niet mee, ook niet voor het getoonde totaal.
  */
 fun buildTopicSearchRecordOrNull(
     titles: List<String>?,
@@ -44,7 +67,9 @@ fun buildTopicSearchRecordOrNull(
 ): TopicSearchRecord? {
     val title = titles?.firstOrNull { it.isNotBlank() } ?: descriptions?.firstOrNull { it.isNotBlank() } ?: return null
     val provider = dataProviders?.firstOrNull { it.isNotBlank() } ?: return null
-    val sourceUrl = edmIsShownAt?.firstOrNull { it.isNotBlank() } ?: guid?.takeIf { it.isNotBlank() } ?: return null
+    val sourceUrl = edmIsShownAt?.firstOrNull { it.isAbsoluteHttpUrl() }
+        ?: guid?.withoutQueryAndFragment()?.takeIf { it.isAbsoluteHttpUrl() }
+        ?: return null
     val rightsUrl = rights?.firstOrNull { it.isNotBlank() }
     return TopicSearchRecord(
         title = title,

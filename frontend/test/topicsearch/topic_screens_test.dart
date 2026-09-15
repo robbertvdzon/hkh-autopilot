@@ -48,6 +48,23 @@ void main() {
     addTearDown(tester.view.reset);
   }
 
+  /// Bepaalt of de widget met [key] de huidige toetsenbordfocus bevat, zodat
+  /// Tab- en Shift+Tab-navigatie deterministisch te toetsen is zonder de
+  /// gefocuste knop te activeren.
+  bool focusIsInside(Key key) {
+    final focusContext = FocusManager.instance.primaryFocus?.context;
+    if (focusContext == null) return false;
+    var found = false;
+    focusContext.visitAncestorElements((element) {
+      if (element.widget.key == key) {
+        found = true;
+        return false;
+      }
+      return true;
+    });
+    return found;
+  }
+
   group('TopicResultsScreen', () {
     testWidgets('toont records met titel, dataProvider, licentie en context', (
       tester,
@@ -75,8 +92,15 @@ void main() {
       expect(find.text('Noord-Hollands Archief'), findsOneWidget);
       expect(find.text('Publiek domein'), findsOneWidget);
       expect(find.text('CC BY-SA'), findsOneWidget);
-      expect(find.text('Context'), findsOneWidget);
+      expect(find.text('Context (Wikidata)'), findsOneWidget);
       expect(find.text('Watersnood van 1916'), findsOneWidget);
+      expect(find.text('overstroming in Nederland'), findsOneWidget);
+      expect(
+        find.textContaining(
+          'Bron: Wikidata · alleen ter duiding; geen archiefbewijs',
+        ),
+        findsOneWidget,
+      );
       expect(find.textContaining('2 gevonden item'), findsOneWidget);
     });
 
@@ -96,7 +120,11 @@ void main() {
         ),
       );
 
-      expect(find.text('Context'), findsNothing);
+      expect(find.text('Context (Wikidata)'), findsNothing);
+      expect(
+        find.textContaining('Bron: Wikidata · alleen ter duiding'),
+        findsNothing,
+      );
     });
 
     testWidgets('blijft bij 320px breed zonder overloop', (tester) async {
@@ -329,6 +357,57 @@ void main() {
           isTrue,
           reason: '"Nieuwe vraag stellen" moet via Tab/Enter bereikbaar zijn.',
         );
+      },
+    );
+
+    testWidgets(
+      'Shift+Tab keert terug naar de retry-knop en Enter activeert die',
+      (tester) async {
+        await useGenerousViewport(tester);
+        var retried = false;
+        var backPressed = false;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: TopicOutageScreen(
+                originalQuery: 'Wat weten we over de watersnood van 1916?',
+                onRetry: () => retried = true,
+                onBackToStart: () => backPressed = true,
+              ),
+            ),
+          ),
+        );
+
+        var reachedBackButton = false;
+        for (var i = 0; i < 20 && !reachedBackButton; i++) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pump();
+          reachedBackButton = focusIsInside(
+            const Key('topic-outage-back-to-start'),
+          );
+        }
+        expect(
+          reachedBackButton,
+          isTrue,
+          reason: '"Nieuwe vraag stellen" moet via Tab focus kunnen krijgen.',
+        );
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pump();
+
+        expect(
+          focusIsInside(const Key('topic-outage-retry')),
+          isTrue,
+          reason: 'Shift+Tab moet terugkeren naar "Opnieuw proberen".',
+        );
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+
+        expect(retried, isTrue);
+        expect(backPressed, isFalse);
       },
     );
   });

@@ -1,5 +1,13 @@
 version: 1
 commands:
+  - id: deploy-runtime-secret-rollout
+    pathPrefixes:
+      - deploy/
+      - .factory/verification.yaml
+      - .github/workflows/build-images.yml
+    argv: [./deploy/verify-runtime-secret-rollout.sh]
+    workingDirectory: .
+    timeoutSeconds: 120
   - id: backend-maven-verify
     pathPrefixes:
       - backend/

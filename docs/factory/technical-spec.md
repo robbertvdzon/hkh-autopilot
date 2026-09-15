@@ -11,6 +11,35 @@ De backendservicecontrole combineert `GET /actuator/health` en `GET /api/version
 binnen tien seconden met een geldige 200-respons slagen. Nieuws komt van `GET /api/news` en heeft
 dezelfde clienttimeout. `API_BASE_URL` is een compile-time Dart-define.
 
+De gedeelde webconfiguratie zit in `nl.vdzon.hkh.configuration`. `WebConfiguration` zet de
+CORS-patronen uit `HKH_CORS_ALLOWED_ORIGIN_PATTERNS` (komma-gescheiden, lege elementen tellen niet
+mee) en is expliciet fail-closed: zonder patronen wordt geen enkele cross-origin herkomst
+toegelaten. Omdat een browser ook bij een same-origin POST een `Origin`-header meestuurt en Spring
+sinds Framework 6 elk verzoek met zo'n header als CORS-verzoek behandelt, zou een lege of
+verouderde patroonlijst de volledige API in de browser met 403 `Invalid CORS request` blokkeren op
+omgevingen die de webapp en `/api` same-origin serveren (PR-preview en acceptatie, via de
+frontend-nginxproxy). `SameOriginRequestFilter` herkent zo'n verzoek - herkomstschema http(s),
+herkomsthost gelijk aan de host waaraan het verzoek gericht is, en geen afwijkende expliciete poort
+- en verbergt de `Origin`-header, zodat het als gewoon same-origin verzoek wordt afgehandeld.
+Cross-origin verzoeken behouden hun header en blijven aan de patronen onderworpen. Omdat het
+verbergen voor de volledige filterketen geldt, bewaart de filter de oorspronkelijke herkomst in het
+requestattribuut `SameOriginRequestFilter.ORIGINAL_ORIGIN_ATTRIBUTE`; `AgentAccessController` leest
+dat attribuut met de header als terugval, zodat de `AI_ACCESS_ALLOWED_ORIGINS`-allowlist ook bij een
+same-origin aanmelding blijft gelden.
+
+De agentingang zelf zit in `nl.vdzon.hkh.auth`: `POST /api/auth/agent-session` (header
+`X-AI-Access-Token`, body `{"email":...}`) en de losse aanmeldpagina `GET /api/auth/agent-login`
+(`no-store`, `no-referrer`, `X-Frame-Options: DENY`). `AgentAccessVerifier` toetst fail-closed op
+`AI_ACCESS_TOKEN` (leeg = ingang uit; minimaal 32 tekens; tijdconstante vergelijking),
+`AI_ACCESS_ALLOWED_ORIGINS` (exacte origins, met `{pr}` als enige, numerieke jokertekst voor
+previewhostnamen) en `AI_ACCESS_EMAILS`; elke afwijzing geeft dezelfde HTTP 401.
+`AgentAdminSessions` geeft daarna een gewone in-memory beheersessie uit (`ai_`-prefix, 1 uur
+geldig, maximaal 1000 gelijktijdige sessies) en alleen voor een identiteit die ook de bestaande
+beheerallowlist (`AdminAuthConfig`/`HKH_ADMIN_ALLOWED_EMAILS`) toestaat; er worden geen accounts of rollen
+aangemaakt. Per omgeving staan deze waarden in een eigen SealedSecret (`ai-access`, in previews
+`ai-access-preview`) met een bijbehorende `agent-access-patch.yaml`. Werkafspraken staan in
+[`../agent-access.md`](../agent-access.md).
+
 Langlopende AI-opdrachten gaan asynchroon via de gedeelde Agent Runtime en nooit via een directe
 modelaanroep in de requestthread. HKH Autopilot gebruikt een eigen `APPLICATION_WORK`-tenant,
 projectprefix `HKH_AUTOPILOT` en een eigen bearercredential zonder repository-, worker- of
@@ -123,9 +152,11 @@ andere modules, ook niet op `auth` — opgenomen in de moduleset van `ModulithAr
   2000ms op een terminale, gevalideerde uitkomst, zonder de achtergrondtaak te annuleren. Vóór elke
   uitgaande Open Archieven-/Wikidata-aanroep (ook halverwege de Show-lus, via een non-lokale
   `return` in de inline `map`-lambda) controleert `submit` `jobStore.isCancelled(jobId)`. Een
-  uitkomst wordt zowel in `whenComplete` als — als vangnet wanneer die dependent stage nog niet is
-  afgerond zodra `future.get()` al terugkomt — direct na een succesvolle synchrone afronding
-  gepersisteerd (`persistOutcome`, idempotent op een reeds terminale job).
+  uitkomst wordt uitsluitend in de `whenComplete`-stage gepersisteerd (`persistOutcome`, idempotent
+  op een reeds terminale job); `submit` wacht daarom met `get(deadline)` op die dependent stage en
+  niet op de leverende future zelf. `CompletableFuture` mag wachters op de leverende future namelijk
+  al vrijgeven voordat `whenComplete` heeft gedraaid, waardoor een synchroon `READY`-antwoord en een
+  direct daarop volgende status-/sessie-aanroep verschillende jobstatussen konden zien.
 - `PersonSearchJobStore` (in-memory, geen aparte databasetabel) bewaart de oorspronkelijke vraag en
   de antwoordpayload uitsluitend versleuteld (`encryptedOriginalQuery`/`encryptedOutcome`, via
   `PersonSearchPayloadCipher`) en houdt per job `updatedAt`, per-bron consultatiestatus en
@@ -352,18 +383,22 @@ harde totale deadline volstaat.
   `TopicSearchOutcome.EuropeanaOutage` op, net als elke andere onverwachte fout.
 - `RestClientArchivesEuropeanaClient` (`ArchivesEuropeanaClient`) doet `GET
   /record/v2/search.json?query=<term>&rows=8&profile=rich&wskey=<apiKey>` op
-  `https://api.europeana.eu`. Een lege/blanco `apiKey` (`HKH_EUROPEANA_API_KEY`) wordt behandeld als
+  `https://api.europeana.eu`. Een lege/blanco `apiKey` (`HKH_EUROPEANA_API_KEY`) of `api2demo` wordt behandeld als
   configuratiefout — geen aanroep, direct `EuropeanaSearchOutcome.Failure` — net als elke
   niet-2xx-status of ongeldige JSON. Elk teruggekomen item gaat door
   `buildTopicSearchRecordOrNull` (`TopicSearchRecordMapper.kt`), dat een record alleen bouwt bij
-  (`title` OF `dcDescription`) EN `dataProvider` EN een geldige bronverwijzing (`edmIsShownAt`, anders
+  (`title` OF `dcDescription`) EN `dataProvider` EN een absolute HTTP(S)-bronverwijzing (`edmIsShownAt`, anders
   `guid`); ontbreekt één van deze, dan is het record `null` en telt het nergens mee, ook niet voor het
-  totaal.
+  totaal. Bij de `guid`-fallback worden de querystring en het fragment verwijderd: Europeana zet de
+  gebruikte API-key als `utm_campaign` in de guid, en die link gaat als `sourceUrl` naar de publieke
+  respons, de DOM, browserhistorie en referrer-/proxylogs. Een `edmIsShownAt` van de instelling zelf
+  behoudt wel zijn eigen queryparameters.
 - `deriveTopicSearchLicenseBadge` (`TopicSearchRecordMapper.kt`) is een deterministische, puur
   functionele afleiding van de rights-URL naar `TopicSearchLicenseBadge` (tekst + link):
-  `creativecommons.org/publicdomain/mark` → "Publiek domein"; `creativecommons.org/licenses/<variant>`
-  → `"CC " + variant.uppercase()` (bv. "CC BY-SA"); `rightsstatements.org/vocab/InC` → "Rechten
-  voorbehouden"; elke andere, onbekende of ontbrekende rights-URL → "Rechten onbekend" (met de ruwe
+  `creativecommons.org/publicdomain/mark` of `/publicdomain/zero` → "Publiek domein";
+  `creativecommons.org/licenses/<variant>` → `"CC " + variant.uppercase()` (bv. "CC BY-SA");
+  een `rightsstatements.org`-URL met `InC` (zowel `/vocab/InC…` als `/page/InC…`) en
+  `europeana.eu/rights/rr-*` → "Rechten voorbehouden"; elke andere, onbekende of ontbrekende rights-URL → "Rechten onbekend" (met de ruwe
   URL als link waar beschikbaar).
 - `TopicSearchWikidataContextClient` (`TopicSearchWikidataContextSource`) doet `GET
   /w/api.php?action=wbsearchentities&search=<term>&language=nl&type=item&format=json`, gevolgd door
@@ -382,10 +417,12 @@ harde totale deadline volstaat.
   `TopicSearchAnswer` (records, `context`, `checkedAt`) op.
 - `TopicSearchCache<K, V>` is een kleine, generieke in-memory TTL-cache (30 minuten, injecteerbare
   `Clock`), een eigen kopie naar het patroon van `PlaceSearchCache` (deze module mag niet op
-  `placesearch` steunen). `TopicSearchService` cachet uitsluitend reeds gevalideerde recordlijsten op
-  de opgebouwde query-string; een mislukte raadpleging (`loader() == null`) wordt nooit gecachet, dus
-  een volgende aanroep probeert opnieuw. Europeana blijft altijd de bron van waarheid: de getoonde
-  `checkedAt` is nooit een verwijzing naar de cache zelf.
+  `placesearch` steunen). `TopicSearchService` cachet uitsluitend reeds gevalideerde recordlijsten
+  samen met het moment van de geslaagde raadpleging (`EuropeanaConsultation`) op de opgebouwde
+  query-string; een mislukte raadpleging (`loader() == null`) wordt nooit gecachet, dus een volgende
+  aanroep probeert opnieuw. Europeana blijft altijd de bron van waarheid: een cachehit toont het
+  oorspronkelijke raadplegingsmoment als `checkedAt` en wordt dus nooit als een nieuwe, actuele
+  raadpleging gepresenteerd.
 - `TopicSearchClientConfiguration` volgt het beanpatroon van `PlaceSearchClientConfiguration` met
   twee overschrijfbare basis-URI's: `hkh.topicsearch.europeana-base-url`/
   `HKH_TOPICSEARCH_EUROPEANA_BASE_URL` (standaard `https://api.europeana.eu`) en
@@ -393,14 +430,20 @@ harde totale deadline volstaat.
   `https://www.wikidata.org`), uitsluitend zodat tests tegen een lokale fixture kunnen draaien. De
   Europeana-API-key komt uitsluitend uit `HKH_EUROPEANA_API_KEY` (geen modulespecifieke prefix,
   zodat productie/acceptatie hetzelfde secretpatroon volgen als `deploy/secrets-cluster.env`/
-  `deploy/secrets-acceptance.env`); de gedeelde testkey `api2demo` staat nergens gecommit. Elk verzoek
+  `deploy/secrets-acceptance.env`); een lege key of de gedeelde testkey `api2demo` wordt vóór een
+  bronaanroep fail-closed geweigerd. `buildEuropeanaTopicQuery` (`TopicSearchService.kt`) laat
+  uitsluitend het woord `van` weg dat direct vóór een viercijferig jaartal staat en behoudt de vaste
+  `AND Heemskerk`-beperking; brede stopwoordverwijdering is bewust achterwege gelaten omdat
+  lidwoorden en naamdelen betekenisdragend zijn (`De Stijl`, `Vincent van Gogh`) en anders
+  cachekeys zouden botsen. Elk verzoek
   gebruikt een beschrijvende User-Agent (`hkh-autopilot-topicsearch/1.0`) en vraagt gzip aan.
 - Frontend: `frontend/lib/topicsearch/` bevat `topic_search_models.dart`, `topic_search_client.dart`
   (`TopicSearchSource`/`TopicSearchClient`, roept `POST /api/topic-search` aan) en de drie schermen
   `topic_results_screen.dart` (`topic-results`: onderwerptitel, `checkedAt`, aantal gevonden items,
   raster met per-record kaartjes met titel/dataProvider/licentiebadge/link, apart gelabeld
-  "Context"-blok indien aanwezig), `topic_empty_screen.dart` (`topic-empty`: "Hiervoor vinden we geen
-  betrouwbare bron" + bronnenstatus + verfijningsvoorstellen) en `topic_outage_screen.dart`
+  "Context (Wikidata)"-blok met bronmarkering indien aanwezig), `topic_empty_screen.dart`
+  (`topic-empty`: "Hiervoor vinden we geen betrouwbare bron" + bronnenstatus +
+  verfijningsvoorstellen) en `topic_outage_screen.dart`
   (`topic-outage`: "Europeana is tijdelijk niet geraadpleegd" + bronnenstatus + retry-actie). Alle
   drie hergebruiken `person_query_widgets.dart` voor focusrand, statussemantiek en responsive layout.
   `person_query_page.dart` routeert een herkende `topicSearchTerm` (na de plek/gebouw-route, als
@@ -408,6 +451,17 @@ harde totale deadline volstaat.
   een vierde voorbeeldvraag ("Wat weten we over de watersnood van 1916 in Heemskerk?") en een derde
   `_CoverageBadge` ("Europeana — archieven, musea, kranten en beeldbanken") naast de bestaande
   badges.
+- `PreviewTopicSearchFixtures` (`nl.vdzon.hkh.previewdata`) is een synthetische HTTP-upstream voor
+  PR-previews: `GET /test-fixtures/europeana/record/v2/search.json` en
+  `GET /test-fixtures/wikidata/w/api.php`. De bean bestaat alleen bij
+  `HKH_TOPICSEARCH_PREVIEW_FIXTURES=true` (`@ConditionalOnProperty`) en weigert in zijn `init` te
+  starten buiten een door de backend geverifieerde PR-preview (`PreviewRuntimeConfig.enabled` plus
+  een `prNumber`). De previewoverlay wijst `HKH_TOPICSEARCH_EUROPEANA_BASE_URL` en
+  `HKH_TOPICSEARCH_WIKIDATA_BASE_URL` naar die paden, zodat de echte client, mapper, service en UI
+  worden doorlopen zonder Europeana-key en zonder echte bron. De standaardvraag levert één als
+  testrecord gemarkeerd item; `test-leeg`, `test-storing`, `test-timeout` en `test-ongeldige-json`
+  in de zoekterm sturen respectievelijk het lege, storings-, timeout- en ongeldige-JSON-pad. Het
+  Wikidata-fixture-endpoint geeft nul kandidaten, dus previews tonen bewust geen Context-blok.
 
 ## Backendmodule `linkdossier`
 
@@ -673,8 +727,12 @@ afzonderlijk aan hun veld gekoppeld en focusbaar blijven.
 
 `.factory/verification.yaml` gebruikt schema 1. Iedere opdracht heeft een stabiele id, een directe
 `argv` zonder shell, een bestaande relatieve working directory en een begrensde timeout. Het vangnet
-bestaat uit Maven `clean verify`, analyze en tests voor beide Flutter-apps en een release-webbuild
-van de gebruikersfrontend. De factory voert dit na de agentrun opnieuw uit en koppelt resultaten aan
+bestaat uit `deploy/verify-runtime-secret-rollout.sh` (alleen bij wijzigingen onder `deploy/`, in
+`.factory/verification.yaml` of in `.github/workflows/build-images.yml`), Maven `clean verify`,
+analyze en tests voor beide Flutter-apps en een release-webbuild van de gebruikersfrontend. Die
+deploycontrole leest geen secretwaarden uit: hij controleert dat de Pod-templatechecksum hoort bij
+het versleutelde secretmanifest en simuleert in een kopie dat een secret-only wijziging een
+backend-rollout afdwingt. De factory voert dit na de agentrun opnieuw uit en koppelt resultaten aan
 HEAD plus de worktree-tree.
 
 Bekende valkuil: een expressiecallback als `setState(() => future = load())` retourneert de toegewezen

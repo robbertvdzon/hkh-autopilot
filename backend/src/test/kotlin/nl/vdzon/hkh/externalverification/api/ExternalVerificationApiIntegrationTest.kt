@@ -41,7 +41,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer
  * publish-guard weigert), AC 4 (uitsluitend minimale verificatievelden opgeslagen) en AC 5 (geen
  * tokenwaarde in logoutput of API-respons).
  */
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest
 @AutoConfigureMockMvc
 class ExternalVerificationApiIntegrationTest(

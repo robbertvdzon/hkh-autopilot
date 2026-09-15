@@ -16,7 +16,8 @@ uiteen gaan lopen. Product Factory en Software Factory ontwikkelen deze variant 
 De backendbasis volgt de architectuurconventies van Personal News Feed. De exacte referentie en
 bewuste afwijkingen staan in [docs/architecture/reference-baseline.md](docs/architecture/reference-baseline.md).
 Repositoryspecifieke build-, test- en toegankelijkheidsafspraken staan in
-[docs/factory/](docs/factory/README.md).
+[docs/factory/](docs/factory/README.md). De aparte, per omgeving geconfigureerde
+agentingang staat in [docs/agent-access.md](docs/agent-access.md).
 
 ## Backend lokaal starten
 
@@ -42,6 +43,7 @@ GET http://localhost:8080/swagger-ui.html
 Het volledige repositoryvangnet, gelijk aan `.factory/verification.yaml`, is:
 
 ```bash
+./deploy/verify-runtime-secret-rollout.sh
 (cd backend && mvn -B --no-transfer-progress clean verify)
 (cd frontend && flutter analyze)
 (cd frontend && flutter test)
@@ -49,5 +51,11 @@ Het volledige repositoryvangnet, gelijk aan `.factory/verification.yaml`, is:
 (cd frontend-admin && flutter analyze)
 (cd frontend-admin && flutter test)
 ```
+
+`./deploy/verify-runtime-secret-rollout.sh` controleert de deployconfiguratie: het toont nooit
+secretwaarden, maar controleert dat de Pod-templatechecksum bij het versleutelde secretmateriaal
+hoort en simuleert dat een secret-only wijziging een backend-rollout afdwingt. Het heeft `kubectl`
+nodig en draait alleen mee wanneer `deploy/`, `.factory/verification.yaml` of
+`.github/workflows/build-images.yml` wijzigt.
 
 Echte secrets, lokale overrides, buildoutput en IDE-bestanden worden niet gecommit.

@@ -22,6 +22,31 @@ private val TOPIC_SEARCH_REFINEMENT_SUGGESTIONS = listOf(
     "Controleer de spelling van de zoekterm.",
 )
 
+private val EUROPEANA_YEAR = Regex("^\\d{4}$")
+private val EUROPEANA_TOKEN_EDGE_PUNCTUATION = Regex("^[^\\p{L}\\p{N}]+|[^\\p{L}\\p{N}]+$")
+
+/**
+ * Europeana treats every word as a required search term. That made the canonical query
+ * `watersnood van 1916 AND Heemskerk` return no records, while the temporal form
+ * `watersnood 1916 AND Heemskerk` does return the relevant Heemskerk record. Keep the local
+ * constraint and omit `van` only directly before a four-digit year. Broad stop-word removal is
+ * deliberately avoided because articles and `van` are meaningful parts of names and titles such
+ * as `De Stijl` and `Vincent van Gogh`.
+ */
+internal fun buildEuropeanaTopicQuery(topicSearchTerm: String): String {
+    val terms = topicSearchTerm
+        .trim()
+        .split(Regex("\\s+"))
+    val meaningfulTerms = terms.filterIndexed { index, term ->
+        val normalizedTerm = term.replace(EUROPEANA_TOKEN_EDGE_PUNCTUATION, "")
+        val nextTerm = terms.getOrNull(index + 1)
+            ?.replace(EUROPEANA_TOKEN_EDGE_PUNCTUATION, "")
+        !(normalizedTerm.equals("van", ignoreCase = true) && nextTerm?.matches(EUROPEANA_YEAR) == true)
+    }
+    val normalizedTopic = meaningfulTerms.joinToString(" ")
+    return "$normalizedTopic AND Heemskerk"
+}
+
 @Configuration
 class TopicSearchExecutorConfiguration {
     /** Losse, kleine executor: deze route is synchroon en kent geen achtergrondtaken. */
@@ -44,7 +69,14 @@ open class TopicSearchService(
     private val clock: Clock = Clock.systemUTC(),
     private val deadlineMillis: Long = TOPIC_SEARCH_DEADLINE_MILLIS,
 ) {
-    private val recordsCache = TopicSearchCache<String, List<TopicSearchRecord>>(TOPIC_SEARCH_CACHE_TTL, clock)
+    /**
+     * Wat Europeana bij één geslaagde raadpleging opleverde, samen met het moment van die
+     * raadpleging. Het moment hoort bij het gecachete antwoord: een cachehit mag nooit als een
+     * nieuwe, actuele raadpleging worden gepresenteerd.
+     */
+    private data class EuropeanaConsultation(val validRecords: List<TopicSearchRecord>, val checkedAt: Instant)
+
+    private val recordsCache = TopicSearchCache<String, EuropeanaConsultation>(TOPIC_SEARCH_CACHE_TTL, clock)
 
     open fun search(topicSearchTerm: String): TopicSearchOutcome {
         val future = executor.submit(Callable { performSearch(topicSearchTerm) })
@@ -59,15 +91,18 @@ open class TopicSearchService(
     }
 
     private fun performSearch(topicSearchTerm: String): TopicSearchOutcome {
-        val query = "$topicSearchTerm AND Heemskerk"
-        val validRecords = recordsCache.getOrPut(query) {
+        val query = buildEuropeanaTopicQuery(topicSearchTerm)
+        val consultation = recordsCache.getOrPut(query) {
             when (val outcome = europeanaClient.search(query)) {
-                is EuropeanaSearchOutcome.Success -> outcome.validRecords
+                is EuropeanaSearchOutcome.Success ->
+                    EuropeanaConsultation(outcome.validRecords, Instant.now(clock))
+
                 EuropeanaSearchOutcome.Failure -> null
             }
         } ?: return TopicSearchOutcome.EuropeanaOutage
 
-        val checkedAt = Instant.now(clock)
+        val validRecords = consultation.validRecords
+        val checkedAt = consultation.checkedAt
         if (validRecords.isEmpty()) {
             return TopicSearchOutcome.Empty(checkedAt, TOPIC_SEARCH_REFINEMENT_SUGGESTIONS)
         }

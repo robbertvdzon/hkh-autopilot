@@ -1277,7 +1277,7 @@ void main() {
       expect(personSource.calls, 0);
       expect(placeSource.calls, 0);
       expect(find.text('Watersnood van 1916 bij Heemskerk'), findsOneWidget);
-      expect(find.text('Context'), findsOneWidget);
+      expect(find.text('Context (Wikidata)'), findsOneWidget);
     },
   );
 

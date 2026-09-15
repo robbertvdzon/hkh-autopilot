@@ -40,7 +40,7 @@ overschrijven waarden uit het bestand; `HKH_SECRETS_FILE` kan naar een andere lo
   fixture-/mock-endpoint te draaien. Geen API-key nodig.
 - `HKH_EUROPEANA_API_KEY`: eigen, projectspecifieke API-key voor de Europeana Record/Search API v2
   vanuit de `topicsearch`-backendmodule (onderwerp/voorwerp/gebeurtenis-route); nooit de gedeelde
-  testkey `api2demo`. Een ontbrekende/lege waarde wordt fail-closed als configuratiefout behandeld
+  testkey `api2demo`. Een ontbrekende/lege waarde of `api2demo` wordt fail-closed als configuratiefout behandeld
   (zelfde uitkomst als een echte storing van Europeana).
 - `HKH_TOPICSEARCH_EUROPEANA_BASE_URL`: optionele basis-URI voor de Europeana-aanroepen vanuit de
   `topicsearch`-backendmodule, standaard `https://api.europeana.eu`; uitsluitend bedoeld om lokaal of
@@ -48,6 +48,14 @@ overschrijven waarden uit het bestand; `HKH_SECRETS_FILE` kan naar een andere lo
 - `HKH_TOPICSEARCH_WIKIDATA_BASE_URL`: optionele basis-URI voor de Wikidata-contextaanroep vanuit de
   `topicsearch`-backendmodule, standaard `https://www.wikidata.org`; uitsluitend bedoeld om lokaal of
   in tests tegen een fixture-/mock-endpoint te draaien. Geen API-key nodig.
+- `HKH_TOPICSEARCH_PREVIEW_FIXTURES`: alleen `true` in een PR-preview; zet de synthetische
+  Europeana-/Wikidata-fixture-endpoints van `PreviewTopicSearchFixtures` aan, waar de twee
+  basis-URI's hierboven dan naar wijzen. De bean weigert te starten buiten een door de backend
+  geverifieerde preview; acceptatie en productie laten deze variabele leeg.
+- `AI_ACCESS_TOKEN`, `AI_ACCESS_EMAILS` en `AI_ACCESS_ALLOWED_ORIGINS`: per omgeving apart
+  geconfigureerde agentingang; zonder token staat die ingang uit. Waarden komen uit het
+  omgevingseigen SealedSecret, nooit uit deze repository. Zie
+  [`../agent-access.md`](../agent-access.md).
 - `HKH_AGENT_RUNTIME_URL`: basis-URL van de gedeelde Agent Runtime;
 - `HKH_AGENT_RUNTIME_TOKEN`: eigen, minimaal bevoegde HKH Autopilot-consumentcredential;
 - `HKH_AGENT_RUNTIME_PROJECT_PREFIX`: exact `HKH_AUTOPILOT`;
