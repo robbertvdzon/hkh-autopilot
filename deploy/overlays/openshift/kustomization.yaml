@@ -22,7 +22,7 @@ images:
   newTag: sha-89a54e8
 - name: backend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-backend
-  newTag: sha-f272542
+  newTag: sha-7e7b6aa
 - name: frontend-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-frontend
   newTag: sha-74a2c36
