@@ -5,17 +5,19 @@ resources:
 - ../../base
 - postgres-backup.yaml
 - sealed-secret-ai-access.yaml
+- sealed-central-postgres.yaml
 patches:
-- patch: |-
-    - op: replace
-      path: /spec/template/metadata/annotations/hkh.vdzonsoftware.nl~1runtime-secret-checksum
-      value: "dcde1cec0f5bbff344eff4a56b84cee3758fd5f2fcb95d63743400ffefcbb4ab"
+- patch: "- op: replace\n  path: /spec/template/metadata/annotations/hkh.vdzonsoftware.nl~1runtime-secret-checksum\n\
+    \  value: \"dcde1cec0f5bbff344eff4a56b84cee3758fd5f2fcb95d63743400ffefcbb4ab\""
   target:
     group: apps
     kind: Deployment
     name: backend
     version: v1
 - path: agent-access-patch.yaml
+- path: central-postgres-patch.yaml
+- path: hkh_autopilot_prod-retired-database.yaml
+- path: retired-backup-patch.yaml
 images:
 - name: admin-image
   newName: ghcr.io/robbertvdzon/hkh-autopilot-admin
