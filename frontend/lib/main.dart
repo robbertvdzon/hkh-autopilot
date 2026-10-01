@@ -9,6 +9,7 @@ import 'news/latest_news.dart';
 import 'personquery/person_query_page.dart';
 import 'product_vision_page.dart';
 import 'self_update_prompt.dart';
+import 'theme/app_theme.dart';
 
 void main() {
   final backend = BackendClient(AppConfig.apiBaseUrl);
@@ -30,13 +31,7 @@ class HkhApp extends StatelessWidget {
     return MaterialApp(
       title: 'Historisch Heemskerk',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF315B52),
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.light,
       home: HomePage(statusSource: statusSource, newsSource: newsSource),
     );
   }
